@@ -1,17 +1,30 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/lib/auth-context';
+import { Menu, Laptop } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const router = useRouter();
+  const router   = useRouter();
+  const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
   useEffect(() => {
-    if (!loading && !user) router.push('/auth/login');
-  }, [user, loading, router]);
+    if (loading) return;
+    if (!user) { router.push('/auth/login'); return; }
+    if (user.role === 'vendor' && !pathname.startsWith('/vendor')) {
+      router.push('/vendor/stock'); return;
+    }
+    if (user.role !== 'vendor' && pathname.startsWith('/vendor')) {
+      router.push('/dashboard');
+    }
+  }, [user, loading, router, pathname]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B1628' }}>
@@ -27,9 +40,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen" style={{ background: '#0B1628' }}>
-      <Sidebar />
-      <main className="flex-1 ml-64 min-h-screen">
-        <div className="p-8 max-w-7xl mx-auto">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 lg:hidden"
+          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <main className="flex-1 lg:ml-64 min-h-screen flex flex-col">
+        {/* Mobile top bar */}
+        <div className="lg:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-20"
+          style={{ background: '#0B1628', borderBottom: '1px solid #1E3058' }}>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-xl transition-colors"
+            style={{ background: 'rgba(30,48,88,0.5)', color: '#64748B' }}>
+            <Menu size={18} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)' }}>
+              <Laptop size={14} color="white" />
+            </div>
+            <span className="font-bold text-sm" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>
+              LaptopRent
+            </span>
+          </div>
+        </div>
+
+        {/* Page content */}
+        <div className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
           {children}
         </div>
       </main>

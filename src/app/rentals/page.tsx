@@ -58,9 +58,12 @@ export default function RentalsPage() {
     setBilling(null);
     const [inv, cli] = await Promise.all([
       api.inventory.available(),
-      api.auth.me().catch(() => ({ data: null })),
+      api.users.list({ role: 'vendor', per_page: '200' }),
     ]);
+
+
     setInventories(inv.data || []);
+    setClients(cli.data?.data || cli.data || []);
     setShowModal(true);
   }
 
@@ -129,8 +132,8 @@ export default function RentalsPage() {
       />
 
       {/* Filters */}
-      <div className="glass-card p-4 mb-6 flex gap-3">
-        <select className="inp w-48" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+      <div className="glass-card p-4 mb-6">
+        <select className="inp sm:w-48" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
           {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
         </select>
       </div>
@@ -142,43 +145,30 @@ export default function RentalsPage() {
         ) : rentals.length === 0 ? (
           <EmptyState icon={<FileText size={22} />} title="No rentals found" desc="Create a new rental to get started" />
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Rental No</th>
-                <th>Laptop</th>
-                <th>Client</th>
-                <th>Duration</th>
-                <th>Billing</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Mobile card list */}
+            <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
               {rentals.map(r => (
-                <tr key={r.id}>
-                  <td><Link href={`/rentals/${r.id}`} className="font-mono text-xs font-medium" style={{ color: '#3B82F6' }}>{r.rental_no}</Link></td>
-                  <td>
-                    <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                <div key={r.id} className="p-4 space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-medium" style={{ color: '#3B82F6' }}>{r.rental_no}</Link>
+                    <span className={`badge badge-${r.status}`}>{r.status}</span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
                     <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
-                  </td>
-                  <td>
-                    <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
-                    <div className="text-xs" style={{ color: '#475569' }}>{r.client?.company || ''}</div>
-                  </td>
-                  <td>
-                    <div className="text-xs">
-                      <div style={{ color: '#F1F5F9' }}>{fmtDate(r.start_date)}</div>
-                      <div style={{ color: '#475569' }}>→ {fmtDate(r.end_date)}</div>
-                      <div style={{ color: '#64748B' }}>{r.duration_days} days</div>
+                  </div>
+                  {r.client?.name && (
+                    <div className="text-xs" style={{ color: '#94A3B8' }}>{r.client.name}{r.client.company ? ` · ${r.client.company}` : ''}</div>
+                  )}
+                  <div className="text-xs" style={{ color: '#64748B' }}>
+                    {fmtDate(r.start_date)} → {fmtDate(r.end_date)} · {r.duration_days} days
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                      <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(r.gst_amount)}</div>
                     </div>
-                  </td>
-                  <td>
-                    <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
-                    <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(r.gst_amount)}</div>
-                  </td>
-                  <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
-                  <td>
                     <div className="flex items-center gap-1">
                       <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
                       {r.status === 'active' && <>
@@ -186,11 +176,64 @@ export default function RentalsPage() {
                         <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => handleCancel(r.id)} />
                       </>}
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Rental No</th>
+                    <th>Laptop</th>
+                    <th>Client</th>
+                    <th className="hidden md:table-cell">Duration</th>
+                    <th>Billing</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rentals.map(r => (
+                    <tr key={r.id}>
+                      <td><Link href={`/rentals/${r.id}`} className="font-mono text-xs font-medium" style={{ color: '#3B82F6' }}>{r.rental_no}</Link></td>
+                      <td>
+                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                        <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
+                      </td>
+                      <td>
+                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
+                        <div className="text-xs" style={{ color: '#475569' }}>{r.client?.company || ''}</div>
+                      </td>
+                      <td className="hidden md:table-cell">
+                        <div className="text-xs">
+                          <div style={{ color: '#F1F5F9' }}>{fmtDate(r.start_date)}</div>
+                          <div style={{ color: '#475569' }}>→ {fmtDate(r.end_date)}</div>
+                          <div style={{ color: '#64748B' }}>{r.duration_days} days</div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                        <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(r.gst_amount)}</div>
+                      </td>
+                      <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
+                      <td>
+                        <div className="flex items-center gap-1">
+                          <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
+                          {r.status === 'active' && <>
+                            <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => handleComplete(r.id)} />
+                            <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => handleCancel(r.id)} />
+                          </>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
         {lastPage > 1 && (
           <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid #1E3058' }}>
@@ -205,7 +248,7 @@ export default function RentalsPage() {
 
       {/* Create Rental Modal */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Create New Rental" width="max-w-2xl">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Laptop (Available)" required>
             <select className="inp" value={form.inventory_id} onChange={e => f('inventory_id', e.target.value)}>
               <option value="">Select laptop...</option>
@@ -214,8 +257,13 @@ export default function RentalsPage() {
               ))}
             </select>
           </FormField>
-          <FormField label="Client ID" required>
-            <input className="inp" type="number" value={form.client_id} onChange={e => f('client_id', e.target.value)} placeholder="User ID of the client" />
+          <FormField label="Client (Vendor)" required>
+            <select className="inp" value={form.client_id} onChange={e => f('client_id', e.target.value)}>
+              <option value="">— Select vendor —</option>
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.company ? ` — ${c.company}` : ''}</option>
+              ))}
+            </select>
           </FormField>
           <FormField label="Start Date" required><input className="inp" type="date" value={form.start_date} onChange={e => f('start_date', e.target.value)} /></FormField>
           <FormField label="End Date" required><input className="inp" type="date" value={form.end_date} onChange={e => f('end_date', e.target.value)} /></FormField>
@@ -225,7 +273,7 @@ export default function RentalsPage() {
           <div className="flex items-end">
             <Button variant="outline" icon={<Calculator size={14} />} onClick={calcBilling} loading={calcLoading} className="w-full justify-center">Preview Billing</Button>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <FormField label="Remarks"><textarea className="inp resize-none" rows={2} value={form.remarks} onChange={e => f('remarks', e.target.value)} /></FormField>
           </div>
         </div>
@@ -234,7 +282,7 @@ export default function RentalsPage() {
         {billing && (
           <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
             <div className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: '#10B981' }}>Billing Summary</div>
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
               {[
                 ['Duration', `${billing.duration_days} days`],
                 ['Pro Rental', `₹${billing.pro_rental}`],

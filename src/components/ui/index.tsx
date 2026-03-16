@@ -35,17 +35,24 @@ export function Modal({ open, onClose, title, children, width = 'max-w-2xl' }: {
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative ${width} w-full rounded-2xl shadow-2xl animate-fade-in`}
-        style={{ background: '#111827', border: '1px solid #1E3058' }}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid #1E3058' }}>
+      <div className={`relative ${width} w-full sm:rounded-2xl rounded-t-2xl shadow-2xl animate-fade-in flex flex-col`}
+        style={{
+          background: '#111827',
+          border: '1px solid #1E3058',
+          maxHeight: '92vh',
+        }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
+          style={{ borderBottom: '1px solid #1E3058' }}>
           <h2 className="font-bold text-base" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>{title}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" style={{ color: '#64748B' }}>
             <X size={16} />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        {/* Scrollable body */}
+        <div className="p-5 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );
@@ -72,12 +79,12 @@ export function StatCard({ label, value, icon, color, sub }: {
 /* ── PageHeader ───────────────────────────────────────── */
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between mb-8">
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6 sm:mb-8">
       <div>
-        <h1 className="text-2xl font-bold mb-1" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>{title}</h1>
+        <h1 className="text-xl sm:text-2xl font-bold mb-1" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>{title}</h1>
         {subtitle && <p className="text-sm" style={{ color: '#64748B' }}>{subtitle}</p>}
       </div>
-      {action && <div>{action}</div>}
+      {action && <div className="flex-shrink-0">{action}</div>}
     </div>
   );
 }
@@ -115,10 +122,10 @@ export function Toast({ message, type, onClose }: { message: string; type: 'succ
   }[type];
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-fade-in flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl"
-      style={{ background: colors.bg, border: `1px solid ${colors.border}`, minWidth: 260 }}>
+    <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-50 animate-fade-in flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl sm:min-w-64"
+      style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
       <span className="text-sm font-medium" style={{ color: colors.text }}>{message}</span>
-      <button onClick={onClose} className="ml-auto" style={{ color: colors.text }}><X size={14} /></button>
+      <button onClick={onClose} className="ml-auto flex-shrink-0" style={{ color: colors.text }}><X size={14} /></button>
     </div>
   );
 }

@@ -65,48 +65,48 @@ export default function OverduePage() {
         ) : rentals.length === 0 ? (
           <EmptyState icon={<AlertCircle size={22} />} title="No overdue rentals" desc="All rentals are within their return date. Great job!" />
         ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Rental No</th>
-                <th>Laptop</th>
-                <th>Client</th>
-                <th>End Date</th>
-                <th>Days Overdue</th>
-                <th>Grand Total</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rentals.map(r => {
-                const overdue = daysOverdue(r.end_date);
-                return (
-                  <tr key={r.id}>
-                    <td><span className="font-mono text-xs font-medium" style={{ color: '#F43F5E' }}>{r.rental_no}</span></td>
-                    <td>
-                      <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                      <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
-                    </td>
-                    <td>
-                      <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
-                      <div className="text-xs" style={{ color: '#475569' }}>{r.client?.email || ''}</div>
-                    </td>
-                    <td style={{ color: '#F43F5E' }}>{fmtDate(r.end_date)}</td>
-                    <td>
-                      <span className="badge badge-overdue">{overdue} day{overdue !== 1 ? 's' : ''}</span>
-                    </td>
-                    <td style={{ color: '#10B981', fontWeight: 600 }}>{fmt(r.grand_total)}</td>
-                    <td>
-                      <div className="flex gap-1">
-                        <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => handleComplete(r.id)}>Complete</Button>
-                        <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => handleCancel(r.id)}>Cancel</Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Rental No</th>
+                  <th>Laptop</th>
+                  <th className="hidden sm:table-cell">Client</th>
+                  <th className="hidden md:table-cell">End Date</th>
+                  <th>Days Overdue</th>
+                  <th className="hidden sm:table-cell">Grand Total</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rentals.map(r => {
+                  const overdue = daysOverdue(r.end_date);
+                  return (
+                    <tr key={r.id}>
+                      <td><span className="font-mono text-xs font-medium" style={{ color: '#F43F5E' }}>{r.rental_no}</span></td>
+                      <td>
+                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                        <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
+                      </td>
+                      <td className="hidden sm:table-cell">
+                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
+                        <div className="text-xs" style={{ color: '#475569' }}>{r.client?.email || ''}</div>
+                      </td>
+                      <td className="hidden md:table-cell" style={{ color: '#F43F5E' }}>{fmtDate(r.end_date)}</td>
+                      <td><span className="badge badge-overdue">{overdue} day{overdue !== 1 ? 's' : ''}</span></td>
+                      <td className="hidden sm:table-cell" style={{ color: '#10B981', fontWeight: 600 }}>{fmt(r.grand_total)}</td>
+                      <td>
+                        <div className="flex gap-1 flex-wrap">
+                          <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => handleComplete(r.id)}>Complete</Button>
+                          <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => handleCancel(r.id)}>Cancel</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

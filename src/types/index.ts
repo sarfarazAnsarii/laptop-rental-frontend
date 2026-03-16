@@ -2,9 +2,25 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  role: 'admin' | 'staff' | 'client';
+  role: 'admin' | 'staff' | 'vendor' | 'client';
   phone?: string;
   company?: string;
+}
+
+export interface Issue {
+  id: number;
+  inventory_id: number;
+  reported_by: number;
+  title: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'acknowledged' | 'in_progress' | 'resolved' | 'closed';
+  admin_notes?: string;
+  resolved_at?: string;
+  created_at: string;
+  updated_at: string;
+  inventory?: Inventory;
+  reporter?: User;
 }
 
 export interface Inventory {
@@ -18,6 +34,7 @@ export interface Inventory {
   graphics: string;
   purchase_date: string;
   type: 'office' | 'vendor' | 'sold';
+  vendor_id?: number;
   vendor_name?: string;
   vendor_location?: string;
   delivery_date?: string;

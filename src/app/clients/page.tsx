@@ -58,13 +58,13 @@ export default function ClientsPage() {
       />
 
       {loading ? (
-        <div className="grid grid-cols-3 gap-4">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-36 rounded-2xl" />)}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-36 rounded-2xl" />)}</div>
       ) : users.length === 0 ? (
         <div className="glass-card">
           <EmptyState icon={<Users size={22} />} title="No clients yet" desc="Clients appear here after you create rentals for them" />
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {users.map(u => (
             <div key={u.id} className="glass-card p-5 hover:border-blue-500/30 transition-all animate-fade-in">
               <div className="flex items-center gap-3 mb-4">
@@ -90,17 +90,15 @@ export default function ClientsPage() {
       )}
 
       {/* Register Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Register New User">
-        <div className="grid grid-cols-2 gap-4">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title="Register New Client">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Full Name" required><input className="inp" value={form.name} onChange={e => f('name', e.target.value)} placeholder="John Doe" /></FormField>
           <FormField label="Email" required><input className="inp" type="email" value={form.email} onChange={e => f('email', e.target.value)} placeholder="john@example.com" /></FormField>
           <FormField label="Password" required><input className="inp" type="password" value={form.password} onChange={e => f('password', e.target.value)} placeholder="Min 8 chars" /></FormField>
           <FormField label="Confirm Password" required><input className="inp" type="password" value={form.password_confirmation} onChange={e => f('password_confirmation', e.target.value)} /></FormField>
           <FormField label="Role">
             <select className="inp" value={form.role} onChange={e => f('role', e.target.value)}>
-              <option value="client">Client</option>
-              <option value="staff">Staff</option>
-              <option value="admin">Admin</option>
+              <option value="client">Client</option>              
             </select>
           </FormField>
           <FormField label="Phone"><input className="inp" value={form.phone} onChange={e => f('phone', e.target.value)} placeholder="9876543210" /></FormField>

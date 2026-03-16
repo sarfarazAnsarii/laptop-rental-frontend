@@ -24,13 +24,16 @@ async function request<T>(
   const data = await res.json();
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+      localStorage.removeItem('auth_token');
+      window.location.href = '/auth/login';
+    }
     throw new Error(data.message || 'Request failed');
   }
 
   return data;
 }
 
-// Auth
 export const api = {
   auth: {
     login: (email: string, password: string) =>
@@ -59,6 +62,38 @@ export const api = {
       request<any>(`/inventories/${id}`, { method: 'DELETE' }),
   },
 
+  vendor: {
+    // Returns the authenticated vendor's assigned stock
+    stock: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/vendor/inventories${qs}`);
+    },
+    // Vendor's own reported issues
+    myIssues: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/vendor/issues${qs}`);
+    },
+  },
+
+  issues: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/issues${qs}`);
+    },
+    get: (id: number) => request<any>(`/issues/${id}`),
+    create: (data: any) =>
+      request<any>('/issues', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: any) =>
+      request<any>(`/issues/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    resolve: (id: number, admin_notes?: string) =>
+      request<any>(`/issues/${id}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ admin_notes }),
+      }),
+    close: (id: number) =>
+      request<any>(`/issues/${id}/close`, { method: 'POST' }),
+  },
+
   rentals: {
     list: (params?: Record<string, string>) => {
       const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -76,6 +111,18 @@ export const api = {
     overdue: () => request<any>('/rentals/overdue'),
     calculateBilling: (data: any) =>
       request<any>('/rentals/calculate-billing', { method: 'POST', body: JSON.stringify(data) }),
+  },
+
+  users: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/users${qs}`);
+    },
+    get: (id: number) => request<any>(`/users/${id}`),
+    update: (id: number, data: any) =>
+      request<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      request<any>(`/users/${id}`, { method: 'DELETE' }),
   },
 
   dashboard: {

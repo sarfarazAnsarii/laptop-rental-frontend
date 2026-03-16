@@ -30,7 +30,7 @@ export default function DashboardPage() {
       setSummary(sum.data);
       setRecentRentals(ren.data?.data || []);
       setLowStock(inv.data?.data || []);
-    }).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const stats = summary ? [
@@ -46,8 +46,8 @@ export default function DashboardPage() {
     <DashboardLayout>
       <div className="animate-fade-in">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-1" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>Dashboard</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-1" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>Dashboard</h1>
           <p className="text-sm" style={{ color: '#64748B' }}>
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
@@ -55,11 +55,11 @@ export default function DashboardPage() {
 
         {/* Stats Grid */}
         {loading ? (
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
             {[...Array(6)].map((_, i) => <div key={i} className="skeleton h-28 rounded-2xl" />)}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
             {stats.map((s, i) => (
               <div key={i} style={{ animationDelay: `${i * 0.07}s` }}>
                 <StatCard {...s} />
@@ -68,10 +68,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
           {/* Recent Active Rentals */}
-          <div className="col-span-3 glass-card overflow-hidden">
-            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1E3058' }}>
+          <div className="lg:col-span-3 glass-card overflow-hidden">
+            <div className="px-4 sm:px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1E3058' }}>
               <h2 className="font-bold text-sm" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>Active Rentals</h2>
               <Link href="/rentals" className="text-xs font-medium" style={{ color: '#3B82F6' }}>View all →</Link>
             </div>
@@ -80,34 +80,36 @@ export default function DashboardPage() {
             ) : recentRentals.length === 0 ? (
               <div className="py-12 text-center text-sm" style={{ color: '#475569' }}>No active rentals</div>
             ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Rental No</th>
-                    <th>Client</th>
-                    <th>Laptop</th>
-                    <th>End Date</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentRentals.map(r => (
-                    <tr key={r.id}>
-                      <td><Link href={`/rentals/${r.id}`} className="font-mono text-xs font-medium" style={{ color: '#3B82F6' }}>{r.rental_no}</Link></td>
-                      <td style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</td>
-                      <td>{r.inventory?.brand} {r.inventory?.model_no}</td>
-                      <td>{fmtDate(r.end_date)}</td>
-                      <td style={{ color: '#10B981', fontWeight: 600 }}>{fmt(r.grand_total)}</td>
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Rental No</th>
+                      <th>Client</th>
+                      <th className="hidden sm:table-cell">Laptop</th>
+                      <th className="hidden sm:table-cell">End Date</th>
+                      <th>Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {recentRentals.map(r => (
+                      <tr key={r.id}>
+                        <td><Link href={`/rentals/${r.id}`} className="font-mono text-xs font-medium" style={{ color: '#3B82F6' }}>{r.rental_no}</Link></td>
+                        <td style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</td>
+                        <td className="hidden sm:table-cell">{r.inventory?.brand} {r.inventory?.model_no}</td>
+                        <td className="hidden sm:table-cell">{fmtDate(r.end_date)}</td>
+                        <td style={{ color: '#10B981', fontWeight: 600 }}>{fmt(r.grand_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
           {/* Available Laptops */}
-          <div className="col-span-2 glass-card overflow-hidden">
-            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1E3058' }}>
+          <div className="lg:col-span-2 glass-card overflow-hidden">
+            <div className="px-4 sm:px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1E3058' }}>
               <h2 className="font-bold text-sm" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>Available Laptops</h2>
               <Link href="/inventory" className="text-xs font-medium" style={{ color: '#3B82F6' }}>View all →</Link>
             </div>
@@ -138,7 +140,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick links */}
-        <div className="mt-6 grid grid-cols-4 gap-3">
+        <div className="mt-4 sm:mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             { href: '/inventory/new',  label: 'Add Laptop',    icon: <Monitor size={16} />,   color: '#3B82F6' },
             { href: '/rentals/new',    label: 'New Rental',    icon: <FileText size={16} />,  color: '#14B8A6' },
