@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Rental } from '@/types';
 import { FileText, Plus, Search, CheckCircle, XCircle, Eye, Calculator } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 
 const STATUS_OPTIONS = ['', 'active', 'completed', 'cancelled', 'overdue'];
 const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(n));
@@ -18,6 +19,8 @@ const EMPTY_FORM = {
 };
 
 export default function RentalsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -128,7 +131,7 @@ export default function RentalsPage() {
       <PageHeader
         title="Rentals"
         subtitle={`${total} rentals`}
-        action={<Button icon={<Plus size={15} />} onClick={openAdd}>New Rental</Button>}
+        action={isAdmin ? <Button icon={<Plus size={15} />} onClick={openAdd}>New Rental</Button> : undefined}
       />
 
       {/* Filters */}
@@ -171,7 +174,7 @@ export default function RentalsPage() {
                     </div>
                     <div className="flex items-center gap-1">
                       <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
-                      {r.status === 'active' && <>
+                      {isAdmin && r.status === 'active' && <>
                         <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => handleComplete(r.id)} />
                         <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => handleCancel(r.id)} />
                       </>}

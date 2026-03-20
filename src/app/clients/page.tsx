@@ -5,10 +5,13 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Users, Plus, Mail, Phone, Building2 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 const EMPTY = { name: '', email: '', password: '', password_confirmation: '', role: 'client', phone: '', company: '' };
 
 export default function ClientsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -54,7 +57,7 @@ export default function ClientsPage() {
       <PageHeader
         title="Clients"
         subtitle="Manage client and staff accounts"
-        action={<Button icon={<Plus size={15} />} onClick={() => setShowModal(true)}>Add User</Button>}
+        action={isAdmin ? <Button icon={<Plus size={15} />} onClick={() => setShowModal(true)}>Add User</Button> : undefined}
       />
 
       {loading ? (

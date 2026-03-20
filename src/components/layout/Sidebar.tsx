@@ -13,7 +13,7 @@ const NAV_ADMIN = [
   { href: '/dashboard',       label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/inventory',       label: 'Inventory',   icon: Monitor },
   { href: '/rentals',         label: 'Rentals',     icon: FileText },
-  { href: '/clients',         label: 'Clients',     icon: Users },
+  // { href: '/clients',         label: 'Clients',     icon: Users },
   { href: '/rentals/overdue', label: 'Overdue',     icon: AlertCircle },
   { href: '/issues',          label: 'Issues',      icon: Wrench },
   { href: '/users',           label: 'Users',       icon: UserCog },
@@ -129,7 +129,9 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
 
       {/* User */}
       <div className="p-4 border-t" style={{ borderColor: '#1E3058' }}>
-        <div className="flex items-center gap-3 mb-3 px-2">
+        <Link href="/profile"
+          className="flex items-center gap-3 mb-3 px-2 py-1.5 rounded-xl transition-all hover:bg-white/5"
+          style={{ textDecoration: 'none' }}>
           <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
             style={{ background: ROLE_GRADIENT[user?.role ?? 'admin'] ?? ROLE_GRADIENT.admin, color: 'white' }}>
             {user?.name?.charAt(0)?.toUpperCase()}
@@ -143,7 +145,7 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
               )}
             </div>
           </div>
-        </div>
+        </Link>
         <button onClick={logout}
           className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm transition-all hover:bg-red-500/10 hover:text-red-400"
           style={{ color: '#475569' }}>

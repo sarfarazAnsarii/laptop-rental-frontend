@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Inventory } from '@/types';
-import { Monitor, Plus, Search, Edit, Trash2, Eye } from 'lucide-react';
+import { Monitor, Plus, Search, Edit, Trash2, Eye, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 
@@ -35,6 +35,12 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // bulk import
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; message: string; failures?: any[] } | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -103,18 +109,37 @@ export default function InventoryPage() {
 
   const f = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
+  async function handleImport() {
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await api.inventory.import(importFile);
+      setImportResult({ success: true, message: res.message });
+      load();
+      setShowImport(false);
+    } catch (e: any) {
+      setImportResult({ success: false, message: e.message || 'Import failed', failures: e.failures });
+    } finally { setImporting(false); }
+  }
+
   return (
     <DashboardLayout>
       <PageHeader
         title="Inventory"
         subtitle={`${total} laptops total`}
-        action={!isStaff ? <Button icon={<Plus size={15} />} onClick={openAdd}>Add Laptop</Button> : undefined}
+        action={!isStaff ? (
+          <div className="flex gap-2">
+            <Button variant="outline" icon={<Upload size={15} />} onClick={() => { setShowImport(true); setImportFile(null); setImportResult(null); }}>Import</Button>
+            <Button icon={<Plus size={15} />} onClick={openAdd}>Add Laptop</Button>
+          </div>
+        ) : undefined}
       />
 
       {/* Filters */}
       <div className="glass-card p-4 mb-6 flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#475569' }} />
+          
           <input className="inp pl-9"
             placeholder={isStaff ? 'Search by laptop unique code...' : 'Search brand, model, asset code...'}
             value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
@@ -255,14 +280,14 @@ export default function InventoryPage() {
           <FormField label="SSD" required><input className="inp" value={form.ssd} onChange={e => f('ssd', e.target.value)} placeholder="512GB NVMe" /></FormField>
           <FormField label="Graphics" required><input className="inp" value={form.graphics} onChange={e => f('graphics', e.target.value)} placeholder="Intel Iris Xe" /></FormField>          
           
-          <FormField label="Delivery Date"><input className="inp" type="date" value={form.delivery_date} onChange={e => f('delivery_date', e.target.value)} /></FormField>
+          {/* <FormField label="Delivery Date"><input className="inp" type="date" value={form.delivery_date} onChange={e => f('delivery_date', e.target.value)} /></FormField>
           {editItem && (
             <FormField label="Status">
               <select className="inp" value={form.status} onChange={e => f('status', e.target.value)}>
                 {['available','rented','maintenance','sold','returned'].map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </FormField>
-          )}
+          )} */}
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Notes"><textarea className="inp resize-none" rows={2} value={form.notes} onChange={e => f('notes', e.target.value)} placeholder="Additional remarks..." /></FormField>
           </div>
@@ -270,6 +295,86 @@ export default function InventoryPage() {
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>
           <Button onClick={handleSave} loading={saving}>{editItem ? 'Update' : 'Add Laptop'}</Button>
+        </div>
+      </Modal>
+
+      {/* Bulk Import Modal */}
+      <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Inventory" width="max-w-lg">
+        <div className="space-y-4">
+          {/* Format hint + sample download */}
+          <div className="p-3 rounded-xl text-xs space-y-1" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="font-semibold" style={{ color: '#3B82F6' }}>Accepted formats: .csv, .xlsx, .xls</div>
+              <button
+                type="button"
+                onClick={() => {
+                  const csv = [
+                    'brand,model_no,cpu,ram,ssd,graphics,notes',
+                    'Dell,Latitude 5520,Intel Core i5-11th Gen,16GB DDR4,512GB NVMe,Intel Iris Xe,Office use',
+                    'HP,EliteBook 840 G8,Intel Core i7-11th Gen,32GB DDR4,1TB SSD,NVIDIA MX450,Staff laptop',
+                    'Lenovo,ThinkPad X1 Carbon,Intel Core i7-12th Gen,16GB LPDDR5,512GB NVMe,Intel Iris Xe,Management',
+                  ].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = 'inventory_sample.csv'; a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg transition-all"
+                style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', fontSize: '0.7rem', fontWeight: 600 }}>
+                <FileSpreadsheet size={11} /> Download Sample
+              </button>
+            </div>
+            <div style={{ color: '#64748B' }}>Required columns (first row as headers):</div>
+            <div className="font-mono" style={{ color: '#94A3B8' }}>brand, model_no, cpu, ram, ssd, graphics, notes</div>
+          </div>
+
+          {/* File picker */}
+          <FormField label="Select File" required>
+            <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl cursor-pointer transition-all"
+              style={{ border: '2px dashed #1E3058', background: importFile ? 'rgba(59,130,246,0.06)' : 'rgba(11,22,40,0.5)' }}>
+              <FileSpreadsheet size={28} style={{ color: importFile ? '#3B82F6' : '#334155' }} />
+              <span className="text-sm font-medium" style={{ color: importFile ? '#3B82F6' : '#475569' }}>
+                {importFile ? importFile.name : 'Click to choose file'}
+              </span>
+              {importFile && <span className="text-xs" style={{ color: '#475569' }}>{(importFile.size / 1024).toFixed(1)} KB</span>}
+              <input type="file" accept=".csv,.xlsx,.xls" className="hidden"
+                onChange={e => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }} />
+            </label>
+          </FormField>
+
+          {/* Result */}
+          {importResult && (
+            <div className="p-3 rounded-xl" style={{
+              background: importResult.success ? 'rgba(16,185,129,0.08)' : 'rgba(244,63,94,0.08)',
+              border: `1px solid ${importResult.success ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)'}`,
+            }}>
+              <div className="flex items-center gap-2 mb-1">
+                {importResult.success
+                  ? <CheckCircle2 size={14} style={{ color: '#10B981' }} />
+                  : <AlertCircle size={14} style={{ color: '#F43F5E' }} />}
+                <span className="text-sm font-medium" style={{ color: importResult.success ? '#10B981' : '#F43F5E' }}>
+                  {importResult.message}
+                </span>
+              </div>
+              {importResult.failures && importResult.failures.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                  {importResult.failures.map((f: any, i: number) => (
+                    <div key={i} className="text-xs" style={{ color: '#94A3B8' }}>
+                      <span style={{ color: '#F43F5E' }}>Row {f.row}:</span> {f.field} — {f.errors?.join(', ')}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="ghost" onClick={() => setShowImport(false)}>Close</Button>
+          <Button icon={<Upload size={14} />} onClick={handleImport} loading={importing} disabled={!importFile}>
+            Upload & Import
+          </Button>
         </div>
       </Modal>
 

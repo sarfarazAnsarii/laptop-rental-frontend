@@ -26,7 +26,7 @@ const ROLE_ICON: Record<string, any> = {
 
 const EMPTY_FORM = {
   name: '', email: '', password: '', password_confirmation: '',
-  role: 'client', phone: '', company: '',
+  role: 'staff', phone: '', company: '',
 };
 
 export default function UsersPage() {
@@ -82,14 +82,18 @@ export default function UsersPage() {
         email: form.email,
         password: form.password,
         password_confirmation: form.password_confirmation,
+        role: form.role,
+        phone: form.phone || undefined,
+        company: form.company || undefined,
       });
+      // If backend doesn't apply role via register, update silently in background
       const newUserId = res.data?.user?.id ?? res.data?.id;
-      if (newUserId && (form.role !== 'client' || form.phone || form.company)) {
-        await api.users.update(newUserId, {
+      if (newUserId && form.role !== 'client') {
+        api.users.update(newUserId, {
           role: form.role,
-          phone: form.phone,
-          company: form.company,
-        });
+          phone: form.phone || undefined,
+          company: form.company || undefined,
+        }).catch(() => {});
       }
       showToast('User registered successfully');
       setShowAdd(false);

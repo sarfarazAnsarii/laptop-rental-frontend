@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push('/auth/login'); return; }
-    if (user.role === 'vendor' && !pathname.startsWith('/vendor')) {
+    if (user.role === 'vendor' && !pathname.startsWith('/vendor') && pathname !== '/profile') {
       router.push('/vendor/stock'); return;
     }
     if (user.role !== 'vendor' && pathname.startsWith('/vendor')) {

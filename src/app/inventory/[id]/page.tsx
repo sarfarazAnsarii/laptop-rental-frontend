@@ -13,6 +13,7 @@ import {
   Clock, User, CheckCircle, AlertCircle, RotateCcw, Hash,
   Tag, Package, ChevronRight,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
 
 /* ── helpers ── */
 const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(n));
@@ -72,6 +73,8 @@ export default function InventoryDetailPage() {
   const params   = useParams();
   const router   = useRouter();
   const id       = Number(params.id);
+  const { user } = useAuth();
+  const isAdmin  = user?.role === 'admin';
 
   const [item,    setItem]    = useState<Inventory | null>(null);
   const [rentals, setRentals] = useState<Rental[]>([]);
@@ -108,15 +111,15 @@ export default function InventoryDetailPage() {
   function openEdit() {
     if (!item) return;
     setEditForm({
-      brand:            item.brand,
-      model_no:         item.model_no,
-      cpu:              item.cpu,
-      ram:              item.ram,
-      ssd:              item.ssd,
-      graphics:         item.graphics,
-      purchase_date:    item.purchase_date,
-      type:             item.type,
-      status:           item.status,
+      brand:            item.brand            || '',
+      model_no:         item.model_no         || '',
+      cpu:              item.cpu              || '',
+      ram:              item.ram              || '',
+      ssd:              item.ssd              || '',
+      graphics:         item.graphics         || '',
+      purchase_date:    item.purchase_date    || '',
+      type:             item.type             || '',
+      status:           item.status           || '',
       vendor_name:      item.vendor_name      || '',
       vendor_location:  item.vendor_location  || '',
       delivery_date:    item.delivery_date    || '',
@@ -186,8 +189,10 @@ export default function InventoryDetailPage() {
             <Link href="/inventory">
               <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />}>Back</Button>
             </Link>
-            <Button variant="outline" size="sm" icon={<Edit size={13} />} onClick={openEdit}>Edit</Button>
-            <Button variant="danger"  size="sm" icon={<Trash2 size={13} />} onClick={handleDelete}>Delete</Button>
+            {isAdmin && <>
+              <Button variant="outline" size="sm" icon={<Edit size={13} />} onClick={openEdit}>Edit</Button>
+              <Button variant="danger"  size="sm" icon={<Trash2 size={13} />} onClick={handleDelete}>Delete</Button>
+            </>}
           </div>
         </div>
 
@@ -402,7 +407,7 @@ export default function InventoryDetailPage() {
           <FormField label="RAM"     required><input className="inp" value={editForm.ram}      onChange={e => f('ram', e.target.value)} /></FormField>
           <FormField label="SSD"     required><input className="inp" value={editForm.ssd}      onChange={e => f('ssd', e.target.value)} /></FormField>
           <FormField label="Graphics" required><input className="inp" value={editForm.graphics} onChange={e => f('graphics', e.target.value)} /></FormField>
-          <FormField label="Purchase Date" required>
+          {/* <FormField label="Purchase Date" required>
             <input className="inp" type="date" value={editForm.purchase_date} onChange={e => f('purchase_date', e.target.value)} />
           </FormField>
           <FormField label="Type" required>
@@ -431,7 +436,7 @@ export default function InventoryDetailPage() {
           </FormField>
           <FormField label="Return Location">
             <input className="inp" value={editForm.return_location} onChange={e => f('return_location', e.target.value)} />
-          </FormField>
+          </FormField> */}
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Notes">
               <textarea className="inp resize-none" rows={3} value={editForm.notes} onChange={e => f('notes', e.target.value)} />

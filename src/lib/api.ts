@@ -43,6 +43,12 @@ export const api = {
       }),
     logout: () => request('/auth/logout', { method: 'POST' }),
     me: () => request<{ success: boolean; data: any }>('/auth/me'),
+    changePassword: (data: { current_password: string; password: string; password_confirmation: string }) =>
+      request<any>('/auth/change-password', { method: 'POST', body: JSON.stringify(data) }),
+    forgotPassword: (email: string) =>
+      request<any>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+    resetPassword: (data: { email: string; otp: string; password: string; password_confirmation: string }) =>
+      request<any>('/auth/reset-password', { method: 'POST', body: JSON.stringify(data) }),
     register: (data: any) =>
       request('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   },
@@ -60,6 +66,28 @@ export const api = {
       request<any>(`/inventories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: number) =>
       request<any>(`/inventories/${id}`, { method: 'DELETE' }),
+    import: async (file: File) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch(`${BASE_URL}/inventories/import`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.includes('/auth/login')) {
+          localStorage.removeItem('auth_token');
+          window.location.href = '/auth/login';
+        }
+        throw { message: data.message, failures: data.failures };
+      }
+      return data;
+    },
   },
 
   vendor: {
