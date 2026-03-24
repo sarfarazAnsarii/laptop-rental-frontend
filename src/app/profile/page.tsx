@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
-import { User, Mail, Phone, Building2, Shield, Eye, EyeOff, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Building2, MapPin, Shield, Eye, EyeOff, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
 
 const ROLE_GRADIENT: Record<string, string> = {
   admin:  'linear-gradient(135deg, #8B5CF6, #6D28D9)',
@@ -64,8 +64,9 @@ export default function ProfilePage() {
           {/* Info rows */}
           <div className="w-full space-y-3 text-left">
             <InfoRow icon={<Mail size={14} />}     label="Email"   value={user.email} />
-            {user.phone   && <InfoRow icon={<Phone size={14} />}    label="Phone"   value={user.phone} />}
+            {user.phone   && <InfoRow icon={<Phone size={14} />}     label="Phone"   value={user.phone} />}
             {user.company && <InfoRow icon={<Building2 size={14} />} label="Company" value={user.company} />}
+            {(user as any).address && <InfoRow icon={<MapPin size={14} />} label="Address" value={(user as any).address} />}
             <InfoRow icon={<Shield size={14} />}   label="Role"    value={user.role.charAt(0).toUpperCase() + user.role.slice(1)} accent />
           </div>
         </div>

@@ -111,21 +111,16 @@ export default function InventoryDetailPage() {
   function openEdit() {
     if (!item) return;
     setEditForm({
-      brand:            item.brand            || '',
-      model_no:         item.model_no         || '',
-      cpu:              item.cpu              || '',
-      ram:              item.ram              || '',
-      ssd:              item.ssd              || '',
-      graphics:         item.graphics         || '',
-      purchase_date:    item.purchase_date    || '',
-      type:             item.type             || '',
-      status:           item.status           || '',
-      vendor_name:      item.vendor_name      || '',
-      vendor_location:  item.vendor_location  || '',
-      delivery_date:    item.delivery_date    || '',
-      return_date:      item.return_date      || '',
-      return_location:  item.return_location  || '',
-      notes:            item.notes            || '',
+      brand:          item.brand                   || '',
+      model_no:       item.model_no                || '',
+      serial_number:  (item as any).serial_number  || '',
+      cpu:            item.cpu                     || '',
+      generation:     (item as any).generation     || '',
+      ram:            item.ram                     || '',
+      ssd:            item.ssd                     || '',
+      purchase_date:  item.purchase_date           || '',
+      purchaser:      (item as any).purchaser      || '',
+      status:         item.status                  || '',
     });
     setShowEdit(true);
   }
@@ -133,7 +128,8 @@ export default function InventoryDetailPage() {
   async function handleSave() {
     setSaving(true);
     try {
-      await api.inventory.update(id, editForm);
+      const payload = Object.fromEntries(Object.entries(editForm).filter(([, v]) => v !== ''));
+      await api.inventory.update(id, payload);
       showToast('Laptop updated successfully');
       setShowEdit(false);
       load();
@@ -251,16 +247,19 @@ export default function InventoryDetailPage() {
           <div className="lg:col-span-2 glass-card p-5">
             <SectionTitle>Specifications</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <SpecCard icon={<Cpu size={16} />}      label="Processor" value={item.cpu}      color="#3B82F6" />
-              <SpecCard icon={<Database size={16} />} label="Memory"    value={item.ram}      color="#14B8A6" />
-              <SpecCard icon={<HardDrive size={16} />} label="Storage"  value={item.ssd}      color="#8B5CF6" />
-              <SpecCard icon={<Zap size={16} />}      label="Graphics"  value={item.graphics} color="#F59E0B" />
+              <SpecCard icon={<Cpu size={16} />}       label="Processor"   value={item.cpu}                              color="#3B82F6" />
+              {(item as any).generation && <SpecCard icon={<Hash size={16} />} label="Generation" value={(item as any).generation} color="#6366F1" />}
+              <SpecCard icon={<Database size={16} />}  label="Memory"      value={item.ram}                              color="#14B8A6" />
+              <SpecCard icon={<HardDrive size={16} />} label="Storage"     value={item.ssd}                              color="#8B5CF6" />
+              {item.graphics && <SpecCard icon={<Zap size={16} />} label="Graphics" value={item.graphics}                color="#F59E0B" />}
             </div>
           </div>
 
           {/* Purchase / Vendor */}
           <div className="glass-card p-5 space-y-3.5">
             <SectionTitle>Purchase Info</SectionTitle>
+            {(item as any).serial_number && <InfoRow icon={<Hash size={13} />}     label="Serial Number"  value={(item as any).serial_number} />}
+            {(item as any).purchaser     && <InfoRow icon={<User size={13} />}     label="Purchaser"      value={(item as any).purchaser} />}
             <InfoRow icon={<Calendar size={13} />}  label="Purchase Date"   value={fmtDate(item.purchase_date)} />
             <InfoRow icon={<Package size={13} />}   label="Delivery Date"   value={fmtDate(item.delivery_date)} />
             {item.return_date     && <InfoRow icon={<RotateCcw size={13} />} label="Return Date"     value={fmtDate(item.return_date)} />}
@@ -399,49 +398,22 @@ export default function InventoryDetailPage() {
 
       {/* ── Edit Modal ── */}
       <Modal open={showEdit} onClose={() => setShowEdit(false)}
-        title={`Edit — ${item.asset_code}`} width="max-w-3xl">
+        title={`Edit — ${item.asset_code}`} width="max-w-2xl">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Brand"   required><input className="inp" value={editForm.brand}    onChange={e => f('brand', e.target.value)} /></FormField>
+          <FormField label="Brand" required><input className="inp" value={editForm.brand} onChange={e => f('brand', e.target.value)} /></FormField>
           <FormField label="Model No" required><input className="inp" value={editForm.model_no} onChange={e => f('model_no', e.target.value)} /></FormField>
-          <FormField label="CPU"     required><input className="inp" value={editForm.cpu}      onChange={e => f('cpu', e.target.value)} /></FormField>
-          <FormField label="RAM"     required><input className="inp" value={editForm.ram}      onChange={e => f('ram', e.target.value)} /></FormField>
-          <FormField label="SSD"     required><input className="inp" value={editForm.ssd}      onChange={e => f('ssd', e.target.value)} /></FormField>
-          <FormField label="Graphics" required><input className="inp" value={editForm.graphics} onChange={e => f('graphics', e.target.value)} /></FormField>
-          {/* <FormField label="Purchase Date" required>
-            <input className="inp" type="date" value={editForm.purchase_date} onChange={e => f('purchase_date', e.target.value)} />
-          </FormField>
-          <FormField label="Type" required>
-            <select className="inp" value={editForm.type} onChange={e => f('type', e.target.value)}>
-              <option value="vendor">Vendor</option>
-              <option value="office">Office</option>
-              <option value="sold">Sold</option>
-            </select>
-          </FormField>
+          <FormField label="Serial Number"><input className="inp" value={editForm.serial_number} onChange={e => f('serial_number', e.target.value)} placeholder="F7088H2" /></FormField>
+          <FormField label="CPU" required><input className="inp" value={editForm.cpu} onChange={e => f('cpu', e.target.value)} /></FormField>
+          <FormField label="Generation"><input className="inp" value={editForm.generation} onChange={e => f('generation', e.target.value)} placeholder="6th, 8th, 12th..." /></FormField>
+          <FormField label="RAM" required><input className="inp" value={editForm.ram} onChange={e => f('ram', e.target.value)} /></FormField>
+          <FormField label="HDD / SSD" required><input className="inp" value={editForm.ssd} onChange={e => f('ssd', e.target.value)} /></FormField>
+          <FormField label="Purchase Date"><input className="inp" type="date" value={editForm.purchase_date} onChange={e => f('purchase_date', e.target.value)} /></FormField>
+          <FormField label="Purchaser"><input className="inp" value={editForm.purchaser} onChange={e => f('purchaser', e.target.value)} placeholder="Ravi Delhi" /></FormField>
           <FormField label="Status">
             <select className="inp" value={editForm.status} onChange={e => f('status', e.target.value)}>
               {EDIT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </FormField>
-          <FormField label="Vendor Name">
-            <input className="inp" value={editForm.vendor_name} onChange={e => f('vendor_name', e.target.value)} />
-          </FormField>
-          <FormField label="Vendor Location">
-            <input className="inp" value={editForm.vendor_location} onChange={e => f('vendor_location', e.target.value)} />
-          </FormField>
-          <FormField label="Delivery Date">
-            <input className="inp" type="date" value={editForm.delivery_date} onChange={e => f('delivery_date', e.target.value)} />
-          </FormField>
-          <FormField label="Return Date">
-            <input className="inp" type="date" value={editForm.return_date} onChange={e => f('return_date', e.target.value)} />
-          </FormField>
-          <FormField label="Return Location">
-            <input className="inp" value={editForm.return_location} onChange={e => f('return_location', e.target.value)} />
-          </FormField> */}
-          <div className="col-span-1 sm:col-span-2">
-            <FormField label="Notes">
-              <textarea className="inp resize-none" rows={3} value={editForm.notes} onChange={e => f('notes', e.target.value)} />
-            </FormField>
-          </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>

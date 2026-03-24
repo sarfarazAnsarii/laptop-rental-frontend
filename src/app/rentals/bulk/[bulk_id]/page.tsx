@@ -1,0 +1,838 @@
+'use client';
+
+import { ReactNode, useEffect, useState, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+import { Button, Modal, Toast, FormField } from '@/components/ui';
+import { api } from '@/lib/api';
+import {
+  ArrowLeft, Layers, CheckCircle, XCircle,
+  ChevronRight, SendHorizonal, Eye,
+  Building2, Mail, Phone, FileText,
+  Truck, MapPin, Contact, Plus,
+} from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+
+const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(n));
+const fmtDate = (d?: string) =>
+  d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="text-xs font-bold uppercase tracking-widest mb-4"
+      style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+      {children}
+    </h2>
+  );
+}
+
+function InfoRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 flex-shrink-0" style={{ color: '#475569' }}>{icon}</span>
+      <div>
+        <div className="text-xs mb-0.5" style={{ color: '#475569' }}>{label}</div>
+        <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+export default function BulkRentalDetailPage() {
+  const params   = useParams();
+  const router   = useRouter();
+  const { user } = useAuth();
+  const isAdmin        = user?.role === 'admin';
+  const isAdminOrStaff = user?.role === 'admin' || user?.role === 'staff';
+  const isClient       = user?.role === 'client';
+  const bulkId   = decodeURIComponent(params.bulk_id as string);
+
+  const [rentals, setRentals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [acting,  setActing]  = useState<string | null>(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+
+  // Schedules
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [scheduleModal, setScheduleModal] = useState<'pickup' | 'delivery' | null>(null);
+  const EMPTY_SCHED = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '', assigned_to: '' };
+  const [schedForm, setSchedForm] = useState(EMPTY_SCHED);
+  const [staffUsers, setStaffUsers] = useState<any[]>([]);
+  const [schedSaving, setSchedSaving] = useState(false);
+  const [completeModal, setCompleteModal] = useState<any | null>(null);
+  const [completeNote, setCompleteNote] = useState('');
+
+  // Individual laptop pickup (client-facing)
+  const [indPickupRental, setIndPickupRental] = useState<any | null>(null);
+  const [indPickupForm,   setIndPickupForm]   = useState({ address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' });
+  const [indPickupSaving, setIndPickupSaving] = useState(false);
+
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.rentals.list({ bulk_id: bulkId, per_page: '100' });
+      const all  = res.data?.data || res.data || [];
+      const data = all.filter((r: any) => r.bulk_id === bulkId);
+      if (data.length === 0) { router.push('/rentals'); return; }
+      setRentals(data);
+      // Load schedules for all rentals in this bulk
+      const schedResults = await Promise.allSettled(data.map((r: any) => api.rentals.schedules.list(r.id)));
+      const allSchedules = schedResults.flatMap((res, i) =>
+        res.status === 'fulfilled' ? (res.value.data || []).map((s: any) => ({ ...s, _rental: data[i] })) : []
+      );
+      setSchedules(allSchedules.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()));
+    } catch {
+      router.push('/rentals');
+    } finally { setLoading(false); }
+  }, [bulkId, router]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleCompleteAll() {
+    if (!confirm(`Complete all ${rentals.length} rentals in this bulk?`)) return;
+    setActing('complete');
+    try {
+      await Promise.all(rentals.filter(r => r.status === 'active').map(r => api.rentals.complete(r.id)));
+      showToast('All rentals completed');
+      load();
+    } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
+    finally { setActing(null); }
+  }
+
+  async function handleCancelAll() {
+    if (!confirm(`Cancel all ${rentals.length} rentals in this bulk?`)) return;
+    setActing('cancel');
+    try {
+      await Promise.all(rentals.filter(r => r.status === 'active').map(r => api.rentals.cancel(r.id)));
+      showToast('All rentals cancelled');
+      load();
+    } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
+    finally { setActing(null); }
+  }
+
+  async function confirmSendInvoice() {
+    setActing('invoice');
+    try {
+      await Promise.all(rentals.map(r => api.rentals.sendInvoice(r.id)));
+      showToast(`Invoice sent to ${rentals[0]?.client?.email} (${rentals.length} rentals)`);
+      setShowInvoiceModal(false);
+    } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
+    finally { setActing(null); }
+  }
+
+  async function confirmSendAdvanceInvoice() {
+    setActing('advance');
+    try {
+      const res = await api.rentals.sendBulkAdvanceInvoice(bulkId, 30);
+      const msg = res.message || `Advance invoice sent (${res.laptops_count ?? rentals.length} laptops)`;
+      showToast(msg);
+      setShowAdvanceModal(false);
+    } catch (e: any) { showToast(e.message || 'Failed to send advance invoice', 'error'); }
+    finally { setActing(null); }
+  }
+
+  const sf = (k: string, v: string) => setSchedForm(p => ({ ...p, [k]: v }));
+
+  // Load staff/admin users for delivery assignment
+  useEffect(() => {
+    if (!isAdminOrStaff) return;
+    api.users.list({ role: 'staff', per_page: '100' })
+      .then(res => {
+        const staff = res.data?.data || res.data || [];
+        api.users.list({ role: 'admin', per_page: '100' })
+          .then(res2 => setStaffUsers([...staff, ...(res2.data?.data || res2.data || [])]))
+          .catch(() => setStaffUsers(staff));
+      })
+      .catch(() => {});
+  }, [isAdminOrStaff]);
+
+  async function handleScheduleAll() {
+    if (!scheduleModal) return;
+    setSchedSaving(true);
+    try {
+      const payload: any = { ...schedForm };
+      if (scheduleModal === 'delivery' && schedForm.assigned_to) payload.assigned_to = Number(schedForm.assigned_to);
+      if (scheduleModal === 'pickup') {
+        await api.rentals.bulkSchedules.schedulePickup(bulkId, payload);
+        showToast(`Pickup scheduled for bulk — admin team notified`);
+      } else {
+        await api.rentals.bulkSchedules.scheduleDelivery(bulkId, payload);
+        showToast(`Delivery scheduled and staff assigned`);
+      }
+      setScheduleModal(null);
+      setSchedForm(EMPTY_SCHED);
+      load();
+    } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
+    finally { setSchedSaving(false); }
+  }
+
+  async function handleCompleteSchedule() {
+    if (!completeModal) return;
+    setSchedSaving(true);
+    try {
+      await api.schedules.complete(completeModal.id, completeNote);
+      showToast('Marked as completed');
+      setCompleteModal(null); setCompleteNote('');
+      load();
+    } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
+    finally { setSchedSaving(false); }
+  }
+
+  async function handleCancelSchedule(s: any) {
+    if (!confirm('Cancel this schedule?')) return;
+    try {
+      await api.schedules.cancel(s.id);
+      showToast('Schedule cancelled');
+      load();
+    } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
+  }
+
+  async function handleIndividualPickup() {
+    if (!indPickupRental) return;
+    setIndPickupSaving(true);
+    try {
+      await api.rentals.schedules.schedulePickup(indPickupRental.id, indPickupForm);
+      showToast(`Pickup scheduled for ${indPickupRental.inventory?.brand} ${indPickupRental.inventory?.model_no}`);
+      setIndPickupRental(null);
+      setIndPickupForm({ address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' });
+      load();
+    } catch (e: any) { showToast(e.message || 'Failed to schedule pickup', 'error'); }
+    finally { setIndPickupSaving(false); }
+  }
+
+  if (loading) return (
+    <DashboardLayout>
+      <div className="space-y-5">
+        <div className="skeleton h-8 w-44 rounded-xl" />
+        <div className="skeleton h-40 rounded-2xl" />
+        <div className="skeleton h-64 rounded-2xl" />
+      </div>
+    </DashboardLayout>
+  );
+
+  if (rentals.length === 0) return null;
+
+  const client     = rentals[0]?.client;
+  const vendors    = Array.from(
+    new Map(
+      rentals
+        .filter((r: any) => r.inventory?.vendor_id)
+        .map((r: any) => [r.inventory.vendor_id, r.inventory])
+    ).values()
+  );
+  const statuses   = [...new Set(rentals.map((r: any) => r.status))];
+  const allActive  = rentals.every((r: any) => r.status === 'active');
+  const grandSum   = rentals.reduce((s: number, r: any) => s + Number(r.grand_total || 0), 0);
+  const gstSum     = rentals.reduce((s: number, r: any) => s + Number(r.gst_amount  || 0), 0);
+  const totalSum   = rentals.reduce((s: number, r: any) => s + Number(r.total       || 0), 0);
+
+  return (
+    <DashboardLayout>
+      <div className="animate-fade-in space-y-5">
+
+        {/* Breadcrumb */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 text-sm" style={{ color: '#475569' }}>
+            <Link href="/rentals" className="hover:text-blue-400 transition-colors">Rentals</Link>
+            <ChevronRight size={13} />
+            <span style={{ color: '#A78BFA' }}>{bulkId}</span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Link href="/rentals">
+              <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />}>Back</Button>
+            </Link>
+            <Link href={`/rentals/bulk/${encodeURIComponent(bulkId)}/invoice`} target="_blank">
+              <Button variant="outline" size="sm" icon={<FileText size={13} />}>View Invoice</Button>
+            </Link>
+            {isAdmin && client?.email && (
+              <>
+                <Button variant="outline" size="sm" icon={<SendHorizonal size={13} />} onClick={() => setShowAdvanceModal(true)}>
+                  Advance Invoice
+                </Button>
+                <Button variant="outline" size="sm" icon={<SendHorizonal size={13} />} onClick={() => setShowInvoiceModal(true)}>
+                  Send Invoice
+                </Button>
+              </>
+            )}
+            {isAdmin && allActive && (
+              <>
+                <Button variant="success" size="sm" icon={<CheckCircle size={13} />}
+                  loading={acting === 'complete'} onClick={handleCompleteAll}>
+                  Complete All
+                </Button>
+                <Button variant="danger" size="sm" icon={<XCircle size={13} />}
+                  loading={acting === 'cancel'} onClick={handleCancelAll}>
+                  Cancel All
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Hero */}
+        <div className="glass-card p-6"
+          style={{ background: 'linear-gradient(135deg,rgba(13,27,46,0.95),rgba(17,34,62,0.95))', borderColor: '#1E3058' }}>
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', boxShadow: '0 0 30px rgba(139,92,246,0.25)' }}>
+              <Layers size={24} color="white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-2">
+                <span className="font-mono text-sm px-2.5 py-1 rounded-lg font-semibold"
+                  style={{ background: 'rgba(139,92,246,0.15)', color: '#A78BFA', border: '1px solid rgba(139,92,246,0.3)' }}>
+                  {bulkId}
+                </span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                  style={{ background: 'rgba(139,92,246,0.12)', color: '#A78BFA' }}>
+                  {rentals.length} Laptops
+                </span>
+                {statuses.map(s => (
+                  <span key={s} className={`badge badge-${s}`}>{s}</span>
+                ))}
+              </div>
+              <h1 className="text-xl font-bold" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>
+                Bulk Rental
+              </h1>
+              <p className="text-xs mt-1" style={{ color: '#475569' }}>
+                Delivery: {fmtDate(rentals[0]?.delivery_date || rentals[0]?.start_date)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Client + Vendor + Billing */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+
+          {/* Client Info */}
+          <div className="glass-card p-5 space-y-3.5">
+            <SectionTitle>Client</SectionTitle>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold"
+                style={{ background: 'linear-gradient(135deg,#14B8A6,#0D9488)', color: 'white' }}>
+                {client?.name?.charAt(0)?.toUpperCase()}
+              </div>
+              <div>
+                <div className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>{client?.name || '—'}</div>
+                {client?.company && <div className="text-xs" style={{ color: '#475569' }}>{client.company}</div>}
+              </div>
+            </div>
+            {client?.phone   && <InfoRow icon={<Phone     size={13} />} label="Phone"   value={client.phone} />}
+            {client?.email   && <InfoRow icon={<Mail      size={13} />} label="Email"   value={client.email} />}
+            {client?.address && <InfoRow icon={<MapPin    size={13} />} label="Address" value={client.address} />}
+            {client?.company && <InfoRow icon={<Building2 size={13} />} label="Company" value={client.company} />}
+          </div>
+
+          {/* Vendor Info */}
+          <div className="glass-card p-5 space-y-3.5">
+            <SectionTitle>Vendor</SectionTitle>
+            {vendors.length === 0 ? (
+              <div className="text-xs py-6 text-center" style={{ color: '#334155' }}>No vendor assigned</div>
+            ) : vendors.map((inv: any) => (
+              <div key={inv.vendor_id} className="space-y-3">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', color: 'white' }}>
+                    {inv.vendor_name?.charAt(0)?.toUpperCase() || 'V'}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>
+                      {inv.vendor_name || `Vendor #${inv.vendor_id}`}
+                    </div>
+                    <div className="text-xs" style={{ color: '#475569' }}>ID: {inv.vendor_id}</div>
+                  </div>
+                </div>
+                {inv.vendor_name     && <InfoRow icon={<Building2 size={13} />} label="Vendor Name"     value={inv.vendor_name} />}
+                {inv.vendor_location && <InfoRow icon={<MapPin    size={13} />} label="Vendor Location" value={inv.vendor_location} />}
+                {inv.return_location && <InfoRow icon={<MapPin    size={13} />} label="Return Location" value={inv.return_location} />}
+                {inv.return_date     && <InfoRow icon={<Contact   size={13} />} label="Return Date"     value={fmtDate(inv.return_date)} />}
+              </div>
+            ))}
+          </div>
+
+          {/* Billing Summary */}
+          <div className="lg:col-span-2 glass-card p-5">
+            <SectionTitle>Billing Summary</SectionTitle>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Laptops',     value: String(rentals.length),  color: '#A78BFA' },
+                { label: 'Total Rental', value: fmt(totalSum),           color: '#F1F5F9' },
+                { label: 'Total GST',   value: fmt(gstSum),              color: '#F59E0B' },
+                { label: 'Grand Total', value: fmt(grandSum),            color: '#10B981' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="text-center px-3 py-3.5 rounded-xl"
+                  style={{ background: 'rgba(30,48,88,0.4)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                  <div className="text-xs mb-1" style={{ color: '#475569' }}>{label}</div>
+                  <div className="text-base font-bold" style={{ color }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Laptops Table */}
+        <div className="glass-card overflow-hidden">
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid #1E3058' }}>
+            <SectionTitle>Laptops in this Bulk</SectionTitle>
+          </div>
+
+          {/* Mobile */}
+          <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+            {rentals.map((r: any) => (
+              <div key={r.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-semibold" style={{ color: '#3B82F6' }}>{r.rental_no}</Link>
+                  <span className={`badge badge-${r.status}`}>{r.status}</span>
+                </div>
+                <div>
+                  <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                  <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
+                  {r.inventory?.cpu && <div className="text-xs" style={{ color: '#64748B' }}>{r.inventory.cpu}{r.inventory.generation ? ` ${r.inventory.generation} Gen` : ''} · {r.inventory.ram} · {r.inventory.ssd}</div>}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs" style={{ color: '#64748B' }}>{fmtDate(r.start_date)} · {r.duration_days}d</div>
+                    <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                  </div>
+                  <div className="flex gap-1">
+                    <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
+                    {r.status === 'active' && isClient && (
+                      <Button variant="outline" size="sm" icon={<Truck size={12} />}
+                        onClick={() => { setIndPickupForm({ address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' }); setIndPickupRental(r); }}>
+                        Pickup
+                      </Button>
+                    )}
+                    {isAdmin && r.status === 'active' && <>
+                      <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => api.rentals.complete(r.id).then(load)} />
+                      <Button variant="danger"  size="sm" icon={<XCircle    size={13} />} onClick={() => api.rentals.cancel(r.id).then(load)} />
+                    </>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Rental No</th>
+                  <th>Laptop</th>
+                  <th className="hidden lg:table-cell">Specs</th>
+                  <th>Delivery</th>
+                  <th>Days</th>
+                  <th>Monthly</th>
+                  <th>Grand Total</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rentals.map((r: any) => (
+                  <tr key={r.id} className="animate-fade-in">
+                    <td>
+                      <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-semibold hover:underline" style={{ color: '#3B82F6' }}>
+                        {r.rental_no}
+                      </Link>
+                    </td>
+                    <td>
+                      <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                      <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
+                    </td>
+                    <td className="hidden lg:table-cell">
+                      <div className="text-xs" style={{ color: '#94A3B8' }}>
+                        {[r.inventory?.cpu, r.inventory?.generation ? `${r.inventory.generation} Gen` : '', r.inventory?.ram, r.inventory?.ssd].filter(Boolean).join(' · ')}
+                      </div>
+                    </td>
+                    <td className="text-xs" style={{ color: '#F1F5F9' }}>{fmtDate(r.delivery_date || r.start_date)}</td>
+                    <td className="text-sm" style={{ color: '#94A3B8' }}>{r.duration_days ?? '—'}d</td>
+                    <td className="text-sm" style={{ color: '#F1F5F9' }}>{fmt(r.monthly_rental)}</td>
+                    <td>
+                      <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                      <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(r.gst_amount)}</div>
+                    </td>
+                    <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
+                    <td>
+                      <div className="flex items-center gap-1">
+                        <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
+                        {r.status === 'active' && isClient && (
+                          <Button variant="outline" size="sm" icon={<Truck size={12} />}
+                            onClick={() => { setIndPickupForm({ address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' }); setIndPickupRental(r); }}>
+                            Pickup
+                          </Button>
+                        )}
+                        {isAdmin && r.status === 'active' && <>
+                          <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => api.rentals.complete(r.id).then(load)} />
+                          <Button variant="danger"  size="sm" icon={<XCircle    size={13} />} onClick={() => api.rentals.cancel(r.id).then(load)} />
+                        </>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: 'rgba(16,185,129,0.05)', borderTop: '2px solid rgba(16,185,129,0.2)' }}>
+                  <td colSpan={6} className="text-right text-xs font-bold" style={{ color: '#475569' }}>Total ({rentals.length} rentals)</td>
+                  <td>
+                    <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(grandSum)}</div>
+                    <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(gstSum)}</div>
+                  </td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        {/* ── Schedule Pickup & Delivery ── */}
+        <div className="glass-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <SectionTitle>Pickup &amp; Delivery Schedules</SectionTitle>
+            <div className="flex gap-2">
+              {isAdminOrStaff && (
+                <Button size="sm" variant="outline" icon={<Truck size={13} />}
+                  onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('delivery'); }}>
+                  Schedule Delivery
+                </Button>
+              )}
+              {(isAdminOrStaff || isClient) && (
+                <Button size="sm" variant="outline" icon={<Plus size={13} />}
+                  onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('pickup'); }}>
+                  Schedule Pickup
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {schedules.length === 0 ? (
+            <p className="text-sm" style={{ color: '#475569' }}>No schedules yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {schedules.map((s: any) => {
+                const isPickup   = s.type === 'pickup';
+                const color      = isPickup ? '#F59E0B' : '#3B82F6';
+                const bgColor    = isPickup ? 'rgba(245,158,11,0.07)' : 'rgba(59,130,246,0.07)';
+                const borderColor = isPickup ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)';
+                return (
+                  <div key={s.id} className="p-4 rounded-xl" style={{ background: bgColor, border: `1px solid ${borderColor}` }}>
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Truck size={14} style={{ color }} />
+                        <span className="text-sm font-semibold capitalize" style={{ color }}>{s.type}</span>
+                        <span className={`badge badge-${s.status}`}>{s.status}</span>
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.1)', color: '#A78BFA' }}>
+                          {s._rental?.rental_no}
+                        </span>
+                      </div>
+                      {isAdmin && s.status === 'scheduled' && (
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="success" icon={<CheckCircle size={12} />}
+                            onClick={() => { setCompleteModal(s); setCompleteNote(''); }}>
+                            Complete
+                          </Button>
+                          <Button size="sm" variant="danger" icon={<XCircle size={12} />}
+                            onClick={() => handleCancelSchedule(s)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="flex items-start gap-1.5">
+                        <MapPin size={11} style={{ color: '#475569', marginTop: 2, flexShrink: 0 }} />
+                        <span style={{ color: '#94A3B8' }}>{s.address}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <FileText size={11} style={{ color: '#475569' }} />
+                        <span style={{ color: '#94A3B8' }}>
+                          {new Date(s.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {s.contact_name && (
+                        <div className="flex items-center gap-1.5">
+                          <Contact size={11} style={{ color: '#475569' }} />
+                          <span style={{ color: '#94A3B8' }}>{s.contact_name}{s.contact_phone ? ` · ${s.contact_phone}` : ''}</span>
+                        </div>
+                      )}
+                      {s.notes && (
+                        <div className="flex items-start gap-1.5 sm:col-span-2" style={{ color: '#64748B' }}>{s.notes}</div>
+                      )}
+                      {s.completed_at && (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle size={11} style={{ color: '#10B981' }} />
+                          <span style={{ color: '#10B981' }}>Completed: {new Date(s.completed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Send Invoice Modal */}
+      <Modal open={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} title="Send Bulk Invoice" width="max-w-md">
+        <div className="space-y-4">
+          <div className="p-3 rounded-xl flex items-center gap-3"
+            style={{ background: 'rgba(139,92,246,0.07)', border: '1px solid rgba(139,92,246,0.2)' }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', color: 'white', fontWeight: 700, fontSize: 15 }}>
+              {client?.name?.charAt(0)?.toUpperCase()}
+            </div>
+            <div>
+              <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{client?.name}</div>
+              <div className="text-xs" style={{ color: '#A78BFA' }}>{client?.email}</div>
+            </div>
+          </div>
+
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
+            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(30,48,88,0.5)' }}>
+              <Layers size={13} style={{ color: '#A78BFA' }} />
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>
+                {rentals.length} Rental(s)
+              </span>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+              {rentals.map((r: any) => (
+                <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
+                  <div>
+                    <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                    <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.rental_no}</div>
+                  </div>
+                  <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between px-4 py-3"
+              style={{ background: 'rgba(16,185,129,0.07)', borderTop: '1px solid rgba(16,185,129,0.2)' }}>
+              <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Grand Total</span>
+              <span className="text-base font-bold" style={{ color: '#10B981' }}>{fmt(grandSum)}</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-center" style={{ color: '#475569' }}>
+            Invoice for all {rentals.length} rental(s) will be sent to{' '}
+            <span style={{ color: '#A78BFA' }}>{client?.email}</span>
+          </p>
+
+          <div className="flex justify-end gap-3 pt-1">
+            <Button variant="ghost" onClick={() => setShowInvoiceModal(false)}>Cancel</Button>
+            <Button icon={<SendHorizonal size={14} />} loading={acting === 'invoice'} onClick={confirmSendInvoice}>
+              Send Invoice ({rentals.length})
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Advance Invoice Modal */}
+      <Modal open={showAdvanceModal} onClose={() => setShowAdvanceModal(false)} title="Send Advance Invoice" width="max-w-md">
+        <div className="space-y-4">
+          <div className="p-3 rounded-xl flex items-center gap-3"
+            style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', color: 'white', fontWeight: 700, fontSize: 15 }}>
+              {client?.name?.charAt(0)?.toUpperCase()}
+            </div>
+            <div>
+              <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{client?.name}</div>
+              <div className="text-xs" style={{ color: '#F59E0B' }}>{client?.email}</div>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
+            <div className="font-semibold mb-1" style={{ color: '#F59E0B' }}>30-Day Advance Payment</div>
+            <div className="text-xs" style={{ color: '#94A3B8' }}>
+              An advance invoice for <strong style={{ color: '#F1F5F9' }}>30 days</strong> will be generated and sent for each of the{' '}
+              <strong style={{ color: '#F1F5F9' }}>{rentals.length} rental(s)</strong> in this bulk group.
+            </div>
+          </div>
+
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
+            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(30,48,88,0.5)' }}>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>Advance Breakdown</span>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+              {rentals.map((r: any) => {
+                const advance = Number(r.monthly_rental || 0) * Number(r.quantity || 1);
+                const gst     = +(advance * Number(r.gst_percent || 18) / 100).toFixed(2);
+                return (
+                  <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
+                    <div>
+                      <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                      <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.rental_no}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold" style={{ color: '#F59E0B' }}>
+                        {'₹' + (advance + gst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs" style={{ color: '#475569' }}>GST: {'₹' + gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between px-4 py-3"
+              style={{ background: 'rgba(245,158,11,0.07)', borderTop: '1px solid rgba(245,158,11,0.2)' }}>
+              <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Total Advance</span>
+              <span className="text-base font-bold" style={{ color: '#F59E0B' }}>
+                {'₹' + rentals.reduce((s: number, r: any) => {
+                  const a = Number(r.monthly_rental || 0) * Number(r.quantity || 1);
+                  return s + a + +(a * Number(r.gst_percent || 18) / 100).toFixed(2);
+                }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-xs text-center" style={{ color: '#475569' }}>
+            Advance invoices will be sent to <span style={{ color: '#F59E0B' }}>{client?.email}</span>
+          </p>
+
+          <div className="flex justify-end gap-3 pt-1">
+            <Button variant="ghost" onClick={() => setShowAdvanceModal(false)}>Cancel</Button>
+            <Button icon={<SendHorizonal size={14} />} loading={acting === 'advance'} onClick={confirmSendAdvanceInvoice}>
+              Send Advance Invoice ({rentals.length})
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Schedule Modal (applies to ALL rentals in bulk) */}
+      <Modal open={!!scheduleModal} onClose={() => setScheduleModal(null)}
+        title={`Schedule ${scheduleModal === 'pickup' ? 'Pickup' : 'Delivery'} — All ${rentals.length} Rentals`}
+        width="max-w-lg">
+        <div className="p-3 rounded-xl mb-4 text-xs" style={{ background: 'rgba(139,92,246,0.07)', border: '1px solid rgba(139,92,246,0.2)', color: '#A78BFA' }}>
+          This schedule will be applied to all {rentals.length} rentals in this bulk group.
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <FormField label="Address" required>
+              <input className="inp" value={schedForm.address} onChange={e => sf('address', e.target.value)} placeholder="123, MG Road, Pune - 411001" />
+            </FormField>
+          </div>
+          <FormField label="Scheduled Date & Time" required>
+            <input className="inp" type="datetime-local" value={schedForm.scheduled_at} onChange={e => sf('scheduled_at', e.target.value)} />
+          </FormField>
+          {scheduleModal === 'delivery' && (
+            <FormField label="Assign To (Staff)" required>
+              <select className="inp" value={schedForm.assigned_to} onChange={e => sf('assigned_to', e.target.value)}>
+                <option value="">— Select staff member —</option>
+                {staffUsers.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                ))}
+              </select>
+            </FormField>
+          )}
+          <FormField label="Contact Name">
+            <input className="inp" value={schedForm.contact_name} onChange={e => sf('contact_name', e.target.value)} placeholder="Rahul Sharma" />
+          </FormField>
+          <FormField label="Contact Phone">
+            <input className="inp" value={schedForm.contact_phone} onChange={e => sf('contact_phone', e.target.value)} placeholder="9876543210" />
+          </FormField>
+          <div className="sm:col-span-2">
+            <FormField label="Notes">
+              <textarea className="inp resize-none" rows={2} value={schedForm.notes} onChange={e => sf('notes', e.target.value)} placeholder="Call before arrival..." />
+            </FormField>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="ghost" onClick={() => setScheduleModal(null)}>Cancel</Button>
+          <Button loading={schedSaving}
+            disabled={!schedForm.address || !schedForm.scheduled_at || (scheduleModal === 'delivery' && !schedForm.assigned_to)}
+            onClick={handleScheduleAll}>
+            {scheduleModal === 'pickup' ? 'Schedule Pickup' : 'Schedule Delivery'}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Individual Laptop Pickup Modal (client) */}
+      <Modal open={!!indPickupRental} onClose={() => setIndPickupRental(null)}
+        title="Schedule Pickup" width="max-w-lg">
+        {indPickupRental && (
+          <div className="flex items-center gap-2 mb-4 p-3 rounded-xl"
+            style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.18)' }}>
+            <Truck size={13} style={{ color: '#3B82F6' }} />
+            <span className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+              {indPickupRental.inventory?.brand} {indPickupRental.inventory?.model_no}
+            </span>
+            <span className="text-xs font-mono" style={{ color: '#475569' }}>{indPickupRental.inventory?.asset_code}</span>
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <FormField label="Pickup Address" required>
+              <input className="inp" value={indPickupForm.address}
+                onChange={e => setIndPickupForm(p => ({ ...p, address: e.target.value }))}
+                placeholder="123, MG Road, Pune - 411001" />
+            </FormField>
+          </div>
+          <FormField label="Preferred Date & Time" required>
+            <input className="inp" type="datetime-local" value={indPickupForm.scheduled_at}
+              onChange={e => setIndPickupForm(p => ({ ...p, scheduled_at: e.target.value }))} />
+          </FormField>
+          <FormField label="Contact Name">
+            <input className="inp" value={indPickupForm.contact_name}
+              onChange={e => setIndPickupForm(p => ({ ...p, contact_name: e.target.value }))}
+              placeholder="Rahul Sharma" />
+          </FormField>
+          <FormField label="Contact Phone">
+            <input className="inp" value={indPickupForm.contact_phone}
+              onChange={e => setIndPickupForm(p => ({ ...p, contact_phone: e.target.value }))}
+              placeholder="9876543210" />
+          </FormField>
+          <div className="sm:col-span-2">
+            <FormField label="Notes">
+              <textarea className="inp resize-none" rows={2} value={indPickupForm.notes}
+                onChange={e => setIndPickupForm(p => ({ ...p, notes: e.target.value }))}
+                placeholder="Please call before coming..." />
+            </FormField>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="ghost" onClick={() => setIndPickupRental(null)}>Cancel</Button>
+          <Button icon={<Truck size={14} />} loading={indPickupSaving}
+            disabled={!indPickupForm.address || !indPickupForm.scheduled_at}
+            onClick={handleIndividualPickup}>
+            Request Pickup
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Complete Schedule Modal */}
+      <Modal open={!!completeModal} onClose={() => setCompleteModal(null)} title="Mark as Completed" width="max-w-sm">
+        <div className="space-y-4">
+          {completeModal && (
+            <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <div className="font-semibold capitalize" style={{ color: '#10B981' }}>{completeModal.type}</div>
+              <div className="text-xs mt-1" style={{ color: '#94A3B8' }}>{completeModal.address}</div>
+              <div className="text-xs mt-0.5 font-mono" style={{ color: '#A78BFA' }}>{completeModal._rental?.rental_no}</div>
+            </div>
+          )}
+          <FormField label="Completion Notes">
+            <textarea className="inp resize-none" rows={3} value={completeNote} onChange={e => setCompleteNote(e.target.value)} placeholder="Delivered successfully, received by..." />
+          </FormField>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="ghost" onClick={() => setCompleteModal(null)}>Cancel</Button>
+          <Button icon={<CheckCircle size={14} />} loading={schedSaving} onClick={handleCompleteSchedule}>
+            Mark Completed
+          </Button>
+        </div>
+      </Modal>
+
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    </DashboardLayout>
+  );
+}

@@ -13,9 +13,10 @@ const STATUS_OPTIONS = ['', 'available', 'rented', 'maintenance', 'sold', 'retur
 const TYPE_OPTIONS   = ['', 'office', 'vendor', 'sold'];
 
 const EMPTY_FORM = {
-  brand: '', model_no: '', cpu: '', ram: '', ssd: '', graphics: '',
-  purchase_date: '', type: 'vendor', vendor_id: '', vendor_name: '', vendor_location: '',
-  delivery_date: '', notes: '', status: 'available',
+  brand: '', model_no: '', serial_number: '', cpu: '', generation: '', ram: '', ssd: '',
+  purchase_date: '', purchaser: '', status: 'available',
+  // optional fields sent as empty to satisfy DB non-nullable columns
+  graphics: '', type: 'office', notes: '', vendor_name: '', vendor_location: '',
 };
 
 export default function InventoryPage() {
@@ -33,7 +34,7 @@ export default function InventoryPage() {
   const [editItem, setEditItem] = useState<Inventory | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
-  const [clients, setClients] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   // bulk import
@@ -65,17 +66,19 @@ export default function InventoryPage() {
 
   useEffect(() => {
     api.users.list({ role: 'vendor', per_page: '200' })
-      .then((res: any) => setClients(res.data?.data || res.data || []))
+      .then((res: any) => setVendors(res.data?.data || res.data || []))
       .catch(() => {});
   }, []);
 
   function openAdd() { setForm({ ...EMPTY_FORM }); setEditItem(null); setShowModal(true); }
   function openEdit(item: Inventory) {
     setForm({
-      brand: item.brand, model_no: item.model_no, cpu: item.cpu, ram: item.ram,
-      ssd: item.ssd, graphics: item.graphics, purchase_date: item.purchase_date,
-      type: item.type, vendor_id: String(item.vendor_id || ''), vendor_name: item.vendor_name || '', vendor_location: item.vendor_location || '',
-      delivery_date: item.delivery_date || '', notes: item.notes || '', status: item.status,
+      brand: item.brand || '', model_no: item.model_no || '', serial_number: (item as any).serial_number || '',
+      cpu: item.cpu || '', generation: (item as any).generation || '', ram: item.ram || '',
+      ssd: item.ssd || '', purchase_date: item.purchase_date || '',
+      purchaser: (item as any).purchaser || '', status: item.status || 'available',
+      graphics: item.graphics || '', type: item.type || 'office',
+      notes: item.notes || '', vendor_name: item.vendor_name || '', vendor_location: item.vendor_location || '',
     });
     setEditItem(item);
     setShowModal(true);
@@ -85,7 +88,8 @@ export default function InventoryPage() {
     setSaving(true);
     try {
       if (editItem) {
-        await api.inventory.update(editItem.id, form);
+        const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''));
+        await api.inventory.update(editItem.id, payload);
         showToast('Inventory updated successfully');
       } else {
         await api.inventory.create(form);
@@ -271,26 +275,31 @@ export default function InventoryPage() {
       </div>
 
       {/* Add/Edit Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editItem ? `Edit — ${editItem.asset_code}` : 'Add New Laptop'} width="max-w-3xl">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editItem ? `Edit — ${editItem.asset_code}` : 'Add New Laptop'} width="max-w-2xl">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Brand" required><input className="inp" value={form.brand} onChange={e => f('brand', e.target.value)} placeholder="Dell, HP, Lenovo..." /></FormField>
-          <FormField label="Model No" required><input className="inp" value={form.model_no} onChange={e => f('model_no', e.target.value)} placeholder="Latitude 5520" /></FormField>
-          <FormField label="CPU" required><input className="inp" value={form.cpu} onChange={e => f('cpu', e.target.value)} placeholder="Intel Core i7-11th Gen" /></FormField>
-          <FormField label="RAM" required><input className="inp" value={form.ram} onChange={e => f('ram', e.target.value)} placeholder="16GB DDR4" /></FormField>
-          <FormField label="SSD" required><input className="inp" value={form.ssd} onChange={e => f('ssd', e.target.value)} placeholder="512GB NVMe" /></FormField>
-          <FormField label="Graphics" required><input className="inp" value={form.graphics} onChange={e => f('graphics', e.target.value)} placeholder="Intel Iris Xe" /></FormField>          
-          
-          {/* <FormField label="Delivery Date"><input className="inp" type="date" value={form.delivery_date} onChange={e => f('delivery_date', e.target.value)} /></FormField>
+          <FormField label="Model No" required><input className="inp" value={form.model_no} onChange={e => f('model_no', e.target.value)} placeholder="Latitude E5470" /></FormField>
+          <FormField label="Serial Number"><input className="inp" value={form.serial_number} onChange={e => f('serial_number', e.target.value)} placeholder="F7088H2" /></FormField>
+          <FormField label="CPU" required><input className="inp" value={form.cpu} onChange={e => f('cpu', e.target.value)} placeholder="i5, i7..." /></FormField>
+          <FormField label="Generation"><input className="inp" value={form.generation} onChange={e => f('generation', e.target.value)} placeholder="6th, 8th, 12th..." /></FormField>
+          <FormField label="RAM" required><input className="inp" value={form.ram} onChange={e => f('ram', e.target.value)} placeholder="8GB, 16GB..." /></FormField>
+          <FormField label="HDD / SSD" required><input className="inp" value={form.ssd} onChange={e => f('ssd', e.target.value)} placeholder="256 SSD, 512GB NVMe..." /></FormField>
+          <FormField label="Purchase Date"><input className="inp" type="date" value={form.purchase_date} onChange={e => f('purchase_date', e.target.value)} /></FormField>
+          <FormField label="Purchaser">
+            <select className="inp" value={form.purchaser} onChange={e => f('purchaser', e.target.value)}>
+              <option value="">— Select vendor —</option>
+              {vendors.map((v: any) => (
+                <option key={v.id} value={v.name}>{v.name}{v.company ? ` — ${v.company}` : ''}</option>
+              ))}
+            </select>
+          </FormField>
           {editItem && (
             <FormField label="Status">
               <select className="inp" value={form.status} onChange={e => f('status', e.target.value)}>
                 {['available','rented','maintenance','sold','returned'].map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </FormField>
-          )} */}
-          <div className="col-span-1 sm:col-span-2">
-            <FormField label="Notes"><textarea className="inp resize-none" rows={2} value={form.notes} onChange={e => f('notes', e.target.value)} placeholder="Additional remarks..." /></FormField>
-          </div>
+          )}
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>
@@ -309,10 +318,10 @@ export default function InventoryPage() {
                 type="button"
                 onClick={() => {
                   const csv = [
-                    'brand,model_no,cpu,ram,ssd,graphics,notes',
-                    'Dell,Latitude 5520,Intel Core i5-11th Gen,16GB DDR4,512GB NVMe,Intel Iris Xe,Office use',
-                    'HP,EliteBook 840 G8,Intel Core i7-11th Gen,32GB DDR4,1TB SSD,NVIDIA MX450,Staff laptop',
-                    'Lenovo,ThinkPad X1 Carbon,Intel Core i7-12th Gen,16GB LPDDR5,512GB NVMe,Intel Iris Xe,Management',
+                    'Asset No,Brand,Model Number,Serial Number,CPU,Generation,Ram,HDD,Purchase Date,Purchaser,Price,Status,Vendor Name,Location,Graphics,Notes',
+                    '1001,Dell,LATITUDE-E5470,F7088H2,i5,6th,8GB,256 SSD,15-Jan-23,Ravi Delhi,1100,office,Ravi Enterprises,Delhi,,',
+                    '1002,HP,440 G1,2CE4130ZQ3,i3,4th,8GB,256 SSD,15-Jan-23,Ravi Delhi,900,office,Ravi Enterprises,Delhi,,',
+                    '1003,Lenovo,ThinkPad X1,INA431QKQY,i7,8th,16GB,512 SSD,20-Mar-23,Amit Mumbai,1500,vendor,Amit Systems,Mumbai,NVIDIA MX450,',
                   ].join('\n');
                   const blob = new Blob([csv], { type: 'text/csv' });
                   const url = URL.createObjectURL(blob);
@@ -325,8 +334,16 @@ export default function InventoryPage() {
                 <FileSpreadsheet size={11} /> Download Sample
               </button>
             </div>
-            <div style={{ color: '#64748B' }}>Required columns (first row as headers):</div>
-            <div className="font-mono" style={{ color: '#94A3B8' }}>brand, model_no, cpu, ram, ssd, graphics, notes</div>
+            <div className="flex items-center gap-3 mb-1">
+              <span style={{ color: '#64748B' }}>Column headers (first row):</span>
+              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(244,63,94,0.1)', color: '#F43F5E' }}>* required</span>
+              <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(100,116,139,0.1)', color: '#64748B' }}>optional</span>
+            </div>
+            <div className="font-mono text-xs leading-5" style={{ color: '#94A3B8' }}>
+              <span style={{ color: '#64748B' }}>Asset No, </span>
+              <span style={{ color: '#F43F5E' }}>Brand*, Model Number*, Serial Number*, CPU*, Generation*, Ram*, HDD*, Purchase Date*, Purchaser*</span>
+              <span style={{ color: '#64748B' }}>, Price, Status, Vendor Name, Location, Graphics, Notes</span>
+            </div>
           </div>
 
           {/* File picker */}

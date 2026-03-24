@@ -76,7 +76,7 @@ export interface DashboardSummary {
   rented: number;
   active_rentals: number;
   overdue_rentals: number;
-  revenue_this_month: number;
+  total_revenue: number;
 }
 
 export interface BillingCalculation {

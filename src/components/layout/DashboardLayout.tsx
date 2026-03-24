@@ -18,10 +18,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push('/auth/login'); return; }
-    if (user.role === 'vendor' && !pathname.startsWith('/vendor') && pathname !== '/profile') {
-      router.push('/vendor/stock'); return;
+    // Vendor accounts have no dashboard access
+    if (user.role === 'vendor') { router.push('/auth/login'); return; }
+    // Client portal redirect — also allow rental detail/bulk/invoice pages
+    const clientAllowed = pathname.startsWith('/client') || pathname === '/profile'
+      || pathname.startsWith('/rentals/');
+    if (user.role === 'client' && !clientAllowed) {
+      router.push('/client/rentals'); return;
     }
-    if (user.role !== 'vendor' && pathname.startsWith('/vendor')) {
+    // Non-clients can't access client pages
+    if (user.role !== 'client' && pathname.startsWith('/client')) {
       router.push('/dashboard');
     }
   }, [user, loading, router, pathname]);

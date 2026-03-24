@@ -91,15 +91,28 @@ export const api = {
   },
 
   vendor: {
-    // Returns the authenticated vendor's assigned stock
     stock: (params?: Record<string, string>) => {
       const qs = params ? '?' + new URLSearchParams(params).toString() : '';
       return request<any>(`/vendor/inventories${qs}`);
     },
-    // Vendor's own reported issues
     myIssues: (params?: Record<string, string>) => {
       const qs = params ? '?' + new URLSearchParams(params).toString() : '';
       return request<any>(`/vendor/issues${qs}`);
+    },
+  },
+
+  client: {
+    myRentals: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/client/rentals${qs}`);
+    },
+    myIssues: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/client/issues${qs}`);
+    },
+    mySchedules: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/client/schedules${qs}`);
     },
   },
 
@@ -130,15 +143,74 @@ export const api = {
     get: (id: number) => request<any>(`/rentals/${id}`),
     create: (data: any) =>
       request<any>('/rentals', { method: 'POST', body: JSON.stringify(data) }),
+    createBulk: async (data: any) => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const res = await fetch(`${BASE_URL}/rentals/bulk`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) throw { message: body.message, unavailable: body.unavailable };
+      return body;
+    },
     update: (id: number, data: any) =>
       request<any>(`/rentals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     complete: (id: number) =>
       request<any>(`/rentals/${id}/complete`, { method: 'POST' }),
     cancel: (id: number) =>
       request<any>(`/rentals/${id}/cancel`, { method: 'POST' }),
+    sendInvoice: (id: number) =>
+      request<any>(`/rentals/${id}/send-invoice`, {
+        method: 'POST',
+        body: JSON.stringify({ attach_invoice: true }),
+      }),
+    sendAdvanceInvoice: (id: number, advance_days = 30, extra?: Record<string, any>) =>
+      request<any>(`/rentals/${id}/send-advance-invoice`, {
+        method: 'POST',
+        body: JSON.stringify({ advance_days, attach_invoice: true, ...extra }),
+      }),
+    sendBulkAdvanceInvoice: (bulkId: string, advance_days = 30) =>
+      request<any>(`/rentals/bulk/${bulkId}/send-advance-invoice`, {
+        method: 'POST',
+        body: JSON.stringify({ advance_days, attach_invoice: true }),
+      }),
     overdue: () => request<any>('/rentals/overdue'),
     calculateBilling: (data: any) =>
       request<any>('/rentals/calculate-billing', { method: 'POST', body: JSON.stringify(data) }),
+
+    // Per-rental schedules
+    schedules: {
+      list: (rentalId: number) =>
+        request<any>(`/rentals/${rentalId}/schedules`),
+      schedulePickup: (rentalId: number, data: any) =>
+        request<any>(`/rentals/${rentalId}/schedule-pickup`, { method: 'POST', body: JSON.stringify(data) }),
+      scheduleDelivery: (rentalId: number, data: any) =>
+        request<any>(`/rentals/${rentalId}/schedule-delivery`, { method: 'POST', body: JSON.stringify(data) }),
+    },
+    // Bulk schedules
+    bulkSchedules: {
+      schedulePickup: (bulkId: string, data: any) =>
+        request<any>(`/rentals/bulk/${bulkId}/schedule-pickup`, { method: 'POST', body: JSON.stringify(data) }),
+      scheduleDelivery: (bulkId: string, data: any) =>
+        request<any>(`/rentals/bulk/${bulkId}/schedule-delivery`, { method: 'POST', body: JSON.stringify(data) }),
+    },
+  },
+
+  // Global schedule actions (admin/staff)
+  schedules: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/schedules${qs}`);
+    },
+    complete: (scheduleId: number, notes?: string) =>
+      request<any>(`/schedules/${scheduleId}/complete`, { method: 'POST', body: JSON.stringify({ notes }) }),
+    cancel: (scheduleId: number) =>
+      request<any>(`/schedules/${scheduleId}/cancel`, { method: 'POST' }),
   },
 
   users: {

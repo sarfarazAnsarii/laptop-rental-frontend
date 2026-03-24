@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import {
   Users, Plus, Mail, Phone, Building2, Search,
-  Shield, UserCheck, Package, User, Trash2, Edit,
+  Shield, UserCheck, Package, User, Trash2, MapPin, Edit,
 } from 'lucide-react';
 
 const ROLE_OPTIONS = ['', 'admin', 'staff', 'vendor', 'client'];
@@ -26,7 +26,7 @@ const ROLE_ICON: Record<string, any> = {
 
 const EMPTY_FORM = {
   name: '', email: '', password: '', password_confirmation: '',
-  role: 'staff', phone: '', company: '',
+  role: 'staff', phone: '', company: '', address: '',
 };
 
 export default function UsersPage() {
@@ -44,6 +44,10 @@ export default function UsersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+
+  const [editUser, setEditUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', company: '', address: '', role: '' });
+  const [updating, setUpdating] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -85,6 +89,7 @@ export default function UsersPage() {
         role: form.role,
         phone: form.phone || undefined,
         company: form.company || undefined,
+        address: form.address || undefined,
       });
       // If backend doesn't apply role via register, update silently in background
       const newUserId = res.data?.user?.id ?? res.data?.id;
@@ -102,6 +107,30 @@ export default function UsersPage() {
     } catch (e: any) {
       showToast(e.message || 'Failed to register', 'error');
     } finally { setSaving(false); }
+  }
+
+  function openEdit(u: any) {
+    setEditUser(u);
+    setEditForm({ name: u.name || '', phone: u.phone || '', company: u.company || '', address: u.address || '', role: u.role || 'staff' });
+  }
+
+  async function handleUpdate() {
+    if (!editUser) return;
+    setUpdating(true);
+    try {
+      await api.users.update(editUser.id, {
+        name:    editForm.name    || undefined,
+        phone:   editForm.phone   || undefined,
+        company: editForm.company || undefined,
+        address: editForm.address || undefined,
+        role:    editForm.role    || undefined,
+      });
+      showToast('User updated successfully');
+      setEditUser(null);
+      load();
+    } catch (e: any) {
+      showToast(e.message || 'Failed to update', 'error');
+    } finally { setUpdating(false); }
   }
 
   async function handleDelete(u: any) {
@@ -171,6 +200,14 @@ export default function UsersPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    <button
+                      onClick={() => openEdit(u)}
+                      className="p-1.5 rounded-lg transition-colors hover:bg-blue-500/10"
+                      style={{ color: '#475569' }}
+                      title="Edit user"
+                    >
+                      <Edit size={13} />
+                    </button>
                     {u.id !== me?.id && (
                       <button
                         onClick={() => handleDelete(u)}
@@ -196,6 +233,11 @@ export default function UsersPage() {
                   {u.company && (
                     <div className="flex items-center gap-2 text-xs" style={{ color: '#64748B' }}>
                       <Building2 size={11} /><span className="truncate">{u.company}</span>
+                    </div>
+                  )}
+                  {u.address && (
+                    <div className="flex items-center gap-2 text-xs" style={{ color: '#64748B' }}>
+                      <MapPin size={11} /><span className="truncate">{u.address}</span>
                     </div>
                   )}
                 </div>
@@ -239,6 +281,7 @@ export default function UsersPage() {
             <select className="inp" value={form.role} onChange={e => f('role', e.target.value)}>
               <option value="staff">Staff</option>
               <option value="vendor">Vendor</option>
+              <option value="client">Client</option>
               <option value="admin">Admin</option>
             </select>
           </FormField>
@@ -250,10 +293,53 @@ export default function UsersPage() {
               <input className="inp" value={form.company} onChange={e => f('company', e.target.value)} placeholder="Company Name" />
             </FormField>
           </div>
+          <div className="col-span-1 sm:col-span-2">
+            <FormField label="Address">
+              <textarea
+                className="inp resize-none"
+                rows={3}
+                value={form.address}
+                onChange={e => f('address', e.target.value)}
+                placeholder="Street, Area, City, State, Pincode"
+              />
+            </FormField>
+          </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
           <Button onClick={handleAdd} loading={saving}>Register User</Button>
+        </div>
+      </Modal>
+
+      {/* Edit User Modal */}
+      <Modal open={!!editUser} onClose={() => setEditUser(null)} title={`Edit — ${editUser?.name}`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="Full Name" required>
+            <input className="inp" value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="John Doe" />
+          </FormField>
+          <FormField label="Phone">
+            <input className="inp" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} placeholder="9876543210" />
+          </FormField>
+          <FormField label="Role">
+            <select className="inp" value={editForm.role} onChange={e => setEditForm(p => ({ ...p, role: e.target.value }))}>
+              <option value="staff">Staff</option>
+              <option value="vendor">Vendor</option>
+              <option value="client">Client</option>
+              <option value="admin">Admin</option>
+            </select>
+          </FormField>
+          <FormField label="Company">
+            <input className="inp" value={editForm.company} onChange={e => setEditForm(p => ({ ...p, company: e.target.value }))} placeholder="Company Name" />
+          </FormField>
+          <div className="col-span-1 sm:col-span-2">
+            <FormField label="Address">
+              <textarea className="inp resize-none" rows={3} value={editForm.address} onChange={e => setEditForm(p => ({ ...p, address: e.target.value }))} placeholder="Street, Area, City, State, Pincode" />
+            </FormField>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="ghost" onClick={() => setEditUser(null)}>Cancel</Button>
+          <Button onClick={handleUpdate} loading={updating}>Save Changes</Button>
         </div>
       </Modal>
 

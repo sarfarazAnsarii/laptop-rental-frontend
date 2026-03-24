@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Monitor, FileText, Users, LogOut,
-  Laptop, AlertCircle, ChevronRight, Package, Wrench,
-  AlertTriangle, Shield, X, UserCog,
+  Laptop, AlertCircle, ChevronRight, Wrench,
+  AlertTriangle, Shield, X, UserCog, BarChart2, CalendarClock,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -13,10 +13,12 @@ const NAV_ADMIN = [
   { href: '/dashboard',       label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/inventory',       label: 'Inventory',   icon: Monitor },
   { href: '/rentals',         label: 'Rentals',     icon: FileText },
-  // { href: '/clients',         label: 'Clients',     icon: Users },
+  { href: '/clients',         label: 'Clients',     icon: Users },
   { href: '/rentals/overdue', label: 'Overdue',     icon: AlertCircle },
+  { href: '/schedules',       label: 'Schedules',   icon: CalendarClock },
   { href: '/issues',          label: 'Issues',      icon: Wrench },
   { href: '/users',           label: 'Users',       icon: UserCog },
+  { href: '/reports',         label: 'Reports',     icon: BarChart2 },
 ];
 
 const NAV_STAFF = [
@@ -24,13 +26,14 @@ const NAV_STAFF = [
   { href: '/issues',          label: 'Issues',      icon: Wrench },
 ];
 
-const NAV_VENDOR = [
-  { href: '/vendor/stock',  label: 'My Stock',  icon: Package },
-  { href: '/vendor/issues', label: 'My Issues', icon: AlertTriangle },
+const NAV_CLIENT = [
+  { href: '/client/rentals',   label: 'My Rentals', icon: FileText     },
+  { href: '/client/schedules', label: 'Schedules',  icon: Wrench       },
+  { href: '/client/issues',    label: 'Issues',     icon: AlertTriangle },
 ];
 
 function getNav(role?: string) {
-  if (role === 'vendor') return NAV_VENDOR;
+  if (role === 'client') return NAV_CLIENT;
   if (role === 'staff')  return NAV_STAFF;
   return NAV_ADMIN;
 }
@@ -90,11 +93,11 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
       </div>
 
       {/* Role strip */}
-      {user?.role === 'vendor' && (
+      {user?.role === 'client' && (
         <div className="mx-3 mb-3 px-3 py-2 rounded-xl flex items-center gap-2"
-          style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-          <Package size={13} style={{ color: '#F59E0B' }} />
-          <span className="text-xs font-semibold" style={{ color: '#F59E0B' }}>Vendor Portal</span>
+          style={{ background: 'rgba(20,184,166,0.08)', border: '1px solid rgba(20,184,166,0.2)' }}>
+          <FileText size={13} style={{ color: '#14B8A6' }} />
+          <span className="text-xs font-semibold" style={{ color: '#14B8A6' }}>Client Portal</span>
         </div>
       )}
       {user?.role === 'admin' && (
