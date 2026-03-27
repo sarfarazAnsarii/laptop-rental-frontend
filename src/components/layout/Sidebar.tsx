@@ -13,7 +13,6 @@ const NAV_ADMIN = [
   { href: '/dashboard',       label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/inventory',       label: 'Inventory',   icon: Monitor },
   { href: '/rentals',         label: 'Rentals',     icon: FileText },
-  { href: '/clients',         label: 'Clients',     icon: Users },
   { href: '/rentals/overdue', label: 'Overdue',     icon: AlertCircle },
   { href: '/schedules',       label: 'Schedules',   icon: CalendarClock },
   { href: '/issues',          label: 'Issues',      icon: Wrench },

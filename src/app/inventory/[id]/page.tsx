@@ -172,96 +172,120 @@ export default function InventoryDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="animate-fade-in space-y-5">
+      <div className="animate-fade-in space-y-4 sm:space-y-5">
 
         {/* ── Breadcrumb / Back bar ── */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm" style={{ color: '#475569' }}>
-            <Link href="/inventory" className="hover:text-blue-400 transition-colors">Inventory</Link>
-            <ChevronRight size={13} />
-            <span style={{ color: '#94A3B8' }}>{item.asset_code}</span>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 text-sm min-w-0" style={{ color: '#475569' }}>
+            <Link href="/inventory" className="hover:text-blue-400 transition-colors shrink-0">Inventory</Link>
+            <ChevronRight size={13} className="shrink-0" />
+            <span className="truncate font-mono text-xs" style={{ color: '#94A3B8' }}>{item.asset_code}</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 sm:gap-2 shrink-0">
             <Link href="/inventory">
-              <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />}>Back</Button>
+              <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />}>
+                <span className="hidden sm:inline">Back</span>
+              </Button>
             </Link>
             {isAdmin && <>
-              <Button variant="outline" size="sm" icon={<Edit size={13} />} onClick={openEdit}>Edit</Button>
-              <Button variant="danger"  size="sm" icon={<Trash2 size={13} />} onClick={handleDelete}>Delete</Button>
+              <Button variant="outline" size="sm" icon={<Edit size={13} />} onClick={openEdit}>
+                <span className="hidden sm:inline">Edit</span>
+              </Button>
+              <Button variant="danger" size="sm" icon={<Trash2 size={13} />} onClick={handleDelete}>
+                <span className="hidden sm:inline">Delete</span>
+              </Button>
             </>}
           </div>
         </div>
 
         {/* ── Hero ── */}
-        <div className="glass-card p-6" style={{
+        <div className="glass-card p-4 sm:p-6" style={{
           background: 'linear-gradient(135deg, rgba(13,27,46,0.95) 0%, rgba(17,34,62,0.95) 100%)',
           borderColor: '#1E3058',
         }}>
-          <div className="flex items-start gap-5">
+          <div className="flex items-start gap-3 sm:gap-5">
             {/* laptop icon */}
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)', boxShadow: '0 0 30px rgba(59,130,246,0.25)' }}>
-              <Monitor size={28} color="white" />
+              <Monitor size={22} className="sm:hidden" color="white" />
+              <Monitor size={28} className="hidden sm:block" color="white" />
             </div>
 
             {/* info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  {/* asset code + type */}
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="font-mono text-sm px-2.5 py-1 rounded-lg font-semibold"
-                      style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.3)' }}>
-                      {item.asset_code}
-                    </span>
-                    <span className={`badge badge-${item.type}`}>{item.type}</span>
-                  </div>
+              {/* asset code + type badges */}
+              <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
+                <span className="font-mono text-xs sm:text-sm px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg font-semibold"
+                  style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.3)' }}>
+                  {item.asset_code}
+                </span>
+                <span className={`badge badge-${item.type}`}>{item.type}</span>
+                {/* status badge inline on mobile, pill on desktop */}
+                <span className="sm:hidden flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold"
+                  style={{ background: sm.bg, border: `1px solid ${sm.border}`, color: sm.text }}>
+                  <StatusIcon size={11} />
+                  {item.status}
+                </span>
+              </div>
 
-                  {/* brand + model */}
-                  <h1 className="text-2xl font-bold mb-1"
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-2xl font-bold mb-0.5 sm:mb-1 leading-tight"
                     style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>
                     {item.brand} {item.model_no}
                   </h1>
                   <p className="text-xs" style={{ color: '#475569' }}>
-                    Added {fmtDate(item.created_at)} &nbsp;·&nbsp; Updated {fmtDate(item.updated_at)}
+                    Added {fmtDate(item.created_at)} · Updated {fmtDate(item.updated_at)}
                   </p>
                 </div>
 
-                {/* status pill */}
-                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl flex-shrink-0"
+                {/* status pill — desktop only */}
+                <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl flex-shrink-0"
                   style={{ background: sm.bg, border: `1px solid ${sm.border}` }}>
                   <StatusIcon size={15} style={{ color: sm.text }} />
-                  <span className="text-sm font-semibold capitalize" style={{ color: sm.text }}>
-                    {item.status}
-                  </span>
+                  <span className="text-sm font-semibold capitalize" style={{ color: sm.text }}>{item.status}</span>
                 </div>
+              </div>
+
+              {/* quick spec pills */}
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                {[item.cpu, item.ram, item.ssd].filter(Boolean).map(spec => (
+                  <span key={spec} className="text-xs px-2 py-0.5 rounded-md"
+                    style={{ background: 'rgba(30,48,88,0.6)', color: '#94A3B8', border: '1px solid rgba(30,48,88,0.9)' }}>
+                    {spec}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
         </div>
 
         {/* ── Specs + Purchase Info ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
           {/* Specs */}
-          <div className="lg:col-span-2 glass-card p-5">
+          <div className="lg:col-span-2 glass-card p-4 sm:p-5">
             <SectionTitle>Specifications</SectionTitle>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <SpecCard icon={<Cpu size={16} />}       label="Processor"   value={item.cpu}                              color="#3B82F6" />
-              {(item as any).generation && <SpecCard icon={<Hash size={16} />} label="Generation" value={(item as any).generation} color="#6366F1" />}
-              <SpecCard icon={<Database size={16} />}  label="Memory"      value={item.ram}                              color="#14B8A6" />
-              <SpecCard icon={<HardDrive size={16} />} label="Storage"     value={item.ssd}                              color="#8B5CF6" />
-              {item.graphics && <SpecCard icon={<Zap size={16} />} label="Graphics" value={item.graphics}                color="#F59E0B" />}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <SpecCard icon={<Cpu size={15} />}       label="Processor"  value={item.cpu}                               color="#3B82F6" />
+              <SpecCard icon={<Database size={15} />}  label="Memory"     value={item.ram}                               color="#14B8A6" />
+              <SpecCard icon={<HardDrive size={15} />} label="Storage"    value={item.ssd}                               color="#8B5CF6" />
+              {(item as any).generation && (
+                <SpecCard icon={<Hash size={15} />}    label="Generation" value={(item as any).generation}               color="#6366F1" />
+              )}
+              {item.graphics && (
+                <SpecCard icon={<Zap size={15} />}     label="Graphics"   value={item.graphics}                          color="#F59E0B" />
+              )}
             </div>
           </div>
 
           {/* Purchase / Vendor */}
-          <div className="glass-card p-5 space-y-3.5">
+          <div className="glass-card p-4 sm:p-5 space-y-3 sm:space-y-3.5">
             <SectionTitle>Purchase Info</SectionTitle>
             {(item as any).serial_number && <InfoRow icon={<Hash size={13} />}     label="Serial Number"  value={(item as any).serial_number} />}
             {(item as any).purchaser     && <InfoRow icon={<User size={13} />}     label="Purchaser"      value={(item as any).purchaser} />}
-            <InfoRow icon={<Calendar size={13} />}  label="Purchase Date"   value={fmtDate(item.purchase_date)} />
-            <InfoRow icon={<Package size={13} />}   label="Delivery Date"   value={fmtDate(item.delivery_date)} />
+            <InfoRow icon={<Calendar size={13} />}  label="Purchase Date"  value={fmtDate(item.purchase_date)} />
+            <InfoRow icon={<Package size={13} />}   label="Delivery Date"  value={fmtDate(item.delivery_date)} />
             {item.return_date     && <InfoRow icon={<RotateCcw size={13} />} label="Return Date"     value={fmtDate(item.return_date)} />}
             {item.return_location && <InfoRow icon={<MapPin size={13} />}    label="Return Location" value={item.return_location} />}
 
@@ -277,41 +301,50 @@ export default function InventoryDetailPage() {
 
         {/* ── Active Rental ── */}
         {activeRental && (
-          <div className="glass-card p-5"
+          <div className="glass-card p-4 sm:p-5"
             style={{ border: '1px solid rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.04)' }}>
-            <div className="flex items-center justify-between mb-5">
+
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#3B82F6' }} />
-                <SectionTitle>Active Rental</SectionTitle>
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+                  Active Rental
+                </span>
               </div>
               <Link href={`/rentals/${activeRental.id}`}>
-                <Button variant="outline" size="sm">View Rental →</Button>
+                <Button variant="outline" size="sm" icon={<FileText size={12} />}>
+                  <span className="hidden sm:inline">View Rental</span>
+                  <span className="sm:hidden">View</span>
+                </Button>
               </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-5">
-              <InfoRow icon={<Hash size={13} />}     label="Rental No" value={activeRental.rental_no} accent />
-              <InfoRow icon={<User size={13} />}     label="Client"    value={activeRental.client?.name || `Client #${activeRental.client_id}`} />
+            {/* Rental info — 2×2 on mobile, row on desktop */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <InfoRow icon={<Hash size={13} />}     label="Rental No"  value={activeRental.rental_no} accent />
+              <InfoRow icon={<User size={13} />}     label="Client"     value={activeRental.client?.name || `Client #${activeRental.client_id}`} />
               <InfoRow icon={<Calendar size={13} />} label="Start Date" value={fmtDate(activeRental.start_date)} />
               <InfoRow icon={<Calendar size={13} />} label="End Date"   value={fmtDate(activeRental.end_date)} />
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4" style={{ borderTop: '1px solid rgba(59,130,246,0.15)' }}>
+            {/* Billing stats — 2-col on mobile, 4-col on sm+ */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-4"
+              style={{ borderTop: '1px solid rgba(59,130,246,0.15)' }}>
               {[
-                { label: 'Duration',      value: `${activeRental.duration_days} days` },
-                { label: 'Monthly Rent',  value: fmt(activeRental.monthly_rental) },
-                { label: `GST (${activeRental.gst_percent}%)`, value: fmt(activeRental.gst_amount) },
+                { label: 'Duration',                              value: `${activeRental.duration_days} days` },
+                { label: 'Monthly Rent',                         value: fmt(activeRental.monthly_rental) },
+                { label: `GST (${activeRental.gst_percent}%)`,   value: fmt(activeRental.gst_amount) },
               ].map(({ label, value }) => (
-                <div key={label} className="text-center px-3 py-2.5 rounded-xl"
+                <div key={label} className="text-center px-2 sm:px-3 py-2.5 rounded-xl"
                   style={{ background: 'rgba(30,48,88,0.4)', border: '1px solid rgba(30,48,88,0.7)' }}>
-                  <div className="text-xs mb-1" style={{ color: '#475569' }}>{label}</div>
+                  <div className="text-[10px] sm:text-xs mb-1 leading-tight" style={{ color: '#475569' }}>{label}</div>
                   <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{value}</div>
                 </div>
               ))}
-              <div className="text-center px-3 py-2.5 rounded-xl"
+              <div className="text-center px-2 sm:px-3 py-2.5 rounded-xl"
                 style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                <div className="text-xs mb-1" style={{ color: '#10B981' }}>Grand Total</div>
-                <div className="text-base font-bold" style={{ color: '#10B981' }}>{fmt(activeRental.grand_total)}</div>
+                <div className="text-[10px] sm:text-xs mb-1" style={{ color: '#10B981' }}>Grand Total</div>
+                <div className="text-sm sm:text-base font-bold" style={{ color: '#10B981' }}>{fmt(activeRental.grand_total)}</div>
               </div>
             </div>
           </div>
@@ -319,7 +352,7 @@ export default function InventoryDetailPage() {
 
         {/* ── Notes ── */}
         {item.notes && (
-          <div className="glass-card p-5">
+          <div className="glass-card p-4 sm:p-5">
             <SectionTitle>Notes</SectionTitle>
             <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{item.notes}</p>
           </div>
@@ -327,16 +360,18 @@ export default function InventoryDetailPage() {
 
         {/* ── Rental History ── */}
         <div className="glass-card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid #1E3058' }}>
-            <div className="flex items-center gap-2">
-              <SectionTitle>Rental History</SectionTitle>
-              {rentals.length > 0 && (
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold -mt-4"
-                  style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>
-                  {rentals.length}
-                </span>
-              )}
-            </div>
+          <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4"
+            style={{ borderBottom: '1px solid #1E3058' }}>
+            <span className="text-xs font-bold uppercase tracking-widest"
+              style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+              Rental History
+            </span>
+            {rentals.length > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6' }}>
+                {rentals.length}
+              </span>
+            )}
           </div>
 
           {rentals.length === 0 ? (
@@ -348,50 +383,76 @@ export default function InventoryDetailPage() {
               <p className="text-sm" style={{ color: '#475569' }}>No rental history found</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Rental No</th>
-                  <th>Client</th>
-                  <th className="hidden sm:table-cell">Period</th>
-                  <th className="hidden sm:table-cell">Days</th>
-                  <th>Grand Total</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
+            <>
+              {/* Mobile card list */}
+              <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
                 {rentals.map(r => (
-                  <tr key={r.id} className="animate-fade-in">
-                    <td>
-                      <Link href={`/rentals/${r.id}`}
-                        className="font-mono text-xs font-semibold hover:underline"
-                        style={{ color: '#3B82F6' }}>
-                        {r.rental_no}
-                      </Link>
-                    </td>
-                    <td>
-                      <div style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
-                      {r.client?.company && (
-                        <div className="text-xs" style={{ color: '#475569' }}>{r.client.company}</div>
-                      )}
-                    </td>
-                    <td className="hidden sm:table-cell">
-                      <div className="text-xs">
-                        <div style={{ color: '#F1F5F9' }}>{fmtDate(r.start_date)}</div>
-                        <div style={{ color: '#475569' }}>→ {fmtDate(r.end_date)}</div>
+                  <Link key={r.id} href={`/rentals/${r.id}`}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                    style={{ textDecoration: 'none' }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-mono text-xs font-semibold" style={{ color: '#3B82F6' }}>{r.rental_no}</span>
+                        <span className={`badge badge-${r.status} text-[10px]`}>{r.status}</span>
                       </div>
-                    </td>
-                    <td className="hidden sm:table-cell text-sm">{r.duration_days}d</td>
-                    <td>
-                      <span className="font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</span>
-                    </td>
-                    <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
-                  </tr>
+                      <div className="text-xs truncate" style={{ color: '#94A3B8' }}>
+                        {r.client?.name || '—'} · {fmtDate(r.start_date)} → {fmtDate(r.end_date)}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                      <div className="text-[10px]" style={{ color: '#475569' }}>{r.duration_days}d</div>
+                    </div>
+                  </Link>
                 ))}
-              </tbody>
-            </table>
-            </div>
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Rental No</th>
+                      <th>Client</th>
+                      <th className="hidden md:table-cell">Period</th>
+                      <th className="hidden md:table-cell">Days</th>
+                      <th>Grand Total</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rentals.map(r => (
+                      <tr key={r.id} className="animate-fade-in">
+                        <td>
+                          <Link href={`/rentals/${r.id}`}
+                            className="font-mono text-xs font-semibold hover:underline"
+                            style={{ color: '#3B82F6' }}>
+                            {r.rental_no}
+                          </Link>
+                        </td>
+                        <td>
+                          <div style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
+                          {r.client?.company && (
+                            <div className="text-xs" style={{ color: '#475569' }}>{r.client.company}</div>
+                          )}
+                        </td>
+                        <td className="hidden md:table-cell">
+                          <div className="text-xs">
+                            <div style={{ color: '#F1F5F9' }}>{fmtDate(r.start_date)}</div>
+                            <div style={{ color: '#475569' }}>→ {fmtDate(r.end_date)}</div>
+                          </div>
+                        </td>
+                        <td className="hidden md:table-cell text-sm">{r.duration_days}d</td>
+                        <td>
+                          <span className="font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</span>
+                        </td>
+                        <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -399,7 +460,7 @@ export default function InventoryDetailPage() {
       {/* ── Edit Modal ── */}
       <Modal open={showEdit} onClose={() => setShowEdit(false)}
         title={`Edit — ${item.asset_code}`} width="max-w-2xl">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <FormField label="Brand" required><input className="inp" value={editForm.brand} onChange={e => f('brand', e.target.value)} /></FormField>
           <FormField label="Model No" required><input className="inp" value={editForm.model_no} onChange={e => f('model_no', e.target.value)} /></FormField>
           <FormField label="Serial Number"><input className="inp" value={editForm.serial_number} onChange={e => f('serial_number', e.target.value)} placeholder="F7088H2" /></FormField>
@@ -415,7 +476,7 @@ export default function InventoryDetailPage() {
             </select>
           </FormField>
         </div>
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex justify-end gap-3 mt-5 sm:mt-6">
           <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>
           <Button onClick={handleSave} loading={saving}>Save Changes</Button>
         </div>

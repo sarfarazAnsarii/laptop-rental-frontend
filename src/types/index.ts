@@ -72,10 +72,10 @@ export interface Rental {
 
 export interface DashboardSummary {
   total_laptops: number;
-  available: number;
-  rented: number;
+  available_laptops: number;
   active_rentals: number;
-  overdue_rentals: number;
+  overdue_count: number;
+  total_clients: number;
   total_revenue: number;
 }
 

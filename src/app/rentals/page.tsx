@@ -602,8 +602,9 @@ export default function RentalsPage() {
       {/* Bulk Rental Modal */}
       <Modal open={showBulk} onClose={() => setShowBulk(false)} title="Create Bulk Rental" width="max-w-3xl">
         <div className="space-y-5">
+
           {/* Header fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <FormField label="Client" required>
               <select className="inp" value={bulkForm.client_id} onChange={e => setBulkForm(p => ({ ...p, client_id: e.target.value }))}>
                 <option value="">— Select client —</option>
@@ -625,15 +626,28 @@ export default function RentalsPage() {
 
           {/* Laptop rows */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>Laptops</div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>Laptops</div>
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                  style={{ background: 'rgba(139,92,246,0.12)', color: '#A78BFA' }}>
+                  {laptops.filter(l => l.inventory_id).length} selected
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setLaptops(p => [...p, { ...EMPTY_LAPTOP }])}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
                 style={{ background: 'rgba(59,130,246,0.1)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.2)' }}>
-                <PlusCircle size={13} /> Add Row
+                <PlusCircle size={13} /> Add Laptop
               </button>
+            </div>
+
+            {/* Desktop column headers — hidden on mobile */}
+            <div className="hidden sm:grid gap-2 px-3 mb-1" style={{ gridTemplateColumns: '1fr 110px 70px 100px 32px' }}>
+              {['Laptop', 'Monthly (₹)', 'Qty', 'Subtotal', ''].map(h => (
+                <div key={h} className="text-xs font-semibold" style={{ color: '#475569' }}>{h}</div>
+              ))}
             </div>
 
             <div className="space-y-2">
@@ -641,41 +655,108 @@ export default function RentalsPage() {
                 const monthly = Number(row.monthly_rental) || 0;
                 const qty = Number(row.quantity) || 1;
                 const subtotal = monthly * qty;
+                const selectedInv = inventories.find((i: any) => String(i.id) === String(row.inventory_id));
                 return (
-                  <div key={idx} className="grid gap-2 items-end p-3 rounded-xl" style={{ background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.6)', gridTemplateColumns: '1fr 120px 80px 100px 32px' }}>
-                    <div>
-                      <div className="text-xs mb-1" style={{ color: '#64748B' }}>Laptop</div>
-                      <select className="inp" value={row.inventory_id} onChange={e => setLaptopField(idx, 'inventory_id', e.target.value)}>
-                        <option value="">— Select —</option>
-                        {inventories
-                          .filter((inv: any) => !laptops.some((l, i) => i !== idx && String(l.inventory_id) === String(inv.id)))
-                          .map((inv: any) => (
-                            <option key={inv.id} value={inv.id}>{inv.brand} {inv.model_no} — {inv.asset_code}</option>
-                          ))}
-                      </select>
-                    </div>
-                    <div>
-                      <div className="text-xs mb-1" style={{ color: '#64748B' }}>Monthly (₹)</div>
-                      <input className="inp" type="number" min="0" value={row.monthly_rental} onChange={e => setLaptopField(idx, 'monthly_rental', e.target.value)} placeholder="1100" />
-                    </div>
-                    <div>
-                      <div className="text-xs mb-1" style={{ color: '#64748B' }}>Qty</div>
-                      <input className="inp" type="number" min="1" value={row.quantity} onChange={e => setLaptopField(idx, 'quantity', e.target.value)} />
-                    </div>
-                    <div>
-                      <div className="text-xs mb-1" style={{ color: '#64748B' }}>Subtotal</div>
-                      <div className="inp flex items-center text-sm font-semibold" style={{ color: '#10B981', background: 'rgba(16,185,129,0.06)' }}>
-                        {subtotal > 0 ? '₹' + subtotal.toLocaleString('en-IN') : '—'}
+                  <div key={idx} className="rounded-xl overflow-hidden"
+                    style={{ background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.7)' }}>
+
+                    {/* Mobile layout */}
+                    <div className="sm:hidden p-3 space-y-3">
+                      {/* Row header */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold" style={{ color: '#475569' }}>Laptop {idx + 1}</span>
+                        <button
+                          type="button"
+                          disabled={laptops.length === 1}
+                          onClick={() => setLaptops(p => p.filter((_, i) => i !== idx))}
+                          className="flex items-center justify-center rounded-lg transition-all disabled:opacity-30"
+                          style={{ width: 28, height: 28, background: 'rgba(244,63,94,0.08)', color: '#F43F5E', border: '1px solid rgba(244,63,94,0.2)' }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+
+                      {/* Laptop selector — full width */}
+                      <div>
+                        <div className="text-xs mb-1.5 font-medium" style={{ color: '#64748B' }}>Select Laptop</div>
+                        <select className="inp w-full" value={row.inventory_id}
+                          onChange={e => setLaptopField(idx, 'inventory_id', e.target.value)}>
+                          <option value="">— Choose an available laptop —</option>
+                          {inventories
+                            .filter((inv: any) => !laptops.some((l, i) => i !== idx && String(l.inventory_id) === String(inv.id)))
+                            .map((inv: any) => (
+                              <option key={inv.id} value={inv.id}>
+                                {inv.brand} {inv.model_no} · {inv.asset_code}
+                              </option>
+                            ))}
+                        </select>
+                        {selectedInv && (
+                          <div className="mt-1.5 text-xs px-2 py-1 rounded-lg flex items-center gap-1.5"
+                            style={{ background: 'rgba(59,130,246,0.07)', color: '#64748B' }}>
+                            <span style={{ color: '#3B82F6' }}>●</span>
+                            {selectedInv.cpu} · {selectedInv.ram} · {selectedInv.ssd}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Monthly + Qty + Subtotal in a row */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Monthly (₹)</div>
+                          <input className="inp w-full" type="number" min="0"
+                            value={row.monthly_rental}
+                            onChange={e => setLaptopField(idx, 'monthly_rental', e.target.value)}
+                            placeholder="1100" />
+                        </div>
+                        <div>
+                          <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Qty</div>
+                          <input className="inp w-full" type="number" min="1"
+                            value={row.quantity}
+                            onChange={e => setLaptopField(idx, 'quantity', e.target.value)} />
+                        </div>
+                        <div>
+                          <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Subtotal</div>
+                          <div className="inp flex items-center text-sm font-bold"
+                            style={{ color: '#10B981', background: 'rgba(16,185,129,0.06)' }}>
+                            {subtotal > 0 ? '₹' + subtotal.toLocaleString('en-IN') : '—'}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      disabled={laptops.length === 1}
-                      onClick={() => setLaptops(p => p.filter((_, i) => i !== idx))}
-                      className="flex items-center justify-center rounded-lg transition-all disabled:opacity-30"
-                      style={{ width: 32, height: 36, background: 'rgba(244,63,94,0.08)', color: '#F43F5E', border: '1px solid rgba(244,63,94,0.2)', marginBottom: 0 }}>
-                      <Trash2 size={13} />
-                    </button>
+
+                    {/* Desktop layout — single row */}
+                    <div className="hidden sm:grid gap-2 items-center p-3"
+                      style={{ gridTemplateColumns: '1fr 110px 70px 100px 32px' }}>
+                      <div>
+                        <select className="inp" value={row.inventory_id}
+                          onChange={e => setLaptopField(idx, 'inventory_id', e.target.value)}>
+                          <option value="">— Select laptop —</option>
+                          {inventories
+                            .filter((inv: any) => !laptops.some((l, i) => i !== idx && String(l.inventory_id) === String(inv.id)))
+                            .map((inv: any) => (
+                              <option key={inv.id} value={inv.id}>{inv.brand} {inv.model_no} — {inv.asset_code}</option>
+                            ))}
+                        </select>
+                      </div>
+                      <input className="inp" type="number" min="0"
+                        value={row.monthly_rental}
+                        onChange={e => setLaptopField(idx, 'monthly_rental', e.target.value)}
+                        placeholder="1100" />
+                      <input className="inp" type="number" min="1"
+                        value={row.quantity}
+                        onChange={e => setLaptopField(idx, 'quantity', e.target.value)} />
+                      <div className="inp flex items-center text-sm font-bold"
+                        style={{ color: '#10B981', background: 'rgba(16,185,129,0.06)' }}>
+                        {subtotal > 0 ? '₹' + subtotal.toLocaleString('en-IN') : '—'}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={laptops.length === 1}
+                        onClick={() => setLaptops(p => p.filter((_, i) => i !== idx))}
+                        className="flex items-center justify-center rounded-lg transition-all disabled:opacity-30"
+                        style={{ width: 32, height: 36, background: 'rgba(244,63,94,0.08)', color: '#F43F5E', border: '1px solid rgba(244,63,94,0.2)' }}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -727,7 +808,7 @@ export default function RentalsPage() {
           )}
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex justify-end gap-3 mt-5">
           <Button variant="ghost" onClick={() => setShowBulk(false)}>Cancel</Button>
           <Button
             icon={<Layers size={14} />}
