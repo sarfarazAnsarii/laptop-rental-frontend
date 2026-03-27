@@ -118,16 +118,7 @@ export default function ReportsPage() {
       <PageHeader
         title="Monthly Report"
         subtitle={`Rental activity for ${MONTHS[month]} ${year}`}
-        action={
-          <button
-            onClick={() => window.print()}
-            className="no-print flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold"
-            style={{ background: '#3B82F6', color: 'white' }}>
-            <Printer size={13} />
-            <span className="hidden sm:inline">Print Report</span>
-            <span className="sm:hidden">Print</span>
-          </button>
-        }
+        
       />
 
       {/* ── Filters ── */}
