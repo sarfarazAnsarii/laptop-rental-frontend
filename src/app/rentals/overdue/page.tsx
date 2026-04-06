@@ -80,7 +80,7 @@ export default function OverduePage() {
               </thead>
               <tbody>
                 {rentals.map(r => {
-                  const overdue = daysOverdue(r.end_date);
+                  const overdue = daysOverdue(r.end_date ?? '');
                   return (
                     <tr key={r.id}>
                       <td><span className="font-mono text-xs font-medium" style={{ color: '#F43F5E' }}>{r.rental_no}</span></td>
@@ -92,7 +92,7 @@ export default function OverduePage() {
                         <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
                         <div className="text-xs" style={{ color: '#475569' }}>{r.client?.email || ''}</div>
                       </td>
-                      <td className="hidden md:table-cell" style={{ color: '#F43F5E' }}>{fmtDate(r.end_date)}</td>
+                      <td className="hidden md:table-cell" style={{ color: '#F43F5E' }}>{fmtDate(r.end_date ?? '')}</td>
                       <td><span className="badge badge-overdue">{overdue} day{overdue !== 1 ? 's' : ''}</span></td>
                       <td className="hidden sm:table-cell" style={{ color: '#10B981', fontWeight: 600 }}>{fmt(r.grand_total)}</td>
                       <td>
