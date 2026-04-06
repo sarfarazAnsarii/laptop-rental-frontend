@@ -10,13 +10,35 @@ import {
   ArrowLeft, Layers, CheckCircle, XCircle,
   ChevronRight, SendHorizonal, Eye,
   Building2, Mail, Phone, FileText,
-  Truck, MapPin, Contact, Plus,
+  Truck, MapPin, Contact, Plus, Scissors, ReceiptText, Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(n));
 const fmtDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+/** Last day of the month that startDate falls in — the billing period end for advance/monthly */
+function billingEnd(startDate: string): string {
+  const d = new Date(startDate);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const y = end.getFullYear();
+  const m = String(end.getMonth() + 1).padStart(2, '0');
+  const day = String(end.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+/** Billing days = start_date → end of that month (inclusive) */
+function billingDays(startDate: string): number {
+  const start = new Date(startDate);
+  const end   = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+/** Daily rate = monthly_rental / actual days in start month */
+function dailyRate(monthlyRental: number, startDate: string): number {
+  const d = new Date(startDate);
+  const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  return +(monthlyRental / daysInMonth).toFixed(2);
+}
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
@@ -53,6 +75,9 @@ export default function BulkRentalDetailPage() {
   const [acting,  setActing]  = useState<string | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ payment_type: 'advance', payment_method: 'upi', amount: '', payment_date: new Date().toISOString().split('T')[0], notes: '' });
+  const [paymentSaving, setPaymentSaving] = useState(false);
 
   // Schedules
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -63,6 +88,99 @@ export default function BulkRentalDetailPage() {
   const [schedSaving, setSchedSaving] = useState(false);
   const [completeModal, setCompleteModal] = useState<any | null>(null);
   const [completeNote, setCompleteNote] = useState('');
+
+  // Partial cancel
+  const [selectedIds,       setSelectedIds]       = useState<Set<number>>(new Set());
+  const [partialCancelModal, setPartialCancelModal] = useState(false);
+  const [pcForm,             setPcForm]            = useState({ end_date: new Date().toISOString().split('T')[0], notes: '' });
+  const [pcResult,           setPcResult]          = useState<any | null>(null);
+  const [pcSaving,           setPcSaving]          = useState(false);
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function toggleSelectAll() {
+    const activeIds = rentals.filter(r => r.status === 'active').map(r => r.id);
+    setSelectedIds(prev => prev.size === activeIds.length ? new Set() : new Set(activeIds));
+  }
+
+  async function handleRecordPayment() {
+    setPaymentSaving(true);
+    try {
+      const cl = rentals[0]?.client;
+      await api.payments.create({
+        client_id:      cl.id,
+        bulk_id:        bulkId,
+        payment_type:   paymentForm.payment_type as any,
+        payment_method: paymentForm.payment_method as any,
+        amount:         Number(paymentForm.amount),
+        payment_date:   paymentForm.payment_date,
+        notes:          paymentForm.notes || undefined,
+      });
+      showToast(`Payment of ₹${Number(paymentForm.amount).toLocaleString('en-IN')} recorded`);
+      setShowPaymentModal(false);
+    } catch (e: any) { showToast(e.message || 'Failed to record payment', 'error'); }
+    finally { setPaymentSaving(false); }
+  }
+
+  async function handlePartialCancel() {
+    setPcSaving(true);
+    setPcResult(null);
+    try {
+      const res = await api.rentals.partialCancel({
+        rental_ids: [...selectedIds],
+        end_date: pcForm.end_date,
+        notes: pcForm.notes || undefined,
+      });
+      setPcResult(res);
+      setSelectedIds(new Set());
+      load();
+    } catch (e: any) { showToast(e.message || 'Partial cancel failed', 'error'); }
+    finally { setPcSaving(false); }
+  }
+
+  // Pro-rated preview (client-side estimate, mirrors backend formula)
+  function previewProRated(r: any, endDate: string) {
+    const start    = new Date(r.start_date);
+    const monthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    const daysInMonth = monthEnd.getDate();
+    const ret      = new Date(endDate);
+    const effective = ret > monthEnd ? monthEnd : ret;
+    const daysUsed  = Math.max(1, Math.round((effective.getTime() - start.getTime()) / 86400000) + 1);
+    const monthly   = Number(r.monthly_rental || 0);
+    const qty       = Number(r.quantity || 1);
+    const gstPct    = Number(r.gst_percent || 18);
+    const proBase   = +(monthly * qty * daysUsed / daysInMonth).toFixed(2);
+    const proGst    = +(proBase * gstPct / 100).toFixed(2);
+    const proTotal  = +(proBase + proGst).toFixed(2);
+    const origTotal = Number(r.grand_total || 0);
+    const credit    = +(origTotal - proTotal).toFixed(2);
+    return { daysInMonth, daysUsed, proBase, proGst, proTotal, origTotal, credit };
+  }
+
+  // Credit note generation (after partial cancel result)
+  const [cnModal,   setCnModal]   = useState<{ rental_id: number; rental_no: string; advance_paid: number; grand_total: number } | null>(null);
+  const [cnForm,    setCnForm]    = useState({ advance_paid: '', resolution: 'refund', notes: '' });
+  const [cnSaving,  setCnSaving]  = useState(false);
+
+  async function handleCreateCreditNote() {
+    if (!cnModal) return;
+    setCnSaving(true);
+    try {
+      const res = await api.creditNotes.create(cnModal.rental_id, {
+        advance_paid:  Number(cnForm.advance_paid) || cnModal.advance_paid,
+        resolution:    cnForm.resolution || undefined,
+        notes:         cnForm.notes || undefined,
+      });
+      showToast(`Credit note ${res.data?.credit_note_no || ''} created`);
+      setCnModal(null);
+    } catch (e: any) { showToast(e.message || 'Failed to create credit note', 'error'); }
+    finally { setCnSaving(false); }
+  }
 
   // Individual laptop pickup (client-facing)
   const [indPickupRental, setIndPickupRental] = useState<any | null>(null);
@@ -261,6 +379,20 @@ export default function BulkRentalDetailPage() {
                 <Button variant="outline" size="sm" icon={<SendHorizonal size={13} />} onClick={() => setShowInvoiceModal(true)}>
                   Send Invoice
                 </Button>
+                <Button variant="outline" size="sm" icon={<Wallet size={13} />}
+                  onClick={() => {
+                    const cl = rentals[0]?.client;
+                    setPaymentForm({
+                      payment_type: cl?.payment_type === 'postpaid' ? 'monthly' : 'advance',
+                      payment_method: 'upi',
+                      amount: String(grandSum),
+                      payment_date: new Date().toISOString().split('T')[0],
+                      notes: '',
+                    });
+                    setShowPaymentModal(true);
+                  }}>
+                  Record Payment
+                </Button>
               </>
             )}
             {isAdmin && allActive && (
@@ -381,8 +513,16 @@ export default function BulkRentalDetailPage() {
 
         {/* Laptops Table */}
         <div className="glass-card overflow-hidden">
-          <div className="px-5 py-4" style={{ borderBottom: '1px solid #1E3058' }}>
-            <SectionTitle>Laptops in this Bulk</SectionTitle>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1E3058' }}>
+            <h2 className="text-xs font-bold uppercase tracking-widest m-0" style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+              Laptops in this Bulk
+            </h2>
+            {isAdmin && selectedIds.size > 0 && (
+              <Button variant="danger" size="sm" icon={<Scissors size={13} />}
+                onClick={() => { setPcForm({ end_date: new Date().toISOString().split('T')[0], notes: '' }); setPcResult(null); setPartialCancelModal(true); }}>
+                Cancel Selected ({selectedIds.size})
+              </Button>
+            )}
           </div>
 
           {/* Mobile */}
@@ -426,6 +566,14 @@ export default function BulkRentalDetailPage() {
             <table className="data-table">
               <thead>
                 <tr>
+                  {isAdmin && (
+                    <th style={{ width: 36 }}>
+                      <input type="checkbox"
+                        checked={selectedIds.size > 0 && selectedIds.size === rentals.filter(r => r.status === 'active').length}
+                        onChange={toggleSelectAll}
+                        style={{ accentColor: '#3B82F6', cursor: 'pointer' }} />
+                    </th>
+                  )}
                   <th>Rental No</th>
                   <th>Laptop</th>
                   <th className="hidden lg:table-cell">Specs</th>
@@ -439,7 +587,18 @@ export default function BulkRentalDetailPage() {
               </thead>
               <tbody>
                 {rentals.map((r: any) => (
-                  <tr key={r.id} className="animate-fade-in">
+                  <tr key={r.id} className="animate-fade-in"
+                    style={selectedIds.has(r.id) ? { background: 'rgba(244,63,94,0.06)' } : undefined}>
+                    {isAdmin && (
+                      <td style={{ textAlign: 'center' }}>
+                        {r.status === 'active' && (
+                          <input type="checkbox"
+                            checked={selectedIds.has(r.id)}
+                            onChange={() => toggleSelect(r.id)}
+                            style={{ accentColor: '#F43F5E', cursor: 'pointer' }} />
+                        )}
+                      </td>
+                    )}
                     <td>
                       <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-semibold hover:underline" style={{ color: '#3B82F6' }}>
                         {r.rental_no}
@@ -454,8 +613,11 @@ export default function BulkRentalDetailPage() {
                         {[r.inventory?.cpu, r.inventory?.generation ? `${r.inventory.generation} Gen` : '', r.inventory?.ram, r.inventory?.ssd].filter(Boolean).join(' · ')}
                       </div>
                     </td>
-                    <td className="text-xs" style={{ color: '#F1F5F9' }}>{fmtDate(r.delivery_date || r.start_date)}</td>
-                    <td className="text-sm" style={{ color: '#94A3B8' }}>{r.duration_days ?? '—'}d</td>
+                    <td className="text-xs" style={{ color: '#F1F5F9' }}>
+                      <div>{fmtDate(r.start_date)}</div>
+                      <div style={{ color: '#475569' }}>→ {fmtDate(billingEnd(r.start_date))}</div>
+                    </td>
+                    <td className="text-sm" style={{ color: '#94A3B8' }}>{billingDays(r.start_date)}d</td>
                     <td className="text-sm" style={{ color: '#F1F5F9' }}>{fmt(r.monthly_rental)}</td>
                     <td>
                       <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
@@ -482,7 +644,7 @@ export default function BulkRentalDetailPage() {
               </tbody>
               <tfoot>
                 <tr style={{ background: 'rgba(16,185,129,0.05)', borderTop: '2px solid rgba(16,185,129,0.2)' }}>
-                  <td colSpan={6} className="text-right text-xs font-bold" style={{ color: '#475569' }}>Total ({rentals.length} rentals)</td>
+                  <td colSpan={isAdmin ? 7 : 6} className="text-right text-xs font-bold" style={{ color: '#475569' }}>Total ({rentals.length} rentals)</td>
                   <td>
                     <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(grandSum)}</div>
                     <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(gstSum)}</div>
@@ -583,6 +745,144 @@ export default function BulkRentalDetailPage() {
 
       </div>
 
+      {/* Partial Cancel Modal */}
+      <Modal open={partialCancelModal} onClose={() => { setPartialCancelModal(false); setPcResult(null); }}
+        title="Partial Cancel — Early Return" width="max-w-2xl">
+        <div className="space-y-4">
+
+          {/* Result view after success */}
+          {pcResult ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl text-center" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                <CheckCircle size={28} style={{ color: '#10B981', margin: '0 auto 8px' }} />
+                <div className="text-sm font-bold" style={{ color: '#10B981' }}>{pcResult.message}</div>
+                <div className="flex justify-center gap-6 mt-3 text-xs" style={{ color: '#94A3B8' }}>
+                  <span>Credit: <strong style={{ color: '#10B981' }}>₹{Number(pcResult.total_credit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                  <span>Adjusted Total: <strong style={{ color: '#F1F5F9' }}>₹{Number(pcResult.total_adjusted || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                </div>
+              </div>
+
+              {pcResult.cancelled?.length > 0 && (
+                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
+                  <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: 'rgba(30,48,88,0.5)', color: '#475569' }}>
+                    Cancelled Rentals
+                  </div>
+                  <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+                    {pcResult.cancelled.map((c: any) => (
+                      <div key={c.rental_id} className="px-4 py-3 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="font-semibold" style={{ color: '#F1F5F9' }}>
+                            {c.rental_no} — {c.inventory}
+                          </div>
+                          <Button size="sm" variant="outline" icon={<ReceiptText size={12} />}
+                            onClick={() => {
+                              setCnModal({ rental_id: c.rental_id, rental_no: c.rental_no, advance_paid: Number(c.original_total), grand_total: Number(c.original_total) });
+                              setCnForm({ advance_paid: String(c.original_total), resolution: 'refund', notes: '' });
+                              setPartialCancelModal(false);
+                            }}>
+                            Credit Note
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4">
+                          <div style={{ color: '#64748B' }}>Days Used / Month: <span style={{ color: '#F1F5F9' }}>{c.days_used} / {c.days_in_month}</span></div>
+                          <div style={{ color: '#64748B' }}>Monthly Rental: <span style={{ color: '#F1F5F9' }}>₹{Number(c.monthly_rental).toLocaleString('en-IN')}</span></div>
+                          <div style={{ color: '#64748B' }}>Original Total: <span style={{ color: '#F1F5F9' }}>₹{Number(c.original_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                          <div style={{ color: '#64748B' }}>Adjusted Total: <span style={{ color: '#10B981' }}>₹{Number(c.adjusted_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                          <div className="col-span-2" style={{ color: '#64748B' }}>Credit: <span style={{ color: '#F59E0B', fontWeight: 700 }}>₹{Number(c.credit_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <Button onClick={() => { setPartialCancelModal(false); setPcResult(null); }}>Done</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Selected rentals preview */}
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
+                <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(244,63,94,0.08)' }}>
+                  <Scissors size={13} style={{ color: '#F43F5E' }} />
+                  <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#F43F5E' }}>
+                    {selectedIds.size} Rental(s) to Cancel
+                  </span>
+                </div>
+                <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+                  {rentals.filter(r => selectedIds.has(r.id)).map((r: any) => {
+                    const preview = pcForm.end_date ? previewProRated(r, pcForm.end_date) : null;
+                    return (
+                      <div key={r.id} className="px-4 py-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <div>
+                            <span className="font-mono text-xs font-semibold" style={{ color: '#3B82F6' }}>{r.rental_no}</span>
+                            <span className="text-xs ml-2" style={{ color: '#94A3B8' }}>{r.inventory?.brand} {r.inventory?.model_no}</span>
+                          </div>
+                          <button onClick={() => toggleSelect(r.id)} style={{ color: '#64748B', fontSize: 11, background: 'none', border: 'none', cursor: 'pointer' }}>✕ Remove</button>
+                        </div>
+                        {preview && (
+                          <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs mt-1" style={{ color: '#64748B' }}>
+                            <span>Used: <strong style={{ color: '#F1F5F9' }}>{preview.daysUsed}/{preview.daysInMonth}d</strong></span>
+                            <span>Pro-rated: <strong style={{ color: '#F1F5F9' }}>₹{preview.proTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                            <span>Credit: <strong style={{ color: '#10B981' }}>₹{Math.max(0, preview.credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {pcForm.end_date && (() => {
+                  const totals = rentals.filter(r => selectedIds.has(r.id)).reduce((acc: any, r: any) => {
+                    const p = previewProRated(r, pcForm.end_date);
+                    return { proTotal: acc.proTotal + p.proTotal, credit: acc.credit + Math.max(0, p.credit) };
+                  }, { proTotal: 0, credit: 0 });
+                  return (
+                    <div className="flex items-center justify-between px-4 py-3"
+                      style={{ background: 'rgba(244,63,94,0.07)', borderTop: '1px solid rgba(244,63,94,0.2)' }}>
+                      <span className="text-xs" style={{ color: '#F43F5E' }}>Total Credit to Client</span>
+                      <span className="text-sm font-bold" style={{ color: '#10B981' }}>
+                        ₹{totals.credit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Form */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Return / End Date" required>
+                  <input className="inp" type="date"
+                    max={billingEnd(rentals[0]?.start_date || new Date().toISOString())}
+                    value={pcForm.end_date}
+                    onChange={e => setPcForm(p => ({ ...p, end_date: e.target.value }))} />
+                </FormField>
+                <FormField label="Notes">
+                  <input className="inp" placeholder="e.g. Client returned laptops early"
+                    value={pcForm.notes}
+                    onChange={e => setPcForm(p => ({ ...p, notes: e.target.value }))} />
+                </FormField>
+              </div>
+
+              <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: '#94A3B8' }}>
+                Pro-rated = (monthly × qty × days used) ÷ days in month + GST. Credit = original grand total − pro-rated total. Each cancelled rental will record the deduction reason for invoice adjustments.
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => setPartialCancelModal(false)}>Cancel</Button>
+                <Button variant="danger" icon={<Scissors size={14} />}
+                  loading={pcSaving}
+                  disabled={!pcForm.end_date || selectedIds.size === 0}
+                  onClick={handlePartialCancel}>
+                  Confirm Cancel ({selectedIds.size})
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
       {/* Send Invoice Modal */}
       <Modal open={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} title="Send Bulk Invoice" width="max-w-md">
         <div className="space-y-4">
@@ -611,6 +911,9 @@ export default function BulkRentalDetailPage() {
                   <div>
                     <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
                     <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.rental_no}</div>
+                    <div className="text-xs" style={{ color: '#64748B' }}>
+                      {fmtDate(r.start_date)} → {fmtDate(billingEnd(r.start_date))} · {billingDays(r.start_date)}d
+                    </div>
                   </div>
                   <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
                 </div>
@@ -653,10 +956,11 @@ export default function BulkRentalDetailPage() {
           </div>
 
           <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
-            <div className="font-semibold mb-1" style={{ color: '#F59E0B' }}>30-Day Advance Payment</div>
+            <div className="font-semibold mb-1" style={{ color: '#F59E0B' }}>Advance Payment — Billing Period</div>
             <div className="text-xs" style={{ color: '#94A3B8' }}>
-              An advance invoice for <strong style={{ color: '#F1F5F9' }}>30 days</strong> will be generated and sent for each of the{' '}
-              <strong style={{ color: '#F1F5F9' }}>{rentals.length} rental(s)</strong> in this bulk group.
+              Advance invoice from <strong style={{ color: '#F1F5F9' }}>{fmtDate(rentals[0]?.start_date)}</strong> to{' '}
+              <strong style={{ color: '#F1F5F9' }}>{fmtDate(billingEnd(rentals[0]?.start_date))}</strong> will be generated
+              for each of the <strong style={{ color: '#F1F5F9' }}>{rentals.length} rental(s)</strong> in this bulk group.
             </div>
           </div>
 
@@ -666,13 +970,18 @@ export default function BulkRentalDetailPage() {
             </div>
             <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
               {rentals.map((r: any) => {
-                const advance = Number(r.monthly_rental || 0) * Number(r.quantity || 1);
+                const days    = billingDays(r.start_date);
+                const rate    = dailyRate(Number(r.monthly_rental || 0), r.start_date);
+                const advance = +(rate * days * Number(r.quantity || 1)).toFixed(2);
                 const gst     = +(advance * Number(r.gst_percent || 18) / 100).toFixed(2);
                 return (
                   <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
                     <div>
                       <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
                       <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.rental_no}</div>
+                      <div className="text-xs" style={{ color: '#64748B' }}>
+                        {fmtDate(r.start_date)} → {fmtDate(billingEnd(r.start_date))} · {days}d
+                      </div>
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold" style={{ color: '#F59E0B' }}>
@@ -689,7 +998,9 @@ export default function BulkRentalDetailPage() {
               <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Total Advance</span>
               <span className="text-base font-bold" style={{ color: '#F59E0B' }}>
                 {'₹' + rentals.reduce((s: number, r: any) => {
-                  const a = Number(r.monthly_rental || 0) * Number(r.quantity || 1);
+                  const days = billingDays(r.start_date);
+                  const rate = dailyRate(Number(r.monthly_rental || 0), r.start_date);
+                  const a    = +(rate * days * Number(r.quantity || 1)).toFixed(2);
                   return s + a + +(a * Number(r.gst_percent || 18) / 100).toFixed(2);
                 }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
@@ -830,6 +1141,117 @@ export default function BulkRentalDetailPage() {
             Mark Completed
           </Button>
         </div>
+      </Modal>
+
+      {/* Record Payment Modal */}
+      <Modal open={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Record Payment" width="max-w-sm">
+        {(() => {
+          const cl = rentals[0]?.client;
+          const isAdvanceClient = cl?.payment_type !== 'postpaid';
+          return (
+            <div className="space-y-4">
+              <div className="p-3 rounded-xl flex items-center gap-3"
+                style={{ background: isAdvanceClient ? 'rgba(59,130,246,0.07)' : 'rgba(16,185,129,0.07)', border: `1px solid ${isAdvanceClient ? 'rgba(59,130,246,0.2)' : 'rgba(16,185,129,0.2)'}` }}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold flex-shrink-0"
+                  style={{ background: isAdvanceClient ? 'linear-gradient(135deg,#3B82F6,#1D4ED8)' : 'linear-gradient(135deg,#10B981,#059669)', color: 'white' }}>
+                  {cl?.name?.charAt(0)?.toUpperCase()}
+                </div>
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{cl?.name}</div>
+                  <div className="text-xs" style={{ color: isAdvanceClient ? '#3B82F6' : '#10B981' }}>
+                    {isAdvanceClient ? 'Advance' : 'Postpaid'} · {bulkId}
+                  </div>
+                </div>
+              </div>
+
+              <FormField label="Payment Type" required>
+                <select className="inp" value={paymentForm.payment_type}
+                  onChange={e => setPaymentForm(p => ({ ...p, payment_type: e.target.value }))}>
+                  {isAdvanceClient && <option value="advance">Advance — paid before billing period</option>}
+                  {!isAdvanceClient && <option value="monthly">Monthly — paid after month ends</option>}
+                  <option value="credit_adjustment">Credit Adjustment — from credit note</option>
+                </select>
+              </FormField>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Amount (₹)" required>
+                  <input className="inp" type="number" min="0" step="0.01"
+                    value={paymentForm.amount}
+                    onChange={e => setPaymentForm(p => ({ ...p, amount: e.target.value }))} />
+                </FormField>
+                <FormField label="Method" required>
+                  <select className="inp" value={paymentForm.payment_method}
+                    onChange={e => setPaymentForm(p => ({ ...p, payment_method: e.target.value }))}>
+                    <option value="upi">UPI</option>
+                    <option value="neft">NEFT</option>
+                    <option value="cash">Cash</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                  </select>
+                </FormField>
+              </div>
+
+              <FormField label="Payment Date" required>
+                <input className="inp" type="date" value={paymentForm.payment_date}
+                  onChange={e => setPaymentForm(p => ({ ...p, payment_date: e.target.value }))} />
+              </FormField>
+
+              <FormField label="Notes (optional)">
+                <input className="inp" placeholder="e.g. UPI ref: 9876543210"
+                  value={paymentForm.notes}
+                  onChange={e => setPaymentForm(p => ({ ...p, notes: e.target.value }))} />
+              </FormField>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => setShowPaymentModal(false)}>Cancel</Button>
+                <Button icon={<Wallet size={14} />} loading={paymentSaving}
+                  disabled={!paymentForm.amount || !paymentForm.payment_date}
+                  onClick={handleRecordPayment}>
+                  Record Payment
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* Credit Note Modal */}
+      <Modal open={!!cnModal} onClose={() => setCnModal(null)} title="Generate Credit Note" width="max-w-sm">
+        {cnModal && (
+          <div className="space-y-4">
+            <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.2)' }}>
+              <div className="font-semibold" style={{ color: '#A78BFA' }}>{cnModal.rental_no}</div>
+              <div className="mt-1" style={{ color: '#64748B' }}>
+                Original Grand Total: <span style={{ color: '#F1F5F9' }}>₹{Number(cnModal.grand_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+            <FormField label="Advance Paid by Client (₹)" required>
+              <input className="inp" type="number" min="0" step="0.01"
+                value={cnForm.advance_paid}
+                onChange={e => setCnForm(p => ({ ...p, advance_paid: e.target.value }))}
+                placeholder={String(cnModal.advance_paid)} />
+            </FormField>
+            <FormField label="Resolution">
+              <select className="inp" value={cnForm.resolution}
+                onChange={e => setCnForm(p => ({ ...p, resolution: e.target.value }))}>
+                <option value="refund">Refund — return money to client</option>
+                <option value="adjust_next_invoice">Adjust Next Invoice</option>
+                <option value="pending">Pending — decide later</option>
+              </select>
+            </FormField>
+            <FormField label="Notes (optional)">
+              <input className="inp" placeholder="e.g. Refund within 7 days"
+                value={cnForm.notes}
+                onChange={e => setCnForm(p => ({ ...p, notes: e.target.value }))} />
+            </FormField>
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setCnModal(null)}>Cancel</Button>
+              <Button icon={<ReceiptText size={14} />} loading={cnSaving} onClick={handleCreateCreditNote}>
+                Create Credit Note
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

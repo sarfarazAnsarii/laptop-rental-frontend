@@ -111,16 +111,19 @@ export default function InventoryDetailPage() {
   function openEdit() {
     if (!item) return;
     setEditForm({
-      brand:          item.brand                   || '',
-      model_no:       item.model_no                || '',
-      serial_number:  (item as any).serial_number  || '',
-      cpu:            item.cpu                     || '',
-      generation:     (item as any).generation     || '',
-      ram:            item.ram                     || '',
-      ssd:            item.ssd                     || '',
-      purchase_date:  item.purchase_date           || '',
-      purchaser:      (item as any).purchaser      || '',
-      status:         item.status                  || '',
+      brand:            item.brand                   || '',
+      model_no:         item.model_no                || '',
+      serial_number:    (item as any).serial_number  || '',
+      cpu:              item.cpu                     || '',
+      generation:       (item as any).generation     || '',
+      ram:              item.ram                     || '',
+      ssd:              item.ssd                     || '',
+      purchase_date:    item.purchase_date           || '',
+      purchaser:        (item as any).purchaser      || '',
+      status:           item.status                  || '',
+      employee_name:    item.employee_name           || '',
+      employee_mobile:  item.employee_mobile         || '',
+      employee_address: item.employee_address        || '',
     });
     setShowEdit(true);
   }
@@ -296,6 +299,17 @@ export default function InventoryDetailPage() {
                 <InfoRow icon={<MapPin size={13} />}    label="Location" value={item.vendor_location || '—'} />
               </div>
             </div>
+
+            {(item.employee_name || item.employee_mobile || item.employee_address) && (
+              <div className="pt-3 mt-1" style={{ borderTop: '1px solid #1E3058' }}>
+                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155' }}>Employee</div>
+                <div className="space-y-3">
+                  {item.employee_name    && <InfoRow icon={<User size={13} />}    label="Name"    value={item.employee_name} />}
+                  {item.employee_mobile  && <InfoRow icon={<Hash size={13} />}    label="Mobile"  value={item.employee_mobile} />}
+                  {item.employee_address && <InfoRow icon={<MapPin size={13} />}  label="Address" value={item.employee_address} />}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -476,6 +490,22 @@ export default function InventoryDetailPage() {
             </select>
           </FormField>
         </div>
+
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid #1E3058' }}>
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Employee Assignment</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <FormField label="Employee Name">
+              <input className="inp" value={editForm.employee_name} onChange={e => f('employee_name', e.target.value)} placeholder="John Doe" />
+            </FormField>
+            <FormField label="Employee Mobile">
+              <input className="inp" value={editForm.employee_mobile} onChange={e => f('employee_mobile', e.target.value)} placeholder="9876543210" />
+            </FormField>
+            <FormField label="Employee Address">
+              <input className="inp" value={editForm.employee_address} onChange={e => f('employee_address', e.target.value)} placeholder="12 MG Road, Bangalore" />
+            </FormField>
+          </div>
+        </div>
+
         <div className="flex justify-end gap-3 mt-5 sm:mt-6">
           <Button variant="ghost" onClick={() => setShowEdit(false)}>Cancel</Button>
           <Button onClick={handleSave} loading={saving}>Save Changes</Button>

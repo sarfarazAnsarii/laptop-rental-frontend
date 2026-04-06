@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Monitor, FileText, Users, LogOut,
   Laptop, AlertCircle, ChevronRight, Wrench,
-  AlertTriangle, Shield, X, UserCog, BarChart2, CalendarClock,
+  AlertTriangle, Shield, X, UserCog, BarChart2, CalendarClock, ReceiptText, Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -13,11 +13,13 @@ const NAV_ADMIN = [
   { href: '/dashboard',       label: 'Dashboard',   icon: LayoutDashboard },
   { href: '/inventory',       label: 'Inventory',   icon: Monitor },
   { href: '/rentals',         label: 'Rentals',     icon: FileText },
-  { href: '/rentals/overdue', label: 'Overdue',     icon: AlertCircle },
-  { href: '/schedules',       label: 'Schedules',   icon: CalendarClock },
-  { href: '/issues',          label: 'Issues',      icon: Wrench },
-  { href: '/users',           label: 'Users',       icon: UserCog },
-  { href: '/reports',         label: 'Reports',     icon: BarChart2 },
+  { href: '/rentals/overdue', label: 'Overdue',      icon: AlertCircle },
+  { href: '/schedules',       label: 'Schedules',    icon: CalendarClock },
+  { href: '/payments',        label: 'Payments',     icon: Wallet },
+  { href: '/credit-notes',    label: 'Credit Notes', icon: ReceiptText },
+  { href: '/issues',          label: 'Issues',       icon: Wrench },
+  { href: '/users',           label: 'Users',        icon: UserCog },
+  { href: '/reports',         label: 'Reports',      icon: BarChart2 },
 ];
 
 const NAV_STAFF = [

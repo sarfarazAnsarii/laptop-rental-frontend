@@ -160,14 +160,19 @@ export const api = {
     },
     update: (id: number, data: any) =>
       request<any>(`/rentals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    complete: (id: number) =>
-      request<any>(`/rentals/${id}/complete`, { method: 'POST' }),
-    cancel: (id: number) =>
-      request<any>(`/rentals/${id}/cancel`, { method: 'POST' }),
-    sendInvoice: (id: number) =>
+    complete: (id: number, data?: { end_date?: string; notes?: string }) =>
+      request<any>(`/rentals/${id}/complete`, { method: 'POST', body: JSON.stringify(data || {}) }),
+    cancel: (id: number, data?: { end_date?: string; notes?: string }) =>
+      request<any>(`/rentals/${id}/cancel`, { method: 'POST', body: JSON.stringify(data || {}) }),
+    partialCancel: (data: { rental_ids: number[]; end_date: string; notes?: string }) =>
+      request<any>('/rentals/partial-cancel', { method: 'POST', body: JSON.stringify(data) }),
+    sendInvoice: (id: number, extra?: {
+      subject?: string; body?: string;
+      return_date?: string; deduction_amount?: number; deduction_reason?: string;
+    }) =>
       request<any>(`/rentals/${id}/send-invoice`, {
         method: 'POST',
-        body: JSON.stringify({ attach_invoice: true }),
+        body: JSON.stringify({ attach_invoice: true, ...extra }),
       }),
     sendAdvanceInvoice: (id: number, advance_days = 30, extra?: Record<string, any>) =>
       request<any>(`/rentals/${id}/send-advance-invoice`, {
@@ -223,6 +228,48 @@ export const api = {
       request<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: number) =>
       request<any>(`/users/${id}`, { method: 'DELETE' }),
+  },
+
+  payments: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/payments${qs}`);
+    },
+    get: (id: number) => request<any>(`/payments/${id}`),
+    create: (data: {
+      rental_id?: number;
+      client_id: number;
+      payment_type: 'advance' | 'monthly' | 'credit_adjustment';
+      payment_method: 'upi' | 'neft' | 'cash' | 'cheque' | 'bank_transfer';
+      amount: number;
+      payment_date: string;
+      notes?: string;
+      bulk_id?: string;
+    }) => request<any>('/payments', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: any) =>
+      request<any>(`/payments/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    clientBalance: (clientId: number) =>
+      request<any>(`/payments/client/${clientId}/balance`),
+    clientPayments: (clientId: number, params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/payments?client_id=${clientId}${qs ? '&' + qs.slice(1) : ''}`);
+    },
+    rentalSummary: (rentalId: number) =>
+      request<any>(`/payments/rental/${rentalId}/summary`),
+  },
+
+  creditNotes: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/credit-notes${qs}`);
+    },
+    get: (id: number) => request<any>(`/credit-notes/${id}`),
+    create: (rentalId: number, data: { advance_paid: number; resolution?: string; notes?: string }) =>
+      request<any>(`/rentals/${rentalId}/credit-note`, { method: 'POST', body: JSON.stringify(data) }),
+    send: (id: number) =>
+      request<any>(`/credit-notes/${id}/send`, { method: 'POST' }),
+    resolve: (id: number, data: { resolution: string; notes?: string }) =>
+      request<any>(`/credit-notes/${id}/resolve`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
 
   dashboard: {

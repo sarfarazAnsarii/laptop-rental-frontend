@@ -5,6 +5,9 @@ export interface User {
   role: 'admin' | 'staff' | 'vendor' | 'client';
   phone?: string;
   company?: string;
+  payment_type?: 'advance' | 'postpaid';
+  gst_number?: string;
+  hsn_code?: string;
 }
 
 export interface Issue {
@@ -37,6 +40,9 @@ export interface Inventory {
   vendor_id?: number;
   vendor_name?: string;
   vendor_location?: string;
+  employee_name?: string;
+  employee_mobile?: string;
+  employee_address?: string;
   delivery_date?: string;
   return_date?: string;
   return_location?: string;
@@ -54,7 +60,7 @@ export interface Rental {
   client_id: number;
   created_by: number;
   start_date: string;
-  end_date: string;
+  end_date?: string;        // set only when cancelled/completed
   duration_days: number;
   monthly_rental: number;
   pro_rental: number;

@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import {
   Users, Plus, Mail, Phone, Building2, Search,
   Shield, UserCheck, Package, User, Trash2, MapPin, Edit,
+  CreditCard, Clock,
 } from 'lucide-react';
 
 const ROLE_OPTIONS = ['', 'admin', 'staff', 'vendor', 'client'];
@@ -26,7 +27,8 @@ const ROLE_ICON: Record<string, any> = {
 
 const EMPTY_FORM = {
   name: '', email: '', password: '', password_confirmation: '',
-  role: 'staff', phone: '', company: '', address: '',
+  role: 'staff', phone: '', company: '', address: '', payment_type: 'advance',
+  gst_number: '', hsn_code: '',
 };
 
 export default function UsersPage() {
@@ -46,7 +48,7 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
 
   const [editUser, setEditUser] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', company: '', address: '', role: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', company: '', address: '', role: '', payment_type: 'advance', gst_number: '', hsn_code: '' });
   const [updating, setUpdating] = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -90,6 +92,9 @@ export default function UsersPage() {
         phone: form.phone || undefined,
         company: form.company || undefined,
         address: form.address || undefined,
+        payment_type: form.role === 'client' ? form.payment_type : undefined,
+        gst_number:   form.role === 'client' ? form.gst_number  || undefined : undefined,
+        hsn_code:     form.role === 'client' ? form.hsn_code    || undefined : undefined,
       });
       // If backend doesn't apply role via register, update silently in background
       const newUserId = res.data?.user?.id ?? res.data?.id;
@@ -111,7 +116,7 @@ export default function UsersPage() {
 
   function openEdit(u: any) {
     setEditUser(u);
-    setEditForm({ name: u.name || '', phone: u.phone || '', company: u.company || '', address: u.address || '', role: u.role || 'staff' });
+    setEditForm({ name: u.name || '', phone: u.phone || '', company: u.company || '', address: u.address || '', role: u.role || 'staff', payment_type: u.payment_type || 'advance', gst_number: u.gst_number || '', hsn_code: u.hsn_code || '' });
   }
 
   async function handleUpdate() {
@@ -119,11 +124,14 @@ export default function UsersPage() {
     setUpdating(true);
     try {
       await api.users.update(editUser.id, {
-        name:    editForm.name    || undefined,
-        phone:   editForm.phone   || undefined,
-        company: editForm.company || undefined,
-        address: editForm.address || undefined,
-        role:    editForm.role    || undefined,
+        name:         editForm.name         || undefined,
+        phone:        editForm.phone        || undefined,
+        company:      editForm.company      || undefined,
+        address:      editForm.address      || undefined,
+        role:         editForm.role         || undefined,
+        payment_type: editForm.role === 'client' ? editForm.payment_type : undefined,
+        gst_number:   editForm.role === 'client' ? editForm.gst_number  || undefined : undefined,
+        hsn_code:     editForm.role === 'client' ? editForm.hsn_code    || undefined : undefined,
       });
       showToast('User updated successfully');
       setEditUser(null);
@@ -240,10 +248,25 @@ export default function UsersPage() {
                       <MapPin size={11} /><span className="truncate">{u.address}</span>
                     </div>
                   )}
+                  {u.role === 'client' && u.gst_number && (
+                    <div className="flex items-center gap-2 text-xs" style={{ color: '#64748B' }}>
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(59,130,246,0.08)', color: '#3B82F6' }}>GST</span>
+                      <span className="font-mono">{u.gst_number}</span>
+                      {u.hsn_code && <><span style={{ color: '#1E3058' }}>·</span><span className="font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(139,92,246,0.08)', color: '#A78BFA' }}>HSN</span><span className="font-mono">{u.hsn_code}</span></>}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: '1px solid #1E3058' }}>
                   <span className="text-xs font-mono" style={{ color: '#334155' }}>ID #{u.id}</span>
+                  {u.role === 'client' && (
+                    <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-lg"
+                      style={u.payment_type === 'postpaid'
+                        ? { background: 'rgba(245,158,11,0.1)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.25)' }
+                        : { background: 'rgba(16,185,129,0.1)', color: '#10B981', border: '1px solid rgba(16,185,129,0.25)' }}>
+                      {u.payment_type === 'postpaid' ? <><Clock size={10} /> Postpaid</> : <><CreditCard size={10} /> Advance</>}
+                    </span>
+                  )}
                 </div>
               </div>
             );
@@ -288,6 +311,46 @@ export default function UsersPage() {
           <FormField label="Phone">
             <input className="inp" value={form.phone} onChange={e => f('phone', e.target.value)} placeholder="9876543210" />
           </FormField>
+          {form.role === 'client' && (
+            <div className="col-span-1 sm:col-span-2">
+              <div className="text-xs font-semibold mb-2" style={{ color: '#64748B' }}>Payment Type <span style={{ color: '#F43F5E' }}>*</span></div>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { value: 'advance',  label: 'Advance',  sub: 'Pays before the month starts', Icon: CreditCard, active: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.4)', text: '#10B981' },
+                  { value: 'postpaid', label: 'Postpaid', sub: 'Pays after month completes',    Icon: Clock,       active: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.4)', text: '#F59E0B' },
+                ] as const).map(opt => {
+                  const selected = form.payment_type === opt.value;
+                  return (
+                    <button key={opt.value} type="button" onClick={() => f('payment_type', opt.value)}
+                      className="flex items-start gap-3 p-3 rounded-xl text-left transition-all"
+                      style={{
+                        background: selected ? opt.active : 'rgba(30,48,88,0.25)',
+                        border: `2px solid ${selected ? opt.border : 'rgba(30,48,88,0.6)'}`,
+                      }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                        style={{ background: selected ? opt.active : 'rgba(30,48,88,0.5)' }}>
+                        <opt.Icon size={15} style={{ color: selected ? opt.text : '#475569' }} />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: selected ? opt.text : '#F1F5F9' }}>{opt.label}</div>
+                        <div className="text-xs mt-0.5" style={{ color: '#475569' }}>{opt.sub}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {form.role === 'client' && (
+            <>
+              <FormField label="GST Number">
+                <input className="inp" value={form.gst_number} onChange={e => f('gst_number', e.target.value)} placeholder="22AAAAA0000A1Z5" style={{ textTransform: 'uppercase' }} />
+              </FormField>
+              <FormField label="HSN Code">
+                <input className="inp" value={form.hsn_code} onChange={e => f('hsn_code', e.target.value)} placeholder="8471" />
+              </FormField>
+            </>
+          )}
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Company">
               <input className="inp" value={form.company} onChange={e => f('company', e.target.value)} placeholder="Company Name" />
@@ -331,6 +394,47 @@ export default function UsersPage() {
           <FormField label="Company">
             <input className="inp" value={editForm.company} onChange={e => setEditForm(p => ({ ...p, company: e.target.value }))} placeholder="Company Name" />
           </FormField>
+          {editForm.role === 'client' && (
+            <div className="col-span-1 sm:col-span-2">
+              <div className="text-xs font-semibold mb-2" style={{ color: '#64748B' }}>Payment Type</div>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { value: 'advance',  label: 'Advance',  sub: 'Pays before the month starts', Icon: CreditCard, active: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.4)', text: '#10B981' },
+                  { value: 'postpaid', label: 'Postpaid', sub: 'Pays after month completes',    Icon: Clock,       active: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.4)', text: '#F59E0B' },
+                ] as const).map(opt => {
+                  const selected = editForm.payment_type === opt.value;
+                  return (
+                    <button key={opt.value} type="button"
+                      onClick={() => setEditForm(p => ({ ...p, payment_type: opt.value }))}
+                      className="flex items-start gap-3 p-3 rounded-xl text-left transition-all"
+                      style={{
+                        background: selected ? opt.active : 'rgba(30,48,88,0.25)',
+                        border: `2px solid ${selected ? opt.border : 'rgba(30,48,88,0.6)'}`,
+                      }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                        style={{ background: selected ? opt.active : 'rgba(30,48,88,0.5)' }}>
+                        <opt.Icon size={15} style={{ color: selected ? opt.text : '#475569' }} />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold" style={{ color: selected ? opt.text : '#F1F5F9' }}>{opt.label}</div>
+                        <div className="text-xs mt-0.5" style={{ color: '#475569' }}>{opt.sub}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {editForm.role === 'client' && (
+            <>
+              <FormField label="GST Number">
+                <input className="inp" value={editForm.gst_number} onChange={e => setEditForm(p => ({ ...p, gst_number: e.target.value }))} placeholder="22AAAAA0000A1Z5" style={{ textTransform: 'uppercase' }} />
+              </FormField>
+              <FormField label="HSN Code">
+                <input className="inp" value={editForm.hsn_code} onChange={e => setEditForm(p => ({ ...p, hsn_code: e.target.value }))} placeholder="8471" />
+              </FormField>
+            </>
+          )}
           <div className="col-span-1 sm:col-span-2">
             <FormField label="Address">
               <textarea className="inp resize-none" rows={3} value={editForm.address} onChange={e => setEditForm(p => ({ ...p, address: e.target.value }))} placeholder="Street, Area, City, State, Pincode" />

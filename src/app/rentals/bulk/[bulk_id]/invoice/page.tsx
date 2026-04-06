@@ -27,6 +27,22 @@ const fmtDate = (d?: string) =>
 const fmtAmt = (n: any) =>
   Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** Last day of the month start_date falls in */
+function billingEnd(startDate: string): string {
+  const d = new Date(startDate);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const y = end.getFullYear();
+  const mo = String(end.getMonth() + 1).padStart(2, '0');
+  const day = String(end.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+/** Number of days from start_date to end of that month (inclusive) */
+function billingDays(startDate: string): number {
+  const start = new Date(startDate);
+  const end   = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
 export default function BulkInvoicePage() {
   const params  = useParams();
   const bulkId  = decodeURIComponent(params.bulk_id as string);
@@ -65,16 +81,18 @@ export default function BulkInvoicePage() {
     const monthly  = Number(r.monthly_rental || 0);
     const qty      = Number(r.quantity || 1);
     const gstPct   = Number(r.gst_percent || 18);
-    const startDate = r.delivery_date ? new Date(r.delivery_date) : null;
-    const days     = startDate
-      ? Math.max(1, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
-      : (r.duration_days ?? 0);
+    const start    = r.start_date || r.delivery_date || '';
+    // For active/overdue: billing period = start_date → end of that month
+    // For cancelled/completed: use actual end_date from backend
+    const isActive = r.status === 'active' || r.status === 'overdue';
+    const endDate  = isActive ? billingEnd(start) : (r.end_date || billingEnd(start));
+    const days     = isActive ? billingDays(start) : (r.duration_days ?? billingDays(start));
     const prorated = Number(r.pro_rental || r.total || (monthly * qty));
     const total    = Number(r.total || (monthly * qty));
     const inv      = r.inventory;
     const product  = [inv?.brand, inv?.model_no].filter(Boolean).join(' ');
     const specs    = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd].filter(Boolean).join('-');
-    return { r, monthly, qty, gstPct, days, prorated, total, inv, product, specs };
+    return { r, monthly, qty, gstPct, start, endDate, days, prorated, total, inv, product, specs };
   });
 
   // Group by inventory type
@@ -93,7 +111,7 @@ export default function BulkInvoicePage() {
   function ProductRows({ items }: { items: typeof rows }) {
     return (
       <>
-        {items.map(({ r, monthly, qty, days, prorated, total, product, specs }) => (
+        {items.map(({ r, monthly, qty, start, endDate, days, prorated, total, product, specs }) => (
           <tr key={r.id}>
             <td>
               <div style={{ fontWeight: 700 }}>{product}</div>
@@ -101,7 +119,8 @@ export default function BulkInvoicePage() {
               {r.inventory?.asset_code && <div style={{ fontSize: 10, color: '#888' }}>Code: {r.inventory.asset_code}</div>}
             </td>
             <td style={{ textAlign: 'center' }}>{qty}</td>
-            <td style={{ textAlign: 'center' }}>{fmtDate(r.delivery_date)}</td>
+            <td style={{ textAlign: 'center' }}>{fmtDate(start)}</td>
+            <td style={{ textAlign: 'center' }}>{fmtDate(endDate)}</td>
             <td style={{ textAlign: 'center' }}>{days}</td>
             <td style={{ textAlign: 'right' }}>{fmtAmt(monthly)}</td>
             <td style={{ textAlign: 'right' }}>{fmtAmt(prorated)}</td>
@@ -199,54 +218,55 @@ export default function BulkInvoicePage() {
         <table style={{ marginBottom: 4 }}>
           <thead>
             <tr>
-              <th rowSpan={2} style={{ textAlign: 'left', width: '32%' }}>Product</th>
+              <th rowSpan={2} style={{ textAlign: 'left', width: '30%' }}>Product</th>
               <th rowSpan={2} style={{ width: 40 }}>Qty</th>
-              <th colSpan={2}>Duration</th>
-              <th rowSpan={2} style={{ width: '13%' }}>Monthly Rental</th>
-              <th rowSpan={2} style={{ width: '13%' }}>Prorated Rental</th>
-              <th rowSpan={2} style={{ width: '13%' }}>Total</th>
+              <th colSpan={3}>Duration</th>
+              <th rowSpan={2} style={{ width: '12%' }}>Monthly Rental</th>
+              <th rowSpan={2} style={{ width: '12%' }}>Prorated Rental</th>
+              <th rowSpan={2} style={{ width: '12%' }}>Total</th>
             </tr>
             <tr>
-              <th style={{ width: '10%' }}>Start Date</th>
-              <th style={{ width: '7%' }}>Days</th>
+              <th style={{ width: '9%' }}>Start Date</th>
+              <th style={{ width: '9%' }}>End Date</th>
+              <th style={{ width: '6%' }}>Days</th>
             </tr>
           </thead>
           <tbody>
             {laptopRows.length > 0 && (
-              <tr className="group-header"><td colSpan={7}>Laptop</td></tr>
+              <tr className="group-header"><td colSpan={8}>Laptop</td></tr>
             )}
             <ProductRows items={laptopRows} />
             {desktopRows.length > 0 && (
-              <tr className="group-header"><td colSpan={7}>Desktop</td></tr>
+              <tr className="group-header"><td colSpan={8}>Desktop</td></tr>
             )}
             <ProductRows items={desktopRows} />
             {rentals[0]?.notes && (
               <tr>
-                <td colSpan={7} style={{ fontSize: 11, color: '#555', fontStyle: 'italic', background: '#fafafa' }}>
+                <td colSpan={8} style={{ fontSize: 11, color: '#555', fontStyle: 'italic', background: '#fafafa' }}>
                   Note: {rentals[0].notes}
                 </td>
               </tr>
             )}
-            <tr><td colSpan={7} style={{ border: 'none', height: 8 }} /></tr>
+            <tr><td colSpan={8} style={{ border: 'none', height: 8 }} /></tr>
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right bold">Gross Total</td>
               <td className="right bold">{fmtAmt(grossTotal)}</td>
             </tr>
             <tr>
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right">SGST-{halfPct}%</td>
               <td className="right">{fmtAmt(sgst)}</td>
             </tr>
             <tr>
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right">CGST-{halfPct}%</td>
               <td className="right">{fmtAmt(cgst)}</td>
             </tr>
             <tr className="total-row">
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right bold" style={{ border: '1px solid #bbb' }}>Grand Total</td>
               <td className="right bold" style={{ border: '1px solid #bbb' }}>{fmtAmt(grandTotal)}</td>
             </tr>

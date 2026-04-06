@@ -17,6 +17,7 @@ const EMPTY_FORM = {
   purchase_date: '', purchaser: '', status: 'available',
   // optional fields sent as empty to satisfy DB non-nullable columns
   graphics: '', type: 'office', notes: '', vendor_name: '', vendor_location: '',
+  employee_name: '', employee_mobile: '', employee_address: '',
 };
 
 export default function InventoryPage() {
@@ -79,6 +80,7 @@ export default function InventoryPage() {
       purchaser: (item as any).purchaser || '', status: item.status || 'available',
       graphics: item.graphics || '', type: item.type || 'office',
       notes: item.notes || '', vendor_name: item.vendor_name || '', vendor_location: item.vendor_location || '',
+      employee_name: item.employee_name || '', employee_mobile: item.employee_mobile || '', employee_address: item.employee_address || '',
     });
     setEditItem(item);
     setShowModal(true);
@@ -190,6 +192,12 @@ export default function InventoryPage() {
                   {item.vendor_name && (
                     <div className="text-xs" style={{ color: '#475569' }}>{item.vendor_name}{item.vendor_location ? ` · ${item.vendor_location}` : ''}</div>
                   )}
+                  {item.employee_name && (
+                    <div className="text-xs" style={{ color: '#64748B' }}>
+                      <span style={{ color: '#94A3B8' }}>{item.employee_name}</span>
+                      {item.employee_mobile ? ` · ${item.employee_mobile}` : ''}
+                    </div>
+                  )}
                   <div className="flex items-center justify-end gap-1 pt-1">
                     <Link href={`/inventory/${item.id}`}>
                       <Button variant="ghost" size="sm" icon={<Eye size={13} />} />
@@ -215,6 +223,7 @@ export default function InventoryPage() {
                     <th className="hidden md:table-cell">Specs</th>
                     <th>Type</th>
                     <th className="hidden lg:table-cell">Vendor</th>
+                    <th className="hidden xl:table-cell">Employee</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -238,6 +247,12 @@ export default function InventoryPage() {
                         <div className="text-xs">
                           <div style={{ color: '#F1F5F9' }}>{item.vendor_name || '—'}</div>
                           <div style={{ color: '#475569' }}>{item.vendor_location || ''}</div>
+                        </div>
+                      </td>
+                      <td className="hidden xl:table-cell">
+                        <div className="text-xs">
+                          <div style={{ color: '#F1F5F9' }}>{item.employee_name || '—'}</div>
+                          {item.employee_mobile && <div style={{ color: '#475569' }}>{item.employee_mobile}</div>}
                         </div>
                       </td>
                       <td><span className={`badge badge-${item.status}`}>{item.status}</span></td>
@@ -301,6 +316,23 @@ export default function InventoryPage() {
             </FormField>
           )}
         </div>
+
+        {/* Employee fields */}
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid #1E3058' }}>
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Employee Assignment</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <FormField label="Employee Name">
+              <input className="inp" value={form.employee_name} onChange={e => f('employee_name', e.target.value)} placeholder="John Doe" />
+            </FormField>
+            <FormField label="Employee Mobile">
+              <input className="inp" value={form.employee_mobile} onChange={e => f('employee_mobile', e.target.value)} placeholder="9876543210" />
+            </FormField>
+            <FormField label="Employee Address">
+              <input className="inp" value={form.employee_address} onChange={e => f('employee_address', e.target.value)} placeholder="12 MG Road, Bangalore" />
+            </FormField>
+          </div>
+        </div>
+
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>
           <Button onClick={handleSave} loading={saving}>{editItem ? 'Update' : 'Add Laptop'}</Button>
@@ -318,10 +350,10 @@ export default function InventoryPage() {
                 type="button"
                 onClick={() => {
                   const csv = [
-                    'Asset No,Brand,Model Number,Serial Number,CPU,Generation,Ram,HDD,Purchase Date,Purchaser,Price,Status,Vendor Name,Location,Graphics,Notes',
-                    '1001,Dell,LATITUDE-E5470,F7088H2,i5,6th,8GB,256 SSD,15-Jan-23,Ravi Delhi,1100,office,Ravi Enterprises,Delhi,,',
-                    '1002,HP,440 G1,2CE4130ZQ3,i3,4th,8GB,256 SSD,15-Jan-23,Ravi Delhi,900,office,Ravi Enterprises,Delhi,,',
-                    '1003,Lenovo,ThinkPad X1,INA431QKQY,i7,8th,16GB,512 SSD,20-Mar-23,Amit Mumbai,1500,vendor,Amit Systems,Mumbai,NVIDIA MX450,',
+                    'Asset No,Brand,Model Number,Serial Number,CPU,Generation,Ram,HDD,Purchase Date,Purchaser,Price,Status,Vendor Name,Location,Graphics,Notes,Employee Name,Employee Mobile,Employee Address',
+                    '1001,Dell,LATITUDE-E5470,F7088H2,i5,6th,8GB,256 SSD,15-Jan-23,Ravi Delhi,1100,office,Ravi Enterprises,Delhi,,,John Doe,9876543210,12 MG Road Bangalore',
+                    '1002,HP,440 G1,2CE4130ZQ3,i3,4th,8GB,256 SSD,15-Jan-23,Ravi Delhi,900,office,Ravi Enterprises,Delhi,,,Jane Smith,9123456780,45 Park Street Mumbai',
+                    '1003,Lenovo,ThinkPad X1,INA431QKQY,i7,8th,16GB,512 SSD,20-Mar-23,Amit Mumbai,1500,vendor,Amit Systems,Mumbai,NVIDIA MX450,,Raj Kumar,9988776655,22 Anna Nagar Chennai',
                   ].join('\n');
                   const blob = new Blob([csv], { type: 'text/csv' });
                   const url = URL.createObjectURL(blob);
@@ -342,7 +374,8 @@ export default function InventoryPage() {
             <div className="font-mono text-xs leading-5" style={{ color: '#94A3B8' }}>
               <span style={{ color: '#64748B' }}>Asset No, </span>
               <span style={{ color: '#F43F5E' }}>Brand*, Model Number*, Serial Number*, CPU*, Generation*, Ram*, HDD*, Purchase Date*, Purchaser*</span>
-              <span style={{ color: '#64748B' }}>, Price, Status, Vendor Name, Location, Graphics, Notes</span>
+              <span style={{ color: '#64748B' }}>, Price, Status, Vendor Name, Location, Graphics, Notes, </span>
+              <span style={{ color: '#94A3B8' }}>Employee Name, Employee Mobile, Employee Address</span>
             </div>
           </div>
 
@@ -356,7 +389,21 @@ export default function InventoryPage() {
               </span>
               {importFile && <span className="text-xs" style={{ color: '#475569' }}>{(importFile.size / 1024).toFixed(1)} KB</span>}
               <input type="file" accept=".csv,.xlsx,.xls" className="hidden"
-                onChange={e => { setImportFile(e.target.files?.[0] || null); setImportResult(null); }} />
+                onChange={e => {
+                  const file = e.target.files?.[0] || null;
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const blob = new Blob([reader.result as ArrayBuffer], { type: file.type });
+                      const frozenFile = new File([blob], file.name, { type: file.type });
+                      setImportFile(frozenFile);
+                    };
+                    reader.readAsArrayBuffer(file);
+                  } else {
+                    setImportFile(null);
+                  }
+                  setImportResult(null);
+                }} />
             </label>
           </FormField>
 

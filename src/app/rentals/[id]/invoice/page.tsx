@@ -28,6 +28,20 @@ const fmtDate = (d?: string) =>
 const fmtAmt = (n: any) =>
   Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+function billingEnd(startDate: string): string {
+  const d = new Date(startDate);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const y = end.getFullYear();
+  const mo = String(end.getMonth() + 1).padStart(2, '0');
+  const day = String(end.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+function billingDays(startDate: string): number {
+  const start = new Date(startDate);
+  const end   = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
 export default function InvoicePage() {
   const params = useParams();
   const id = Number(params.id);
@@ -69,11 +83,10 @@ export default function InvoicePage() {
   const inv    = rental.inventory;
   const client = rental.client;
 
-  const startDate  = rental.delivery_date ? new Date(rental.delivery_date) : null;
-  const today      = new Date();
-  const daysActive = startDate
-    ? Math.max(1, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
-    : (rental.duration_days ?? '—');
+  const start      = rental.start_date || rental.delivery_date || '';
+  const isActive   = rental.status === 'active' || rental.status === 'overdue';
+  const endDate    = isActive ? billingEnd(start) : (rental.end_date || billingEnd(start));
+  const daysActive = isActive ? billingDays(start) : (rental.duration_days ?? billingDays(start));
 
   const product = [inv?.brand, inv?.model_no].filter(Boolean).join(' ');
   const specs   = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd]
@@ -181,21 +194,22 @@ export default function InvoicePage() {
         <table style={{ marginBottom: 4 }}>
           <thead>
             <tr>
-              <th rowSpan={2} style={{ textAlign: 'left', width: '38%' }}>Product</th>
+              <th rowSpan={2} style={{ textAlign: 'left', width: '34%' }}>Product</th>
               <th rowSpan={2} style={{ width: 42 }}>Qty</th>
-              <th colSpan={2}>Duration</th>
-              <th rowSpan={2} style={{ width: '14%' }}>Monthly Rental</th>
-              <th rowSpan={2} style={{ width: '14%' }}>Prorated Rental</th>
-              <th rowSpan={2} style={{ width: '14%' }}>Total</th>
+              <th colSpan={3}>Duration</th>
+              <th rowSpan={2} style={{ width: '13%' }}>Monthly Rental</th>
+              <th rowSpan={2} style={{ width: '13%' }}>Prorated Rental</th>
+              <th rowSpan={2} style={{ width: '13%' }}>Total</th>
             </tr>
             <tr>
               <th>Start Date</th>
+              <th>End Date</th>
               <th>Days</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colSpan={7} style={{ background: '#d9e1f2', fontWeight: 700 }}>Laptop</td>
+              <td colSpan={8} style={{ background: '#d9e1f2', fontWeight: 700 }}>Laptop</td>
             </tr>
             <tr>
               <td>
@@ -204,7 +218,8 @@ export default function InvoicePage() {
                 {inv?.asset_code && <div style={{ fontSize: 10, color: '#888' }}>Code: {inv.asset_code}</div>}
               </td>
               <td className="center">{qty}</td>
-              <td className="center">{fmtDate(rental.delivery_date)}</td>
+              <td className="center">{fmtDate(start)}</td>
+              <td className="center">{fmtDate(endDate)}</td>
               <td className="center">{daysActive}</td>
               <td className="right">{fmtAmt(monthly)}</td>
               <td className="right">{fmtAmt(rental.pro_rental ?? monthly)}</td>
@@ -212,33 +227,33 @@ export default function InvoicePage() {
             </tr>
             {rental.notes && (
               <tr>
-                <td colSpan={7} style={{ fontSize: 11, color: '#555', fontStyle: 'italic', background: '#fafafa' }}>
+                <td colSpan={8} style={{ fontSize: 11, color: '#555', fontStyle: 'italic', background: '#fafafa' }}>
                   Note: {rental.notes}
                 </td>
               </tr>
             )}
             <tr>
-              <td colSpan={7} className="no-border" style={{ height: 8 }} />
+              <td colSpan={8} className="no-border" style={{ height: 8 }} />
             </tr>
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right bold">Gross Total</td>
               <td className="right bold">{fmtAmt(total)}</td>
             </tr>
             <tr>
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right">SGST-{halfPct}%</td>
               <td className="right">{fmtAmt(sgst)}</td>
             </tr>
             <tr>
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right">CGST-{halfPct}%</td>
               <td className="right">{fmtAmt(cgst)}</td>
             </tr>
             <tr className="total-row">
-              <td colSpan={5} className="no-border" />
+              <td colSpan={6} className="no-border" />
               <td className="right bold" style={{ border: '1px solid #bbb' }}>Grand Total</td>
               <td className="right bold" style={{ border: '1px solid #bbb' }}>{fmtAmt(grandTotal)}</td>
             </tr>
