@@ -163,9 +163,10 @@ export default function BulkRentalDetailPage() {
   }
 
   // Credit note generation (after partial cancel result)
-  const [cnModal,   setCnModal]   = useState<{ rental_id: number; rental_no: string; advance_paid: number; grand_total: number } | null>(null);
-  const [cnForm,    setCnForm]    = useState({ advance_paid: '', resolution: 'refund', notes: '' });
-  const [cnSaving,  setCnSaving]  = useState(false);
+  const [cnModal,        setCnModal]        = useState<{ rental_id: number; rental_no: string; advance_paid: number; grand_total: number } | null>(null);
+  const [cnForm,         setCnForm]         = useState({ advance_paid: '', resolution: 'refund', notes: '' });
+  const [cnSaving,       setCnSaving]       = useState(false);
+  const [creditNotedIds, setCreditNotedIds] = useState<Set<number>>(new Set());
 
   async function handleCreateCreditNote() {
     if (!cnModal) return;
@@ -177,6 +178,7 @@ export default function BulkRentalDetailPage() {
         notes:         cnForm.notes || undefined,
       });
       showToast(`Credit note ${res.data?.credit_note_no || ''} created`);
+      setCreditNotedIds(prev => new Set([...prev, cnModal.rental_id]));
       setCnModal(null);
     } catch (e: any) { showToast(e.message || 'Failed to create credit note', 'error'); }
     finally { setCnSaving(false); }
@@ -202,6 +204,12 @@ export default function BulkRentalDetailPage() {
       const data = all.filter((r: any) => r.bulk_id === bulkId);
       if (data.length === 0) { router.push('/rentals'); return; }
       setRentals(data);
+      // Load existing credit notes for this bulk to know which cancelled rentals already have one
+      try {
+        const cnRes = await api.creditNotes.list({ bulk_id: bulkId, per_page: '100' });
+        const cnList = cnRes.data?.data || cnRes.data || [];
+        setCreditNotedIds(new Set(cnList.map((cn: any) => cn.rental_id).filter(Boolean)));
+      } catch { /* non-critical */ }
       // Load schedules for all rentals in this bulk
       const schedResults = await Promise.allSettled(data.map((r: any) => api.rentals.schedules.list(r.id)));
       const allSchedules = schedResults.flatMap((res, i) =>
@@ -637,6 +645,15 @@ export default function BulkRentalDetailPage() {
                           <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => api.rentals.complete(r.id).then(load)} />
                           <Button variant="danger"  size="sm" icon={<XCircle    size={13} />} onClick={() => api.rentals.cancel(r.id).then(load)} />
                         </>}
+                        {isAdmin && r.status === 'cancelled' && !creditNotedIds.has(r.id) && (
+                          <Button variant="outline" size="sm" icon={<ReceiptText size={12} />}
+                            onClick={() => {
+                              setCnModal({ rental_id: r.id, rental_no: r.rental_no, advance_paid: Number(r.grand_total), grand_total: Number(r.grand_total) });
+                              setCnForm({ advance_paid: String(r.grand_total), resolution: 'refund', notes: '' });
+                            }}>
+                            Credit Note
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -776,9 +793,11 @@ export default function BulkRentalDetailPage() {
                           </div>
                           <Button size="sm" variant="outline" icon={<ReceiptText size={12} />}
                             onClick={() => {
-                              setCnModal({ rental_id: c.rental_id, rental_no: c.rental_no, advance_paid: Number(c.original_total), grand_total: Number(c.original_total) });
-                              setCnForm({ advance_paid: String(c.original_total), resolution: 'refund', notes: '' });
+                              const data = { rental_id: c.rental_id, rental_no: c.rental_no, advance_paid: Number(c.original_total), grand_total: Number(c.original_total) };
+                              const form = { advance_paid: String(c.original_total), resolution: 'refund', notes: '' };
                               setPartialCancelModal(false);
+                              setPcResult(null);
+                              setTimeout(() => { setCnModal(data); setCnForm(form); }, 150);
                             }}>
                             Credit Note
                           </Button>
