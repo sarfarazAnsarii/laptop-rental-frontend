@@ -69,7 +69,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 const IMG_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://laptop-rental-api.loc/api')
-  .replace('/api', '') + '/storage/';
+  .replace('/api', '') + '/';
 
 /* ── main page ── */
 export default function InventoryDetailPage() {
