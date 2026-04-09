@@ -78,8 +78,8 @@ export default function InventoryPage() {
       .catch(() => {});
   }, []);
 
-  const IMG_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://laptop-rental-api.loc/api')
-    .replace('/api', '') + '/';
+  const IMG_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://api.laptoprentalservice.com')
+    .replace(/\/api\/?$/, '') + '/';
 
   function openAdd() {
     setForm({ ...EMPTY_FORM });
