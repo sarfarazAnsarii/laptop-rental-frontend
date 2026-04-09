@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Inventory } from '@/types';
-import { Monitor, Plus, Search, Edit, Trash2, Eye, Upload, FileSpreadsheet, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Monitor, Plus, Search, Edit, Trash2, Eye, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ImagePlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 
@@ -29,6 +29,7 @@ export default function InventoryPage() {
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [serialSearch, setSerialSearch] = useState('');
   const [status, setStatus] = useState('');
   const [type, setType] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -37,6 +38,11 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [vendors, setVendors] = useState<any[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // image upload (edit modal)
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [editImages, setEditImages] = useState<string[]>([]);
 
   // bulk import
   const [showImport, setShowImport] = useState(false);
@@ -53,15 +59,16 @@ export default function InventoryPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = { per_page: '12', page: String(page) };
-      if (search) params.search = search;
-      if (status) params.status = status;
-      if (type)   params.type   = type;
+      if (search)       params.search        = search;
+      if (serialSearch) params.serial_number = serialSearch;
+      if (status)       params.status        = status;
+      if (type)         params.type          = type;
       const res = await api.inventory.list(params);
       setItems(res.data?.data || []);
       setLastPage(res.data?.last_page || 1);
       setTotal(res.data?.total || 0);
     } finally { setLoading(false); }
-  }, [page, search, status, type]);
+  }, [page, search, serialSearch, status, type]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -71,7 +78,16 @@ export default function InventoryPage() {
       .catch(() => {});
   }, []);
 
-  function openAdd() { setForm({ ...EMPTY_FORM }); setEditItem(null); setShowModal(true); }
+  const IMG_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://laptop-rental-api.loc/api')
+    .replace('/api', '') + '/storage/';
+
+  function openAdd() {
+    setForm({ ...EMPTY_FORM });
+    setEditItem(null);
+    setEditImages([]);
+    setImageFiles([]);
+    setShowModal(true);
+  }
   function openEdit(item: Inventory) {
     setForm({
       brand: item.brand || '', model_no: item.model_no || '', serial_number: (item as any).serial_number || '',
@@ -83,6 +99,8 @@ export default function InventoryPage() {
       employee_name: item.employee_name || '', employee_mobile: item.employee_mobile || '', employee_address: item.employee_address || '',
     });
     setEditItem(item);
+    setEditImages(item.images || []);
+    setImageFiles([]);
     setShowModal(true);
   }
 
@@ -115,6 +133,28 @@ export default function InventoryPage() {
 
   const f = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
+  async function handleUploadImages() {
+    if (!editItem || imageFiles.length === 0) return;
+    setUploadingImages(true);
+    try {
+      const res = await api.inventory.uploadImages(editItem.id, imageFiles);
+      setEditImages(res.images || []);
+      setImageFiles([]);
+      showToast(`${imageFiles.length} image(s) uploaded`);
+    } catch (e: any) {
+      showToast(e.message || 'Upload failed', 'error');
+    } finally { setUploadingImages(false); }
+  }
+
+  async function handleDeleteImage(index: number) {
+    if (!editItem) return;
+    try {
+      const res = await api.inventory.deleteImage(editItem.id, index);
+      setEditImages(res.images || []);
+      showToast('Image removed');
+    } catch (e: any) { showToast(e.message || 'Delete failed', 'error'); }
+  }
+
   async function handleImport() {
     if (!importFile) return;
     setImporting(true);
@@ -143,12 +183,12 @@ export default function InventoryPage() {
       />
 
       {/* Filters */}
-      <div className="glass-card p-4 mb-6 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          
-          <input className="inp pl-9"
-            placeholder={isStaff ? 'Search by laptop unique code...' : 'Search brand, model, asset code...'}
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+      <div className="glass-card p-4 mb-6 flex flex-col sm:flex-row gap-3 flex-wrap">        
+        <div className="relative flex-1 min-w-[160px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#475569' }} />
+          <input className="inp pl-35px"
+            placeholder="Search by serial number..."
+            value={serialSearch} onChange={e => { setSerialSearch(e.target.value); setPage(1); }} />
         </div>
         {!isStaff && (
           <div className="flex gap-3">
@@ -181,14 +221,33 @@ export default function InventoryPage() {
                       <span className={`badge badge-${item.status}`}>{item.status}</span>
                     </div>
                   </div>
-                  <div>
-                    <div className="font-medium text-sm" style={{ color: '#F1F5F9' }}>{item.brand}</div>
-                    <div className="text-xs" style={{ color: '#475569' }}>{item.model_no}</div>
+                  <div className="flex items-center gap-3">
+                    {item.images?.[0] ? (
+                      <img src={IMG_BASE + item.images[0]} alt={item.brand}
+                        className="w-14 h-10 object-cover rounded-lg flex-shrink-0"
+                        style={{ border: '1px solid rgba(30,48,88,0.7)' }} />
+                    ) : (
+                      <div className="w-14 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'rgba(30,48,88,0.5)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                        <Monitor size={16} style={{ color: '#334155' }} />
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-medium text-sm" style={{ color: '#F1F5F9' }}>{item.brand}</div>
+                      <div className="text-xs" style={{ color: '#475569' }}>{item.model_no}</div>
+                    </div>
                   </div>
                   <div className="text-xs space-y-0.5">
-                    <div style={{ color: '#94A3B8' }}>{item.cpu}</div>
+                    <div style={{ color: '#94A3B8' }}>{item.cpu}{(item as any).generation ? ` · ${(item as any).generation} Gen` : ''}</div>
                     <div style={{ color: '#475569' }}>{item.ram} · {item.ssd}</div>
+                    {item.graphics && <div style={{ color: '#64748B' }}>{item.graphics}</div>}
                   </div>
+                  {item.serial_number && (
+                    <div className="text-xs font-mono" style={{ color: '#64748B' }}>S/N: {item.serial_number}</div>
+                  )}
+                  {item.monthly_rental && (
+                    <div className="text-xs font-medium" style={{ color: '#10B981' }}>₹{Number(item.monthly_rental).toLocaleString()}/mo</div>
+                  )}
                   {item.vendor_name && (
                     <div className="text-xs" style={{ color: '#475569' }}>{item.vendor_name}{item.vendor_location ? ` · ${item.vendor_location}` : ''}</div>
                   )}
@@ -196,6 +255,12 @@ export default function InventoryPage() {
                     <div className="text-xs" style={{ color: '#64748B' }}>
                       <span style={{ color: '#94A3B8' }}>{item.employee_name}</span>
                       {item.employee_mobile ? ` · ${item.employee_mobile}` : ''}
+                    </div>
+                  )}
+                  {item.active_rental?.client && (
+                    <div className="text-xs" style={{ color: '#64748B' }}>
+                      Client: <span style={{ color: '#94A3B8' }}>{item.active_rental.client.name}</span>
+                      {item.active_rental.client.company ? ` · ${item.active_rental.client.company}` : ''}
                     </div>
                   )}
                   <div className="flex items-center justify-end gap-1 pt-1">
@@ -220,42 +285,86 @@ export default function InventoryPage() {
                   <tr>
                     <th>Asset Code</th>
                     <th>Brand / Model</th>
-                    <th className="hidden md:table-cell">Specs</th>
+                    <th>Serial No</th>
+                    <th>Specs</th>
                     <th>Type</th>
-                    <th className="hidden lg:table-cell">Vendor</th>
+                    <th>Rental/mo</th>
+                    <th>Delivery</th>
+                    <th>Vendor</th>
                     <th className="hidden xl:table-cell">Employee</th>
-                    <th>Status</th>
+                    <th>Status / Client</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map(item => (
                     <tr key={item.id} className="animate-fade-in">
-                      <td><span className="font-mono text-xs font-medium px-2 py-1 rounded" style={{ background: 'rgba(59,130,246,0.08)', color: '#3B82F6' }}>{item.asset_code}</span></td>
                       <td>
-                        <div className="font-medium text-sm" style={{ color: '#F1F5F9' }}>{item.brand}</div>
-                        <div className="text-xs" style={{ color: '#475569' }}>{item.model_no}</div>
+                        <span className="font-mono text-xs font-medium px-2 py-1 rounded" style={{ background: 'rgba(59,130,246,0.08)', color: '#3B82F6' }}>{item.asset_code}</span>
                       </td>
-                      <td className="hidden md:table-cell">
+                      <td>
+                        <div className="flex items-center gap-2.5">
+                          {item.images?.[0] ? (
+                            <img src={IMG_BASE + item.images[0]} alt={item.brand}
+                              className="w-10 h-8 object-cover rounded-lg flex-shrink-0"
+                              style={{ border: '1px solid rgba(30,48,88,0.7)' }} />
+                          ) : (
+                            <div className="w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                              style={{ background: 'rgba(30,48,88,0.5)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                              <Monitor size={13} style={{ color: '#334155' }} />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-sm" style={{ color: '#F1F5F9' }}>{item.brand}</div>
+                            <div className="text-xs" style={{ color: '#475569' }}>{item.model_no}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="font-mono text-xs" style={{ color: '#94A3B8' }}>{item.serial_number || '—'}</span>
+                      </td>
+                      <td>
                         <div className="text-xs space-y-0.5">
-                          <div>{item.cpu}</div>
+                          <div style={{ color: '#F1F5F9' }}>{item.cpu}{item.generation ? ` · ${item.generation} Gen` : ''}</div>
                           <div style={{ color: '#475569' }}>{item.ram} · {item.ssd}</div>
+                          {item.graphics && <div style={{ color: '#64748B' }}>{item.graphics}</div>}
                         </div>
                       </td>
                       <td><span className={`badge badge-${item.type}`}>{item.type}</span></td>
-                      <td className="hidden lg:table-cell">
+                      <td>
+                        <span className="text-sm font-medium" style={{ color: '#10B981' }}>
+                          {item.monthly_rental ? `₹${Number(item.monthly_rental).toLocaleString()}` : '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="text-xs" style={{ color: '#94A3B8' }}>
+                          {item.delivery_date ? new Date(item.delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </span>
+                      </td>
+                      <td>
                         <div className="text-xs">
                           <div style={{ color: '#F1F5F9' }}>{item.vendor_name || '—'}</div>
-                          <div style={{ color: '#475569' }}>{item.vendor_location || ''}</div>
+                          {item.vendor_location && <div style={{ color: '#475569' }}>{item.vendor_location}</div>}
                         </div>
                       </td>
                       <td className="hidden xl:table-cell">
                         <div className="text-xs">
                           <div style={{ color: '#F1F5F9' }}>{item.employee_name || '—'}</div>
                           {item.employee_mobile && <div style={{ color: '#475569' }}>{item.employee_mobile}</div>}
+                          {item.employee_address && <div style={{ color: '#334155' }}>{item.employee_address}</div>}
                         </div>
                       </td>
-                      <td><span className={`badge badge-${item.status}`}>{item.status}</span></td>
+                      <td>
+                        <div className="space-y-1">
+                          <span className={`badge badge-${item.status}`}>{item.status}</span>
+                          {item.active_rental?.client && (
+                            <div className="text-xs" style={{ color: '#64748B' }}>
+                              <div style={{ color: '#94A3B8' }}>{item.active_rental.client.name}</div>
+                              {item.active_rental.client.company && <div style={{ color: '#475569' }}>{item.active_rental.client.company}</div>}
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td>
                         <div className="flex items-center gap-1">
                           <Link href={`/inventory/${item.id}`}>
@@ -279,10 +388,37 @@ export default function InventoryPage() {
 
         {/* Pagination */}
         {lastPage > 1 && (
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid #1E3058' }}>
-            <span className="text-xs" style={{ color: '#475569' }}>Page {page} of {lastPage}</span>
-            <div className="flex gap-2">
+          <div className="flex items-center justify-between px-6 py-4 flex-wrap gap-3" style={{ borderTop: '1px solid #1E3058' }}>
+            <span className="text-xs" style={{ color: '#475569' }}>
+              Page {page} of {lastPage} &mdash; {total} total
+            </span>
+            <div className="flex items-center gap-1">
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
+              {(() => {
+                const pages: (number | '...')[] = [];
+                if (lastPage <= 7) {
+                  for (let i = 1; i <= lastPage; i++) pages.push(i);
+                } else {
+                  pages.push(1);
+                  if (page > 3) pages.push('...');
+                  for (let i = Math.max(2, page - 1); i <= Math.min(lastPage - 1, page + 1); i++) pages.push(i);
+                  if (page < lastPage - 2) pages.push('...');
+                  pages.push(lastPage);
+                }
+                return pages.map((p, i) =>
+                  p === '...'
+                    ? <span key={`ellipsis-${i}`} className="px-2 text-xs" style={{ color: '#475569' }}>…</span>
+                    : <button key={p} onClick={() => setPage(p as number)}
+                        className="w-8 h-8 rounded-lg text-xs font-medium transition-all"
+                        style={{
+                          background: page === p ? 'rgba(59,130,246,0.2)' : 'transparent',
+                          color: page === p ? '#3B82F6' : '#64748B',
+                          border: page === p ? '1px solid rgba(59,130,246,0.4)' : '1px solid transparent',
+                        }}>
+                        {p}
+                      </button>
+                );
+              })()}
               <Button variant="ghost" size="sm" disabled={page >= lastPage} onClick={() => setPage(p => p + 1)}>Next</Button>
             </div>
           </div>
@@ -332,6 +468,49 @@ export default function InventoryPage() {
             </FormField>
           </div>
         </div>
+
+        {/* Images — only shown when editing an existing item */}
+        {editItem && (
+          <div className="mt-4 pt-4" style={{ borderTop: '1px solid #1E3058' }}>
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Laptop Images</div>
+
+            {/* Existing images */}
+            {editImages.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                {editImages.map((path, idx) => (
+                  <div key={idx} className="relative group rounded-xl overflow-hidden" style={{ aspectRatio: '4/3', background: 'rgba(11,22,40,0.8)' }}>
+                    <img src={IMG_BASE + path} alt={`Image ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => handleDeleteImage(idx)}
+                      className="absolute top-1 right-1 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ background: 'rgba(239,68,68,0.9)' }}>
+                      <X size={12} color="#fff" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* New image picker */}
+            <div className="flex items-start gap-3">
+              <label className="flex-1 flex flex-col items-center justify-center gap-1.5 p-4 rounded-xl cursor-pointer transition-all"
+                style={{ border: '2px dashed #1E3058', background: imageFiles.length ? 'rgba(59,130,246,0.06)' : 'rgba(11,22,40,0.5)', minHeight: '72px' }}>
+                <ImagePlus size={20} style={{ color: imageFiles.length ? '#3B82F6' : '#334155' }} />
+                <span className="text-xs" style={{ color: imageFiles.length ? '#3B82F6' : '#475569' }}>
+                  {imageFiles.length ? `${imageFiles.length} file(s) selected` : 'Click to choose images'}
+                </span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden"
+                  onChange={e => setImageFiles(Array.from(e.target.files || []))} />
+              </label>
+              {imageFiles.length > 0 && (
+                <Button icon={<Upload size={14} />} onClick={handleUploadImages} loading={uploadingImages}>
+                  Upload
+                </Button>
+              )}
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: '#334155' }}>JPG, PNG, WebP · max 2 MB each · up to 10 images</p>
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>

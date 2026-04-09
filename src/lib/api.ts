@@ -88,6 +88,24 @@ export const api = {
       }
       return data;
     },
+    uploadImages: async (id: number, files: File[]) => {
+      const token = getToken();
+      const body = new FormData();
+      files.forEach(f => body.append('images[]', f));
+      const res = await fetch(`${BASE_URL}/inventories/${id}/images`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body,
+      });
+      const data = await res.json();
+      if (!res.ok) throw { message: data.message };
+      return data;
+    },
+    deleteImage: (id: number, index: number) =>
+      request<any>(`/inventories/${id}/images/${index}`, { method: 'DELETE' }),
   },
 
   vendor: {

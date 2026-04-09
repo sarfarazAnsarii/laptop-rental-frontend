@@ -31,11 +31,15 @@ export interface Inventory {
   asset_code: string;
   brand: string;
   model_no: string;
+  serial_number?: string;
   cpu: string;
+  generation?: string;
   ram: string;
   ssd: string;
   graphics: string;
   purchase_date: string;
+  purchaser?: string;
+  monthly_rental?: string;
   type: 'office' | 'vendor' | 'sold';
   vendor_id?: number;
   vendor_name?: string;
@@ -48,6 +52,7 @@ export interface Inventory {
   return_location?: string;
   status: 'available' | 'rented' | 'maintenance' | 'sold' | 'returned';
   notes?: string;
+  images?: string[];
   created_at: string;
   updated_at: string;
   active_rental?: Rental;

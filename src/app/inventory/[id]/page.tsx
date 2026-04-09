@@ -11,7 +11,7 @@ import {
   ArrowLeft, Monitor, Cpu, HardDrive, Database, Zap,
   Calendar, Building2, MapPin, FileText, Edit, Trash2,
   Clock, User, CheckCircle, AlertCircle, RotateCcw, Hash,
-  Tag, Package, ChevronRight,
+  Tag, Package, ChevronRight, ChevronLeft, X,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -68,6 +68,9 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
+const IMG_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://laptop-rental-api.loc/api')
+  .replace('/api', '') + '/storage/';
+
 /* ── main page ── */
 export default function InventoryDetailPage() {
   const params   = useParams();
@@ -83,6 +86,8 @@ export default function InventoryDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
+
+  const [lightbox, setLightbox] = useState<number | null>(null); // index of open image
 
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -207,12 +212,20 @@ export default function InventoryDetailPage() {
           borderColor: '#1E3058',
         }}>
           <div className="flex items-start gap-3 sm:gap-5">
-            {/* laptop icon */}
-            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)', boxShadow: '0 0 30px rgba(59,130,246,0.25)' }}>
-              <Monitor size={22} className="sm:hidden" color="white" />
-              <Monitor size={28} className="hidden sm:block" color="white" />
-            </div>
+            {/* laptop thumbnail or icon */}
+            {item.images?.[0] ? (
+              <div className="w-16 h-14 sm:w-20 sm:h-16 rounded-2xl overflow-hidden flex-shrink-0 cursor-pointer"
+                style={{ border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 0 20px rgba(59,130,246,0.15)' }}
+                onClick={() => setLightbox(0)}>
+                <img src={IMG_BASE + item.images![0]} alt={item.brand} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)', boxShadow: '0 0 30px rgba(59,130,246,0.25)' }}>
+                <Monitor size={22} className="sm:hidden" color="white" />
+                <Monitor size={28} className="hidden sm:block" color="white" />
+              </div>
+            )}
 
             {/* info */}
             <div className="flex-1 min-w-0">
@@ -372,6 +385,29 @@ export default function InventoryDetailPage() {
           </div>
         )}
 
+        {/* ── Images Gallery ── */}
+        {item.images && item.images.length > 0 && (
+          <div className="glass-card p-4 sm:p-5">
+            <SectionTitle>Images ({item.images.length})</SectionTitle>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
+              {item.images.map((path, idx) => (
+                <div key={idx} onClick={() => setLightbox(idx)}
+                  className="relative rounded-xl overflow-hidden cursor-pointer group"
+                  style={{ aspectRatio: '4/3', background: 'rgba(11,22,40,0.8)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                  <img src={IMG_BASE + path} alt={`${item.brand} image ${idx + 1}`}
+                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    style={{ background: 'rgba(0,0,0,0.3)' }}>
+                    <span className="text-xs font-semibold text-white px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.5)' }}>
+                      View
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Rental History ── */}
         <div className="glass-card overflow-hidden">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4"
@@ -511,6 +547,46 @@ export default function InventoryDetailPage() {
           <Button onClick={handleSave} loading={saving}>Save Changes</Button>
         </div>
       </Modal>
+
+      {/* ── Lightbox ── */}
+      {lightbox !== null && item.images && item.images.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.92)' }}
+          onClick={() => setLightbox(null)}>
+          {/* Close */}
+          <button className="absolute top-4 right-4 p-2 rounded-full z-10"
+            style={{ background: 'rgba(255,255,255,0.1)' }}
+            onClick={() => setLightbox(null)}>
+            <X size={20} color="#fff" />
+          </button>
+          {/* Prev */}
+          {item.images.length > 1 && (
+            <button className="absolute left-4 p-2 rounded-full z-10"
+              style={{ background: 'rgba(255,255,255,0.1)' }}
+              onClick={e => { e.stopPropagation(); setLightbox(i => ((i! - 1 + item.images!.length) % item.images!.length)); }}>
+              <ChevronLeft size={24} color="#fff" />
+            </button>
+          )}
+          {/* Image */}
+          <img src={IMG_BASE + item.images[lightbox]} alt={`${item.brand} image ${lightbox + 1}`}
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-xl"
+            style={{ boxShadow: '0 0 60px rgba(0,0,0,0.8)' }}
+            onClick={e => e.stopPropagation()} />
+          {/* Next */}
+          {item.images.length > 1 && (
+            <button className="absolute right-4 p-2 rounded-full z-10"
+              style={{ background: 'rgba(255,255,255,0.1)' }}
+              onClick={e => { e.stopPropagation(); setLightbox(i => (i! + 1) % item.images!.length); }}>
+              <ChevronRight size={24} color="#fff" />
+            </button>
+          )}
+          {/* Counter */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs font-semibold px-3 py-1 rounded-full"
+            style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
+            {lightbox + 1} / {item.images.length}
+          </div>
+        </div>
+      )}
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </DashboardLayout>
