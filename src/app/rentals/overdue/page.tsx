@@ -1,116 +1,58 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Button, PageHeader, EmptyState, Toast } from '@/components/ui';
-import { api } from '@/lib/api';
-import { Rental } from '@/types';
-import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
-
-const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(n));
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-
-function daysOverdue(endDate: string) {
-  const diff = Math.floor((Date.now() - new Date(endDate).getTime()) / 86400000);
-  return diff;
-}
+import { PageHeader } from '@/components/ui';
+import { CheckCircle, RefreshCw, Calendar } from 'lucide-react';
+import Link from 'next/link';
 
 export default function OverduePage() {
-  const [rentals, setRentals] = useState<Rental[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const res = await api.rentals.overdue();
-      setRentals(res.data || []);
-    } finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(); }, []);
-
-  async function handleComplete(id: number) {
-    try { await api.rentals.complete(id); showToast('Marked as completed'); load(); }
-    catch (e: any) { showToast(e.message, 'error'); }
-  }
-  async function handleCancel(id: number) {
-    try { await api.rentals.cancel(id); showToast('Rental cancelled'); load(); }
-    catch (e: any) { showToast(e.message, 'error'); }
-  }
-
   return (
     <DashboardLayout>
-      <PageHeader title="Overdue Rentals" subtitle={`${rentals.length} overdue rental${rentals.length !== 1 ? 's' : ''} need attention`} />
+      <PageHeader title="Overdue Rentals" subtitle="Not applicable" />
 
-      {/* Alert banner */}
-      {rentals.length > 0 && (
-        <div className="mb-6 px-5 py-4 rounded-xl flex items-center gap-3"
-          style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)' }}>
-          <AlertCircle size={18} style={{ color: '#F43F5E', flexShrink: 0 }} />
-          <p className="text-sm" style={{ color: '#F43F5E' }}>
-            <strong>{rentals.length} rental{rentals.length !== 1 ? 's' : ''}</strong> have passed their return date. Please contact clients and update the status.
+      <div className="glass-card p-8 flex flex-col items-center text-center gap-5 max-w-lg mx-auto">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+          style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)' }}>
+          <CheckCircle size={30} style={{ color: '#10B981' }} />
+        </div>
+
+        <div>
+          <h2 className="text-lg font-bold mb-2" style={{ color: '#F1F5F9', fontFamily: 'Syne, sans-serif' }}>
+            No Overdue Rentals
+          </h2>
+          <p className="text-sm leading-relaxed" style={{ color: '#64748B' }}>
+            Overdue status is not applicable for this system. Rentals automatically renew
+            every month from the <strong style={{ color: '#94A3B8' }}>1st to the last day</strong> of each month.
+            Payment is collected monthly (advance or postpaid) and the rental continues as long as it is active.
           </p>
         </div>
-      )}
 
-      <div className="glass-card overflow-hidden">
-        {loading ? (
-          <div className="p-6 space-y-3">{[...Array(4)].map((_, i) => <div key={i} className="skeleton h-16 rounded-xl" />)}</div>
-        ) : rentals.length === 0 ? (
-          <EmptyState icon={<AlertCircle size={22} />} title="No overdue rentals" desc="All rentals are within their return date. Great job!" />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Rental No</th>
-                  <th>Laptop</th>
-                  <th className="hidden sm:table-cell">Client</th>
-                  <th className="hidden md:table-cell">End Date</th>
-                  <th>Days Overdue</th>
-                  <th className="hidden sm:table-cell">Grand Total</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rentals.map(r => {
-                  const overdue = daysOverdue(r.end_date ?? '');
-                  return (
-                    <tr key={r.id}>
-                      <td><span className="font-mono text-xs font-medium" style={{ color: '#F43F5E' }}>{r.rental_no}</span></td>
-                      <td>
-                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                        <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
-                      </td>
-                      <td className="hidden sm:table-cell">
-                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
-                        <div className="text-xs" style={{ color: '#475569' }}>{r.client?.email || ''}</div>
-                      </td>
-                      <td className="hidden md:table-cell" style={{ color: '#F43F5E' }}>{fmtDate(r.end_date ?? '')}</td>
-                      <td><span className="badge badge-overdue">{overdue} day{overdue !== 1 ? 's' : ''}</span></td>
-                      <td className="hidden sm:table-cell" style={{ color: '#10B981', fontWeight: 600 }}>{fmt(r.grand_total)}</td>
-                      <td>
-                        <div className="flex gap-1 flex-wrap">
-                          <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => handleComplete(r.id)}>Complete</Button>
-                          <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => handleCancel(r.id)}>Cancel</Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div className="w-full space-y-2.5 pt-2">
+          {[
+            { icon: Calendar,    color: '#3B82F6', label: 'Billing Period',   desc: '1st to last day of every month' },
+            { icon: RefreshCw,   color: '#14B8A6', label: 'Auto Renewal',     desc: 'Rental renews automatically each month' },
+            { icon: CheckCircle, color: '#10B981', label: 'No Overdue',       desc: 'Cannot go overdue — rental is always active until cancelled' },
+          ].map(({ icon: Icon, color, label, desc }) => (
+            <div key={label} className="flex items-center gap-3 px-4 py-3 rounded-xl text-left"
+              style={{ background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.6)' }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: `${color}14` }}>
+                <Icon size={15} style={{ color }} />
+              </div>
+              <div>
+                <div className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>{label}</div>
+                <div className="text-xs" style={{ color: '#475569' }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <Link href="/rentals"
+          className="text-sm font-semibold px-5 py-2.5 rounded-xl transition-all hover:opacity-80"
+          style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.3)' }}>
+          View Active Rentals
+        </Link>
       </div>
-
-      {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </DashboardLayout>
   );
 }

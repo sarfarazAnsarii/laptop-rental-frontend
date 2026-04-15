@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { DashboardSummary } from '@/types';
 import Link from 'next/link';
 import {
-  Monitor, FileText, AlertCircle, TrendingUp, CheckCircle, Package,
+  Monitor, FileText, TrendingUp, CheckCircle, Package,
   Clock, Wrench, Truck, Plus, ArrowRight, Layers, Calendar,
   Activity, BarChart2, Users,
 } from 'lucide-react';
@@ -57,7 +57,6 @@ export default function DashboardPage() {
   const [activeRentals, setActiveRentals] = useState<any[]>([]);
   const [available,     setAvailable]     = useState<any[]>([]);
   const [activity,      setActivity]      = useState<ActivityItem[]>([]);
-  const [overdue,       setOverdue]       = useState<any[]>([]);
   const [loading,       setLoading]       = useState(true);
 
   useEffect(() => {
@@ -68,12 +67,10 @@ export default function DashboardPage() {
       api.rentals.list({ per_page: '10' }),
       api.issues.list({ per_page: '6' }),
       api.schedules.list({ per_page: '6' }),
-      api.rentals.overdue(),
-    ]).then(([sum, actR, avail, recR, iss, sch, ovr]) => {
+    ]).then(([sum, actR, avail, recR, iss, sch]) => {
       setSummary(sum.data);
       setActiveRentals(actR.data?.data || []);
       setAvailable(avail.data?.data || []);
-      setOverdue(ovr.data?.data || ovr.data || []);
 
       /* ── build unified activity feed ── */
       const items: ActivityItem[] = [];
@@ -138,18 +135,17 @@ export default function DashboardPage() {
   const statCards = summary ? [
     { label: 'Total Laptops',    value: summary.total_laptops,       icon: Monitor,     color: '#3B82F6', href: '/inventory' },
     { label: 'Available',        value: summary.available_laptops,   icon: Package,     color: '#10B981', href: '/inventory' },
-    { label: 'Total Clients',    value: summary.total_clients,       icon: Users,       color: '#14B8A6', href: '/clients' },
-    { label: 'Overdue',          value: summary.overdue_count,       icon: AlertCircle, color: '#F43F5E', href: '/rentals/overdue' },
-    { label: 'Active Rentals',   value: summary.active_rentals,      icon: CheckCircle, color: '#8B5CF6', href: '/rentals' },
+    { label: 'Rented',           value: summary.active_rentals,      icon: CheckCircle, color: '#14B8A6', href: '/rentals' },
+    { label: 'Total Clients',    value: summary.total_clients,       icon: Users,       color: '#8B5CF6', href: '/clients' },
+    { label: 'Active Rentals',   value: summary.active_rentals,      icon: FileText,    color: '#6366F1', href: '/rentals' },
     { label: 'Revenue / Month',  value: fmt(summary.total_revenue),  icon: TrendingUp,  color: '#F59E0B', href: '/reports' },
   ] : [];
 
   const quickActions = [
     { href: '/rentals/new',      label: 'New Rental',     icon: FileText,    color: '#14B8A6' },
     { href: '/rentals/bulk/new', label: 'Bulk Rental',    icon: Layers,      color: '#A78BFA' },
-    { href: '/inventory/new',    label: 'Add Laptop',     icon: Monitor,     color: '#3B82F6' },    
+    { href: '/inventory/new',    label: 'Add Laptop',     icon: Monitor,     color: '#3B82F6' },
     { href: '/schedules',        label: 'Schedules',      icon: Calendar,    color: '#F97316' },
-    { href: '/rentals/overdue',  label: 'Overdue',        icon: AlertCircle, color: '#F43F5E' },
     { href: '/reports',          label: 'Reports',        icon: BarChart2,   color: '#8B5CF6' },
     { href: '/issues',           label: 'Issues',         icon: Wrench,      color: '#64748B' },
   ];
@@ -234,26 +230,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Overdue alert bar ── */}
-        {!loading && overdue.length > 0 && (
-          <Link href="/rentals/overdue"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:opacity-90"
-            style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)', textDecoration: 'none' }}>
-            <AlertCircle size={15} style={{ color: '#F43F5E', flexShrink: 0 }} />
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-semibold" style={{ color: '#F43F5E' }}>
-                {overdue.length} overdue rental{overdue.length > 1 ? 's' : ''} require attention
-              </span>
-              <p className="text-xs hidden sm:block" style={{ color: 'rgba(244,63,94,0.7)' }}>
-                These rentals have passed their end date and need to be resolved.
-              </p>
-            </div>
-            <span className="text-xs font-semibold flex-shrink-0 flex items-center gap-1"
-              style={{ color: '#F43F5E' }}>
-              View <ArrowRight size={11} />
-            </span>
-          </Link>
-        )}
 
         {/* ── Main row: Active Rentals + Available Laptops ── */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -511,10 +487,9 @@ export default function DashboardPage() {
                   Inventory Breakdown
                 </div>
                 {[
-                  { label: 'Available',   value: summary.available_laptops,                color: '#10B981' },
-                  { label: 'Active',      value: summary.active_rentals,                   color: '#14B8A6' },
-                  { label: 'Overdue',     value: summary.overdue_count,                    color: '#F43F5E' },
-                  { label: 'Total',       value: summary.total_laptops,                    color: '#3B82F6' },
+                  { label: 'Available',   value: summary.available_laptops, color: '#10B981' },
+                  { label: 'Rented',      value: summary.active_rentals,    color: '#14B8A6' },
+                  { label: 'Total',       value: summary.total_laptops,     color: '#3B82F6' },
                 ].map(s => (
                   <div key={s.label} className="space-y-1">
                     <div className="flex items-center justify-between">

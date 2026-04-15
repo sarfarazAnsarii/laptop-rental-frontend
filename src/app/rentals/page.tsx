@@ -5,51 +5,46 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Rental } from '@/types';
-import { FileText, Plus, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors } from 'lucide-react';
+import { FileText, Plus, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors, ArrowLeftRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { generateInvoiceEmail, generateBulkInvoiceEmail } from '@/lib/ai';
 
-const STATUS_OPTIONS = ['', 'active', 'completed', 'cancelled', 'overdue'];
+const STATUS_OPTIONS = ['', 'active', 'completed', 'cancelled'];
 const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(n));
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-/** Returns ISO "YYYY-MM-DD" of the last day of start_date's month */
-function billingMonthEnd(startDate: string): string {
-  const d = new Date(startDate);
+/** Returns ISO "YYYY-MM-DD" of the last day of the given date's month */
+function billingMonthEnd(date: string): string {
+  const d = new Date(date);
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  const y = end.getFullYear();
-  const m = String(end.getMonth() + 1).padStart(2, '0');
-  const day = String(end.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
 }
 
 /**
- * Billing period = start_date → last day of start month
- * Daily rate     = monthly_rental / actual days in that month (not always 30)
- * Example: rental starts 6 Apr → billing period is 6 Apr–30 Apr (25 days)
- *          daily rate = monthly_rental / 30  (April has 30 days)
+ * Business rule: billing period is always 1st–last of month.
+ * When a laptop is returned mid-month, charge from the 1st of the return month
+ * up to (and including) the return date. Credit = full month charge − pro-rated charge.
  */
 function calcDeduction(rental: Rental, returnDate: string) {
-  const start       = new Date(rental.start_date);
-  // Billing period end = last day of start month
-  const billingEnd  = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-  const daysInMonth = billingEnd.getDate();                          // actual days in that month
-  // Total billable days from start to end of month (inclusive)
-  const totalBillingDays = Math.round((billingEnd.getTime() - start.getTime()) / 86400000) + 1;
+  const ret         = new Date(returnDate);
+  const daysInMonth = new Date(ret.getFullYear(), ret.getMonth() + 1, 0).getDate();
+  const usedDays    = ret.getDate(); // 1st to return date inclusive
+  const unusedDays  = daysInMonth - usedDays;
 
-  const ret            = new Date(returnDate);
-  // Cap return at billing end (can't return "after" the month ends for this billing)
-  const effectiveRet   = ret > billingEnd ? billingEnd : ret;
-  const usedDays       = Math.max(1, Math.round((effectiveRet.getTime() - start.getTime()) / 86400000) + 1);
-  const unusedDays     = Math.max(0, totalBillingDays - usedDays);
-
-  const dailyRate  = +(Number(rental.monthly_rental) / daysInMonth).toFixed(2);
+  const monthly    = Number(rental.monthly_rental);
+  const gstPct     = Number((rental as any).gst_percent) || 18;
+  const dailyRate  = +(monthly / daysInMonth).toFixed(4);
   const rawDeduct  = +(dailyRate * unusedDays).toFixed(2);
-  const gstDeduct  = +(rawDeduct * (Number(rental.gst_percent) || 18) / 100).toFixed(2);
+  const gstDeduct  = +(rawDeduct * gstPct / 100).toFixed(2);
   const deduction  = +(rawDeduct + gstDeduct).toFixed(2);
   const adjusted   = Math.max(0, +(Number(rental.grand_total) - deduction).toFixed(2));
-  return { daysInMonth, totalBillingDays, billingEndISO: billingMonthEnd(rental.start_date), usedDays, unusedDays, dailyRate, rawDeduct, gstDeduct, deduction, adjusted };
+
+  return {
+    daysInMonth, usedDays, unusedDays, dailyRate, rawDeduct, gstDeduct, deduction, adjusted,
+    billingEndISO: billingMonthEnd(returnDate),
+    totalBillingDays: daysInMonth,
+  };
 }
 
 export default function RentalsPage() {
@@ -84,6 +79,38 @@ export default function RentalsPage() {
   const [inventories, setInventories] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
 
+  // Exchange modal
+  const [exchangeModal,    setExchangeModal]    = useState<Rental | null>(null);
+  const [exchangeForm,     setExchangeForm]     = useState({ new_inventory_id: '', exchange_date: new Date().toISOString().split('T')[0], reason: '', notes: '' });
+  const [exchangeInvList,  setExchangeInvList]  = useState<any[]>([]);
+  const [savingExchange,   setSavingExchange]   = useState(false);
+
+  async function openExchangeModal(rental: Rental) {
+    const res = await api.inventory.available();
+    setExchangeInvList(res.data || []);
+    setExchangeForm({ new_inventory_id: '', exchange_date: new Date().toISOString().split('T')[0], reason: '', notes: '' });
+    setExchangeModal(rental);
+  }
+
+  async function confirmExchange() {
+    if (!exchangeModal || !exchangeForm.new_inventory_id) return;
+    setSavingExchange(true);
+    try {
+      await api.exchanges.create({
+        rental_id:        exchangeModal.id,
+        new_inventory_id: Number(exchangeForm.new_inventory_id),
+        exchange_date:    exchangeForm.exchange_date,
+        reason:           exchangeForm.reason || undefined,
+        notes:            exchangeForm.notes  || undefined,
+      });
+      showToast('Laptop exchanged successfully. Rental terms unchanged.');
+      setExchangeModal(null);
+      load();
+    } catch (e: any) {
+      showToast(e.message || 'Exchange failed', 'error');
+    } finally { setSavingExchange(false); }
+  }
+
   // Partial cancel
   const [pcSelectedIds,    setPcSelectedIds]    = useState<Set<number>>(new Set());
   const [pcModal,          setPcModal]          = useState(false);
@@ -101,19 +128,17 @@ export default function RentalsPage() {
   }
 
   function pcPreview(r: Rental, endDate: string) {
-    const start    = new Date(r.start_date);
-    const monthEnd = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-    const daysInMonth = monthEnd.getDate();
-    const ret      = new Date(endDate);
-    const effective = ret > monthEnd ? monthEnd : ret;
-    const daysUsed  = Math.max(1, Math.round((effective.getTime() - start.getTime()) / 86400000) + 1);
-    const monthly   = Number(r.monthly_rental || 0);
-    const qty       = Number(r.quantity || 1);
-    const gstPct    = Number((r as any).gst_percent || 18);
-    const proBase   = +(monthly * qty * daysUsed / daysInMonth).toFixed(2);
-    const proGst    = +(proBase * gstPct / 100).toFixed(2);
-    const proTotal  = +(proBase + proGst).toFixed(2);
-    const credit    = +(Number(r.grand_total || 0) - proTotal).toFixed(2);
+    // Business rule: charge from 1st of the return month to return date
+    const ret         = new Date(endDate);
+    const daysInMonth = new Date(ret.getFullYear(), ret.getMonth() + 1, 0).getDate();
+    const daysUsed    = ret.getDate(); // day-of-month = days from 1st inclusive
+    const monthly     = Number(r.monthly_rental || 0);
+    const qty         = Number(r.quantity || 1);
+    const gstPct      = Number((r as any).gst_percent || 18);
+    const proBase     = +(monthly * qty * daysUsed / daysInMonth).toFixed(2);
+    const proGst      = +(proBase * gstPct / 100).toFixed(2);
+    const proTotal    = +(proBase + proGst).toFixed(2);
+    const credit      = Math.max(0, +(Number(r.grand_total || 0) - proTotal).toFixed(2));
     return { daysInMonth, daysUsed, proTotal, credit };
   }
 
@@ -430,6 +455,7 @@ export default function RentalsPage() {
                       <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
                       {isAdmin && <Button variant="outline" size="sm" icon={<SendHorizonal size={13} />} onClick={() => handleSendInvoice(r)} />}
                       {isAdmin && r.status === 'active' && <>
+                        <Button variant="ghost" size="sm" icon={<ArrowLeftRight size={13} />} onClick={() => openExchangeModal(r)} title="Exchange laptop" />
                         <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => openActionModal(r, 'complete')} />
                         <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => openActionModal(r, 'cancel')} />
                       </>}
@@ -546,6 +572,7 @@ export default function RentalsPage() {
                             <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
                             {isAdmin && <Button variant="outline" size="sm" icon={<SendHorizonal size={13} />} onClick={() => handleSendInvoice(r)} />}
                             {isAdmin && r.status === 'active' && <>
+                              <Button variant="ghost" size="sm" icon={<ArrowLeftRight size={13} />} onClick={() => openExchangeModal(r)} title="Exchange laptop" />
                               <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => openActionModal(r, 'complete')} />
                               <Button variant="danger" size="sm" icon={<XCircle size={13} />} onClick={() => openActionModal(r, 'cancel')} />
                             </>}
@@ -1433,6 +1460,115 @@ export default function RentalsPage() {
       </Modal>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* Exchange Modal */}
+      <Modal open={!!exchangeModal} onClose={() => setExchangeModal(null)} title="Exchange Laptop" width="max-w-md">
+        {exchangeModal && (
+          <div className="space-y-4">
+            {/* Info banner */}
+            <div className="flex items-start gap-3 p-3 rounded-xl"
+              style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(59,130,246,0.15)' }}>
+                <ArrowLeftRight size={15} style={{ color: '#3B82F6' }} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                  {exchangeModal.inventory?.brand} {exchangeModal.inventory?.model_no}
+                </div>
+                <div className="text-xs font-mono" style={{ color: '#475569' }}>
+                  {exchangeModal.rental_no} · {exchangeModal.inventory?.asset_code}
+                </div>
+                <div className="text-xs mt-1 leading-relaxed" style={{ color: '#64748B' }}>
+                  Rental terms (amount, billing cycle) remain unchanged after exchange.
+                </div>
+              </div>
+            </div>
+
+            {/* New laptop selector */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Replace with <span style={{ color: '#F43F5E' }}>*</span>
+              </label>
+              <select
+                className="inp w-full"
+                value={exchangeForm.new_inventory_id}
+                onChange={e => setExchangeForm(p => ({ ...p, new_inventory_id: e.target.value }))}>
+                <option value="">— Select available laptop —</option>
+                {exchangeInvList.map((inv: any) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.brand} {inv.model_no} · {inv.asset_code}{inv.serial_number ? ` · ${inv.serial_number}` : ''}
+                  </option>
+                ))}
+              </select>
+              {exchangeForm.new_inventory_id && (() => {
+                const inv = exchangeInvList.find((i: any) => String(i.id) === exchangeForm.new_inventory_id);
+                return inv ? (
+                  <div className="mt-1.5 text-xs px-2 py-1.5 rounded-lg"
+                    style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', color: '#6EE7B7' }}>
+                    {inv.cpu}{inv.ram ? ` · ${inv.ram}` : ''}{inv.ssd ? ` · ${inv.ssd}` : ''}
+                  </div>
+                ) : null;
+              })()}
+            </div>
+
+            {/* Exchange date */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Exchange Date <span style={{ color: '#F43F5E' }}>*</span>
+              </label>
+              <input
+                className="inp w-full"
+                type="date"
+                value={exchangeForm.exchange_date}
+                onChange={e => setExchangeForm(p => ({ ...p, exchange_date: e.target.value }))}
+              />
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Reason <span style={{ color: '#475569' }}>(optional)</span>
+              </label>
+              <input
+                className="inp w-full"
+                placeholder="Hardware fault, upgrade request, client preference…"
+                value={exchangeForm.reason}
+                onChange={e => setExchangeForm(p => ({ ...p, reason: e.target.value }))}
+              />
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Notes <span style={{ color: '#475569' }}>(optional)</span>
+              </label>
+              <textarea
+                className="inp w-full resize-none"
+                rows={2}
+                placeholder="Any additional details…"
+                value={exchangeForm.notes}
+                onChange={e => setExchangeForm(p => ({ ...p, notes: e.target.value }))}
+              />
+            </div>
+
+            <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', color: '#94A3B8' }}>
+              The old laptop will be marked <strong style={{ color: '#F1F5F9' }}>available</strong>. The new laptop will be <strong style={{ color: '#F1F5F9' }}>assigned to this rental</strong>. Monthly charges, GST, and billing dates stay the same.
+            </div>
+
+            <div className="flex justify-end gap-3 pt-1">
+              <Button variant="ghost" onClick={() => setExchangeModal(null)}>Cancel</Button>
+              <Button
+                icon={<ArrowLeftRight size={14} />}
+                loading={savingExchange}
+                disabled={!exchangeForm.new_inventory_id || !exchangeForm.exchange_date}
+                onClick={confirmExchange}>
+                Confirm Exchange
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </DashboardLayout>
   );
 }

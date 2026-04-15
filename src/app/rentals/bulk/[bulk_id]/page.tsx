@@ -10,7 +10,7 @@ import {
   ArrowLeft, Layers, CheckCircle, XCircle,
   ChevronRight, SendHorizonal, Eye,
   Building2, Mail, Phone, FileText,
-  Truck, MapPin, Contact, Plus, Scissors, ReceiptText, Wallet,
+  Truck, MapPin, Contact, Plus, Scissors, ReceiptText, Wallet, ArrowLeftRight,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -189,6 +189,39 @@ export default function BulkRentalDetailPage() {
   const [indPickupForm,   setIndPickupForm]   = useState({ address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' });
   const [indPickupSaving, setIndPickupSaving] = useState(false);
 
+  // Exchange
+  const [exchanges,        setExchanges]        = useState<any[]>([]);
+  const [exchangeModal,    setExchangeModal]    = useState<any | null>(null);
+  const [exchangeForm,     setExchangeForm]     = useState({ new_inventory_id: '', exchange_date: new Date().toISOString().split('T')[0], reason: '', notes: '' });
+  const [exchangeInvList,  setExchangeInvList]  = useState<any[]>([]);
+  const [savingExchange,   setSavingExchange]   = useState(false);
+
+  async function openExchangeModal(rental: any) {
+    const res = await api.inventory.available();
+    setExchangeInvList(res.data || []);
+    setExchangeForm({ new_inventory_id: '', exchange_date: new Date().toISOString().split('T')[0], reason: '', notes: '' });
+    setExchangeModal(rental);
+  }
+
+  async function confirmExchange() {
+    if (!exchangeModal || !exchangeForm.new_inventory_id) return;
+    setSavingExchange(true);
+    try {
+      await api.exchanges.create({
+        rental_id:        exchangeModal.id,
+        new_inventory_id: Number(exchangeForm.new_inventory_id),
+        exchange_date:    exchangeForm.exchange_date,
+        reason:           exchangeForm.reason || undefined,
+        notes:            exchangeForm.notes  || undefined,
+      });
+      showToast('Laptop exchanged. Rental terms unchanged.');
+      setExchangeModal(null);
+      load();
+    } catch (e: any) {
+      showToast(e.message || 'Exchange failed', 'error');
+    } finally { setSavingExchange(false); }
+  }
+
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -216,6 +249,15 @@ export default function BulkRentalDetailPage() {
         res.status === 'fulfilled' ? (res.value.data || []).map((s: any) => ({ ...s, _rental: data[i] })) : []
       );
       setSchedules(allSchedules.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()));
+
+      // Load exchange history for all rentals in this bulk
+      try {
+        const excResults = await Promise.allSettled(data.map((r: any) => api.exchanges.list({ rental_id: String(r.id), per_page: '100' })));
+        const allExchanges = excResults.flatMap((res, i) =>
+          res.status === 'fulfilled' ? (res.value.data?.data || res.value.data || []).map((ex: any) => ({ ...ex, _rental: data[i] })) : []
+        );
+        setExchanges(allExchanges.sort((a: any, b: any) => new Date(b.exchange_date).getTime() - new Date(a.exchange_date).getTime()));
+      } catch { /* non-critical */ }
     } catch {
       router.push('/rentals');
     } finally { setLoading(false); }
@@ -560,6 +602,7 @@ export default function BulkRentalDetailPage() {
                       </Button>
                     )}
                     {isAdmin && r.status === 'active' && <>
+                      <Button variant="ghost"   size="sm" icon={<ArrowLeftRight size={13} />} onClick={() => openExchangeModal(r)} title="Exchange laptop" />
                       <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => api.rentals.complete(r.id).then(load)} />
                       <Button variant="danger"  size="sm" icon={<XCircle    size={13} />} onClick={() => api.rentals.cancel(r.id).then(load)} />
                     </>}
@@ -642,6 +685,7 @@ export default function BulkRentalDetailPage() {
                           </Button>
                         )}
                         {isAdmin && r.status === 'active' && <>
+                          <Button variant="ghost"   size="sm" icon={<ArrowLeftRight size={13} />} onClick={() => openExchangeModal(r)} title="Exchange laptop" />
                           <Button variant="success" size="sm" icon={<CheckCircle size={13} />} onClick={() => api.rentals.complete(r.id).then(load)} />
                           <Button variant="danger"  size="sm" icon={<XCircle    size={13} />} onClick={() => api.rentals.cancel(r.id).then(load)} />
                         </>}
@@ -759,6 +803,87 @@ export default function BulkRentalDetailPage() {
             </div>
           )}
         </div>
+
+        {/* ── Exchange History ── */}
+        {(isAdminOrStaff || exchanges.length > 0) && (
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <SectionTitle>Exchange History</SectionTitle>
+              {exchanges.length > 0 && (
+                <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
+                  style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.2)' }}>
+                  {exchanges.length} exchange{exchanges.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {exchanges.length === 0 ? (
+              <div className="flex items-center gap-2 py-4" style={{ color: '#334155' }}>
+                <ArrowLeftRight size={15} />
+                <span className="text-sm">No laptop exchanges on this bulk group.</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {exchanges.map((ex: any) => (
+                  <div key={ex.id} className="rounded-xl p-4"
+                    style={{ background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg"
+                          style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA' }}>
+                          {ex.exchange_no}
+                        </span>
+                        <span className="font-mono text-xs" style={{ color: '#475569' }}>
+                          {ex._rental?.rental_no}
+                        </span>
+                      </div>
+                      <span className="text-xs" style={{ color: '#64748B' }}>
+                        {fmtDate(ex.exchange_date)}
+                        {ex.exchanged_by_user?.name || ex.exchanged_by_name
+                          ? ` · by ${ex.exchanged_by_user?.name ?? ex.exchanged_by_name}`
+                          : ''}
+                      </span>
+                    </div>
+
+                    {/* Old → New laptops */}
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 rounded-xl p-3"
+                        style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.15)' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#F87171' }}>Returned</div>
+                        <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                          {ex.old_inventory?.brand} {ex.old_inventory?.model_no}
+                        </div>
+                        <div className="text-xs font-mono mt-0.5" style={{ color: '#64748B' }}>
+                          {ex.old_inventory?.asset_code}
+                          {ex.old_inventory?.serial_number ? ` · ${ex.old_inventory.serial_number}` : ''}
+                        </div>
+                      </div>
+                      <ArrowLeftRight size={16} style={{ color: '#334155', flexShrink: 0 }} />
+                      <div className="flex-1 rounded-xl p-3"
+                        style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#34D399' }}>Received</div>
+                        <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                          {ex.new_inventory?.brand} {ex.new_inventory?.model_no}
+                        </div>
+                        <div className="text-xs font-mono mt-0.5" style={{ color: '#64748B' }}>
+                          {ex.new_inventory?.asset_code}
+                          {ex.new_inventory?.serial_number ? ` · ${ex.new_inventory.serial_number}` : ''}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(ex.reason || ex.notes) && (
+                      <div className="mt-2 text-xs px-2 py-1.5 rounded-lg" style={{ background: 'rgba(15,23,42,0.4)', color: '#64748B' }}>
+                        {ex.reason}{ex.reason && ex.notes ? ' · ' : ''}{ex.notes}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
 
@@ -1267,6 +1392,116 @@ export default function BulkRentalDetailPage() {
               <Button variant="ghost" onClick={() => setCnModal(null)}>Cancel</Button>
               <Button icon={<ReceiptText size={14} />} loading={cnSaving} onClick={handleCreateCreditNote}>
                 Create Credit Note
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Exchange Modal */}
+      <Modal open={!!exchangeModal} onClose={() => setExchangeModal(null)} title="Exchange Laptop" width="max-w-md">
+        {exchangeModal && (
+          <div className="space-y-4">
+            {/* Current laptop info */}
+            <div className="flex items-start gap-3 p-3 rounded-xl"
+              style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(59,130,246,0.15)' }}>
+                <ArrowLeftRight size={15} style={{ color: '#3B82F6' }} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                  {exchangeModal.inventory?.brand} {exchangeModal.inventory?.model_no}
+                </div>
+                <div className="text-xs font-mono" style={{ color: '#475569' }}>
+                  {exchangeModal.rental_no} · {exchangeModal.inventory?.asset_code}
+                </div>
+                <div className="text-xs mt-1" style={{ color: '#64748B' }}>
+                  Rental terms (amount, billing cycle) remain unchanged after exchange.
+                </div>
+              </div>
+            </div>
+
+            {/* New laptop selector */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Replace with <span style={{ color: '#F43F5E' }}>*</span>
+              </label>
+              <select
+                className="inp w-full"
+                value={exchangeForm.new_inventory_id}
+                onChange={e => setExchangeForm(p => ({ ...p, new_inventory_id: e.target.value }))}>
+                <option value="">— Select available laptop —</option>
+                {exchangeInvList.map((inv: any) => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.brand} {inv.model_no} · {inv.asset_code}{inv.serial_number ? ` · ${inv.serial_number}` : ''}
+                  </option>
+                ))}
+              </select>
+              {exchangeForm.new_inventory_id && (() => {
+                const inv = exchangeInvList.find((i: any) => String(i.id) === exchangeForm.new_inventory_id);
+                return inv ? (
+                  <div className="mt-1.5 text-xs px-2 py-1.5 rounded-lg"
+                    style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', color: '#6EE7B7' }}>
+                    {inv.cpu}{inv.ram ? ` · ${inv.ram}` : ''}{inv.ssd ? ` · ${inv.ssd}` : ''}
+                  </div>
+                ) : null;
+              })()}
+            </div>
+
+            {/* Exchange date */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Exchange Date <span style={{ color: '#F43F5E' }}>*</span>
+              </label>
+              <input
+                className="inp w-full"
+                type="date"
+                value={exchangeForm.exchange_date}
+                onChange={e => setExchangeForm(p => ({ ...p, exchange_date: e.target.value }))}
+              />
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Reason <span style={{ color: '#475569' }}>(optional)</span>
+              </label>
+              <input
+                className="inp w-full"
+                placeholder="Hardware fault, upgrade request, client preference…"
+                value={exchangeForm.reason}
+                onChange={e => setExchangeForm(p => ({ ...p, reason: e.target.value }))}
+              />
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+                Notes <span style={{ color: '#475569' }}>(optional)</span>
+              </label>
+              <textarea
+                className="inp w-full resize-none"
+                rows={2}
+                placeholder="Any additional details…"
+                value={exchangeForm.notes}
+                onChange={e => setExchangeForm(p => ({ ...p, notes: e.target.value }))}
+              />
+            </div>
+
+            <div className="p-3 rounded-xl text-xs"
+              style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', color: '#94A3B8' }}>
+              The old laptop becomes <strong style={{ color: '#F1F5F9' }}>available</strong>. The new laptop is <strong style={{ color: '#F1F5F9' }}>assigned to this rental</strong>. Monthly charges, GST, and billing dates are unchanged.
+            </div>
+
+            <div className="flex justify-end gap-3 pt-1">
+              <Button variant="ghost" onClick={() => setExchangeModal(null)}>Cancel</Button>
+              <Button
+                icon={<ArrowLeftRight size={14} />}
+                loading={savingExchange}
+                disabled={!exchangeForm.new_inventory_id || !exchangeForm.exchange_date}
+                onClick={confirmExchange}>
+                Confirm Exchange
               </Button>
             </div>
           </div>

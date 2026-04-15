@@ -290,6 +290,25 @@ export const api = {
       request<any>(`/credit-notes/${id}/resolve`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
 
+  exchanges: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/exchanges${qs}`);
+    },
+    get: (id: number) => request<any>(`/exchanges/${id}`),
+    create: (data: {
+      rental_id: number;
+      new_inventory_id: number;
+      exchange_date: string;
+      reason?: string;
+      notes?: string;
+    }) => request<any>('/exchanges', { method: 'POST', body: JSON.stringify(data) }),
+    myExchanges: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/client/exchanges${qs}`);
+    },
+  },
+
   dashboard: {
     summary: () => request<any>('/dashboard/summary'),
   },

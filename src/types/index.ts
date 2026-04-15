@@ -74,11 +74,28 @@ export interface Rental {
   gst_percent: number;
   gst_amount: number;
   grand_total: number;
-  status: 'active' | 'completed' | 'cancelled' | 'overdue';
+  status: 'active' | 'completed' | 'cancelled';
   remarks?: string;
   created_at: string;
   inventory?: Inventory;
   client?: User;
+}
+
+export interface RentalExchange {
+  id: number;
+  exchange_no: string;
+  rental_id: number;
+  old_inventory_id: number;
+  new_inventory_id: number;
+  exchange_date: string;
+  exchanged_by: number;
+  reason?: string;
+  notes?: string;
+  created_at: string;
+  rental?: Rental;
+  old_inventory?: Inventory;
+  new_inventory?: Inventory;
+  exchanged_by_user?: { id: number; name: string };
 }
 
 export interface DashboardSummary {
