@@ -66,123 +66,193 @@ export default function ExchangesPage() {
 
       {/* Table */}
       <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: '1px solid #1E3058' }}>
-                {['Exchange No', 'Date', 'Rental', 'Client', 'Old Laptop', 'New Laptop', 'Reason', 'By'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
-                    style={{ color: '#475569' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm" style={{ color: '#475569' }}>
-                    Loading…
-                  </td>
-                </tr>
-              ) : exchanges.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <ArrowLeftRight size={28} style={{ color: '#334155' }} />
-                      <span className="text-sm" style={{ color: '#475569' }}>No exchanges found</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : exchanges.map(ex => (
-                <tr key={ex.id} style={{ borderBottom: '1px solid rgba(30,48,88,0.4)' }}
-                  className="hover:bg-white/[0.02] transition-colors">
-                  {/* Exchange No */}
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs font-semibold px-2 py-1 rounded-lg"
-                      style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA' }}>
-                      {ex.exchange_no}
-                    </span>
-                  </td>
-                  {/* Date */}
-                  <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#94A3B8' }}>
-                    <div className="flex items-center gap-1.5">
-                      <Calendar size={13} style={{ color: '#475569' }} />
-                      {fmtDate(ex.exchange_date)}
-                    </div>
-                  </td>
-                  {/* Rental */}
-                  <td className="px-4 py-3">
-                    {ex.rental ? (
-                      <Link href={`/rentals/${ex.rental_id}`}
-                        className="font-mono text-xs font-semibold hover:underline"
-                        style={{ color: '#38BDF8' }}>
-                        {ex.rental.rental_no}
-                      </Link>
-                    ) : (
-                      <span className="text-xs" style={{ color: '#475569' }}>#{ex.rental_id}</span>
-                    )}
-                  </td>
-                  {/* Client */}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <User size={13} style={{ color: '#475569' }} />
-                      <div>
-                        <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>
-                          {ex.rental?.client?.name ?? '—'}
-                        </div>
-                        {ex.rental?.client?.company && (
-                          <div className="text-xs" style={{ color: '#475569' }}>{ex.rental.client.company}</div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  {/* Old Laptop */}
-                  <td className="px-4 py-3">
-                    <LaptopCell inv={ex.old_inventory} />
-                  </td>
-                  {/* New Laptop */}
-                  <td className="px-4 py-3">
-                    <LaptopCell inv={ex.new_inventory} highlight />
-                  </td>
-                  {/* Reason */}
-                  <td className="px-4 py-3 max-w-[160px]">
-                    <span className="text-xs" style={{ color: '#64748B' }}>
-                      {ex.reason ?? <span style={{ color: '#334155' }}>—</span>}
-                    </span>
-                  </td>
-                  {/* By */}
-                  <td className="px-4 py-3">
-                    <span className="text-xs" style={{ color: '#64748B' }}>
-                      {(ex as any).exchanged_by_user?.name ?? (ex as any).exchanged_by_name ?? '—'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
 
-        {/* Pagination */}
-        {lastPage > 1 && (
-          <div className="px-4 py-3 flex items-center justify-between"
-            style={{ borderTop: '1px solid #1E3058' }}>
-            <span className="text-xs" style={{ color: '#475569' }}>
-              Page {page} of {lastPage}
-            </span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-white/5 transition-colors"
-                style={{ color: '#94A3B8' }}>
-                <ChevronLeft size={15} />
-              </button>
-              <button onClick={() => setPage(p => Math.min(lastPage, p + 1))} disabled={page === lastPage}
-                className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-white/5 transition-colors"
-                style={{ color: '#94A3B8' }}>
-                <ChevronRight size={15} />
-              </button>
-            </div>
+      {/* ── Mobile card list (hidden on md+) ── */}
+      <div className="md:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+        {loading ? (
+          <div className="px-4 py-10 text-center text-sm" style={{ color: '#475569' }}>Loading…</div>
+        ) : exchanges.length === 0 ? (
+          <div className="px-4 py-10 flex flex-col items-center gap-2">
+            <ArrowLeftRight size={28} style={{ color: '#334155' }} />
+            <span className="text-sm" style={{ color: '#475569' }}>No exchanges found</span>
           </div>
-        )}
+        ) : exchanges.map(ex => (
+          <div key={ex.id} className="p-4 space-y-3">
+
+            {/* Row 1: Exchange No + Date */}
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-xs font-semibold px-2 py-1 rounded-lg"
+                style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA' }}>
+                {ex.exchange_no}
+              </span>
+              <div className="flex items-center gap-1.5 text-xs" style={{ color: '#94A3B8' }}>
+                <Calendar size={12} style={{ color: '#475569' }} />
+                {fmtDate(ex.exchange_date)}
+              </div>
+            </div>
+
+            {/* Row 2: Rental + Client */}
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#475569' }}>Rental</div>
+                {ex.rental ? (
+                  <Link href={`/rentals/${ex.rental_id}`}
+                    className="font-mono text-xs font-semibold hover:underline"
+                    style={{ color: '#38BDF8' }}>
+                    {ex.rental.rental_no}
+                  </Link>
+                ) : (
+                  <span className="text-xs" style={{ color: '#475569' }}>#{ex.rental_id}</span>
+                )}
+              </div>
+              <div className="text-right min-w-0">
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#475569' }}>Client</div>
+                <div className="text-xs font-medium truncate" style={{ color: '#F1F5F9' }}>
+                  {ex.rental?.client?.name ?? '—'}
+                </div>
+                {ex.rental?.client?.company && (
+                  <div className="text-xs truncate" style={{ color: '#475569' }}>{ex.rental.client.company}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Row 3: Old → New Laptop */}
+            <div className="rounded-lg p-2.5 space-y-2" style={{ background: 'rgba(30,48,88,0.3)' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider w-8 flex-shrink-0" style={{ color: '#475569' }}>Old</span>
+                <LaptopCell inv={ex.old_inventory} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider w-8 flex-shrink-0" style={{ color: '#10B981' }}>New</span>
+                <LaptopCell inv={ex.new_inventory} highlight />
+              </div>
+            </div>
+
+            {/* Row 4: Reason + By */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#475569' }}>Reason</div>
+                <div className="text-xs" style={{ color: '#64748B' }}>
+                  {ex.reason ?? <span style={{ color: '#334155' }}>—</span>}
+                </div>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#475569' }}>By</div>
+                <div className="text-xs" style={{ color: '#64748B' }}>
+                  {(ex as any).exchanged_by_user?.name ?? (ex as any).exchanged_by_name ?? '—'}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        ))}
       </div>
+
+      {/* ── Desktop table (hidden below md) ── */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: '1px solid #1E3058' }}>
+              {['Exchange No', 'Date', 'Rental', 'Client', 'Old Laptop', 'New Laptop', 'Reason', 'By'].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: '#475569' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-10 text-center text-sm" style={{ color: '#475569' }}>Loading…</td>
+              </tr>
+            ) : exchanges.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-10 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <ArrowLeftRight size={28} style={{ color: '#334155' }} />
+                    <span className="text-sm" style={{ color: '#475569' }}>No exchanges found</span>
+                  </div>
+                </td>
+              </tr>
+            ) : exchanges.map(ex => (
+              <tr key={ex.id} style={{ borderBottom: '1px solid rgba(30,48,88,0.4)' }}
+                className="hover:bg-white/[0.02] transition-colors">
+                <td className="px-4 py-3">
+                  <span className="font-mono text-xs font-semibold px-2 py-1 rounded-lg"
+                    style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA' }}>
+                    {ex.exchange_no}
+                  </span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#94A3B8' }}>
+                  <div className="flex items-center gap-1.5">
+                    <Calendar size={13} style={{ color: '#475569' }} />
+                    {fmtDate(ex.exchange_date)}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  {ex.rental ? (
+                    <Link href={`/rentals/${ex.rental_id}`}
+                      className="font-mono text-xs font-semibold hover:underline"
+                      style={{ color: '#38BDF8' }}>
+                      {ex.rental.rental_no}
+                    </Link>
+                  ) : (
+                    <span className="text-xs" style={{ color: '#475569' }}>#{ex.rental_id}</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <User size={13} style={{ color: '#475569' }} />
+                    <div>
+                      <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>
+                        {ex.rental?.client?.name ?? '—'}
+                      </div>
+                      {ex.rental?.client?.company && (
+                        <div className="text-xs" style={{ color: '#475569' }}>{ex.rental.client.company}</div>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3"><LaptopCell inv={ex.old_inventory} /></td>
+                <td className="px-4 py-3"><LaptopCell inv={ex.new_inventory} highlight /></td>
+                <td className="px-4 py-3 max-w-[160px]">
+                  <span className="text-xs" style={{ color: '#64748B' }}>
+                    {ex.reason ?? <span style={{ color: '#334155' }}>—</span>}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-xs" style={{ color: '#64748B' }}>
+                    {(ex as any).exchanged_by_user?.name ?? (ex as any).exchanged_by_name ?? '—'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Pagination (shared) ── */}
+      {lastPage > 1 && (
+        <div className="px-4 py-3 flex items-center justify-between"
+          style={{ borderTop: '1px solid #1E3058' }}>
+          <span className="text-xs" style={{ color: '#475569' }}>
+            Page {page} of {lastPage}
+          </span>
+          <div className="flex gap-2">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-white/5 transition-colors"
+              style={{ color: '#94A3B8' }}>
+              <ChevronLeft size={15} />
+            </button>
+            <button onClick={() => setPage(p => Math.min(lastPage, p + 1))} disabled={page === lastPage}
+              className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-white/5 transition-colors"
+              style={{ color: '#94A3B8' }}>
+              <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
+    </div>
     </DashboardLayout>
   );
 }
