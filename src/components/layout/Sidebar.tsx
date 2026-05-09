@@ -3,38 +3,39 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, Monitor, FileText, Users, LogOut,
-  Laptop, AlertCircle, ChevronRight, Wrench,
-  AlertTriangle, Shield, X, UserCog, BarChart2, CalendarClock, ReceiptText, Wallet, ArrowLeftRight,
-  RotateCcw, BookOpen,
+  LayoutDashboard, Monitor, FileText, UserCog, LogOut,
+  Laptop, Wrench, X, CalendarClock, ReceiptText, Wallet,
+  ArrowLeftRight, RotateCcw, BookOpen, BarChart2, Shield,
+  AlertTriangle, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
+/* ── Nav definitions ────────────────────────────────────────── */
 const NAV_ADMIN = [
-  { href: '/dashboard',       label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/inventory',       label: 'Inventory',   icon: Monitor },
-  { href: '/rentals',         label: 'Rentals',     icon: FileText },
-  { href: '/schedules',       label: 'Schedules',    icon: CalendarClock },
-  { href: '/payments',        label: 'Payments',     icon: Wallet },
-  { href: '/credit-notes',    label: 'Credit Notes', icon: ReceiptText },
-  { href: '/issues',          label: 'Issues',       icon: Wrench },
-  { href: '/rentals/exchanges', label: 'Exchanges',  icon: ArrowLeftRight },
-  { href: '/users',           label: 'Users',        icon: UserCog },
-  { href: '/reports',         label: 'Reports',      icon: BarChart2 },
+  { href: '/dashboard',          label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/inventory',          label: 'Inventory',    icon: Monitor },
+  { href: '/rentals',            label: 'Rentals',      icon: FileText },
+  { href: '/schedules',          label: 'Schedules',    icon: CalendarClock },
+  { href: '/payments',           label: 'Payments',     icon: Wallet },
+  { href: '/credit-notes',       label: 'Credit Notes', icon: ReceiptText },
+  { href: '/issues',             label: 'Issues',       icon: Wrench },
+  { href: '/rentals/exchanges',  label: 'Exchanges',    icon: ArrowLeftRight },
+  { href: '/users',              label: 'Users',        icon: UserCog },
+  { href: '/reports',            label: 'Reports',      icon: BarChart2 },
 ];
 
 const NAV_STAFF = [
-  { href: '/inventory',       label: 'Inventory',   icon: Monitor },
-  { href: '/issues',          label: 'Issues',      icon: Wrench },
+  { href: '/inventory', label: 'Inventory', icon: Monitor },
+  { href: '/issues',    label: 'Issues',    icon: Wrench },
 ];
 
 const NAV_CLIENT = [
-  { href: '/client/rentals',   label: 'My Rentals', icon: FileText       },
-  { href: '/client/returns',   label: 'Returns',    icon: RotateCcw      },
+  { href: '/client/rentals',   label: 'My Rentals', icon: FileText },
+  { href: '/client/returns',   label: 'Returns',    icon: RotateCcw },
   { href: '/client/exchanges', label: 'Exchanges',  icon: ArrowLeftRight },
-  { href: '/client/schedules', label: 'Schedules',  icon: Wrench         },
-  { href: '/client/issues',    label: 'Issues',     icon: AlertTriangle  },
-  { href: '/client/ledger',    label: 'Ledger',     icon: BookOpen       },
+  { href: '/client/schedules', label: 'Schedules',  icon: CalendarClock },
+  { href: '/client/issues',    label: 'Issues',     icon: AlertTriangle },
+  { href: '/client/ledger',    label: 'Ledger',     icon: BookOpen },
 ];
 
 function getNav(role?: string) {
@@ -44,114 +45,97 @@ function getNav(role?: string) {
 }
 
 const ROLE_GRADIENT: Record<string, string> = {
-  admin:  'linear-gradient(135deg, #8B5CF6, #6D28D9)',
-  staff:  'linear-gradient(135deg, #3B82F6, #1D4ED8)',
-  vendor: 'linear-gradient(135deg, #F59E0B, #D97706)',
-  client: 'linear-gradient(135deg, #14B8A6, #0D9488)',
+  admin:  'linear-gradient(135deg, #7C3AED, #5B21B6)',
+  staff:  'linear-gradient(135deg, #2563EB, #1D4ED8)',
+  vendor: 'linear-gradient(135deg, #D97706, #B45309)',
+  client: 'linear-gradient(135deg, #0F766E, #0D9488)',
 };
 
-interface SidebarProps {
-  open?: boolean;
-  onClose?: () => void;
-}
+/* ── Role badge config ──────────────────────────────────────── */
+const ROLE_CONFIG: Record<string, { label: string; bg: string; border: string; color: string; icon: any }> = {
+  admin:  { label: 'Super Admin',    bg: '#F5F3FF', border: '#DDD6FE', color: '#5B21B6', icon: Shield },
+  staff:  { label: 'Staff Member',   bg: '#EFF6FF', border: '#BFDBFE', color: '#1D4ED8', icon: UserCog },
+  client: { label: 'Client Portal',  bg: '#F0FDFA', border: '#99F6E4', color: '#0F766E', icon: FileText },
+};
 
-export default function Sidebar({ open = false, onClose }: SidebarProps) {
-  const pathname  = usePathname();
+/* ── Component ──────────────────────────────────────────────── */
+export default function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
+  const pathname = usePathname();
   const { user, logout } = useAuth();
-  const navItems  = getNav(user?.role);
+  const navItems = getNav(user?.role);
+  const roleConf = ROLE_CONFIG[user?.role ?? ''];
 
   return (
     <aside
-      className="fixed left-0 top-0 h-screen w-64 flex flex-col z-40 transition-transform duration-300 ease-in-out lg:translate-x-0"
-      style={{
-        background: 'linear-gradient(180deg, #0B1628 0%, #0D1B2E 100%)',
-        borderRight: '1px solid #1E3058',
-        transform: open ? 'translateX(0)' : undefined,
-      }}
-      data-open={open}>
-
-      {/* Logo + mobile close */}
-      <div className="p-6 mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)' }}>
-            <Laptop size={18} color="white" />
-          </div>
-          <div>
-            <div className="font-bold text-sm" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>LaptopRent</div>
-            <div className="text-xs" style={{ color: '#475569' }}>Management System</div>
-          </div>
+      className="sidebar"
+      data-open={open}
+    >
+      {/* ── Logo ── */}
+      <div className="sidebar-logo">
+        <div className="sidebar-logo-icon">
+          <Laptop size={17} color="white" />
         </div>
-        {/* Close button — only shown on mobile */}
-        <button onClick={onClose}
-          className="lg:hidden p-1.5 rounded-xl transition-colors hover:bg-white/10"
-          style={{ color: '#475569' }}>
-          <X size={16} />
+        <div className="flex-1 min-w-0">
+          <div className="sidebar-logo-title">LaptopRent</div>
+          <div className="sidebar-logo-sub">Management System</div>
+        </div>
+        <button
+          onClick={onClose}
+          className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-slate-100 flex-shrink-0"
+          style={{ color: '#64748B' }}
+        >
+          <X size={15} />
         </button>
       </div>
 
-      {/* Role strip */}
-      {user?.role === 'client' && (
-        <div className="mx-3 mb-3 px-3 py-2 rounded-xl flex items-center gap-2"
-          style={{ background: 'rgba(20,184,166,0.08)', border: '1px solid rgba(20,184,166,0.2)' }}>
-          <FileText size={13} style={{ color: '#14B8A6' }} />
-          <span className="text-xs font-semibold" style={{ color: '#14B8A6' }}>Client Portal</span>
-        </div>
-      )}
-      {user?.role === 'admin' && (
-        <div className="mx-3 mb-3 px-3 py-2 rounded-xl flex items-center gap-2"
-          style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
-          <Shield size={13} style={{ color: '#A78BFA' }} />
-          <span className="text-xs font-semibold" style={{ color: '#A78BFA' }}>Super Admin</span>
+      {/* ── Role badge ── */}
+      {roleConf && (
+        <div className="mx-3 mb-0.5 mt-2.5 px-3 py-2 rounded-xl flex items-center gap-2"
+          style={{ background: roleConf.bg, border: `1px solid ${roleConf.border}` }}>
+          <roleConf.icon size={12} style={{ color: roleConf.color }} />
+          <span className="text-xs font-semibold" style={{ color: roleConf.color }}>{roleConf.label}</span>
         </div>
       )}
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+      {/* ── Navigation ── */}
+      <nav className="sidebar-nav">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active =
             pathname === href ||
             (pathname.startsWith(href + '/') && href !== '/dashboard');
+
           return (
-            <Link key={href} href={href}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={{
-                background: active ? 'rgba(59,130,246,0.12)' : 'transparent',
-                color:      active ? '#3B82F6' : '#64748B',
-                border:     active ? '1px solid rgba(59,130,246,0.2)' : '1px solid transparent',
-              }}>
-              <Icon size={17} />
-              <span style={{ fontFamily: 'DM Sans, sans-serif' }}>{label}</span>
-              {active && <ChevronRight size={14} className="ml-auto" />}
+            <Link key={href} href={href} className={`sidebar-link ${active ? 'active' : ''}`}>
+              <Icon size={16} style={{ flexShrink: 0 }} />
+              <span className="flex-1">{label}</span>
+              {active && <ChevronRight size={12} style={{ opacity: 0.5, flexShrink: 0 }} />}
             </Link>
           );
         })}
       </nav>
 
-      {/* User */}
-      <div className="p-4 border-t" style={{ borderColor: '#1E3058' }}>
-        <Link href="/profile"
-          className="flex items-center gap-3 mb-3 px-2 py-1.5 rounded-xl transition-all hover:bg-white/5"
-          style={{ textDecoration: 'none' }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-            style={{ background: ROLE_GRADIENT[user?.role ?? 'admin'] ?? ROLE_GRADIENT.admin, color: 'white' }}>
-            {user?.name?.charAt(0)?.toUpperCase()}
+      {/* ── User section ── */}
+      <div className="sidebar-user">
+        <Link href="/profile" className="sidebar-user-card">
+          <div
+            className="user-avatar"
+            style={{ background: ROLE_GRADIENT[user?.role ?? 'admin'] ?? ROLE_GRADIENT.admin }}
+          >
+            {user?.name?.charAt(0)?.toUpperCase() ?? '?'}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate" style={{ color: '#F1F5F9' }}>{user?.name}</div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className={'badge badge-' + user?.role}>{user?.role}</span>
+            <div className="user-name truncate">{user?.name}</div>
+            <div className="mt-0.5">
+              <span className={`badge badge-${user?.role}`}>{user?.role}</span>
               {user?.company && (
-                <span className="text-xs truncate" style={{ color: '#334155' }}>{user.company}</span>
+                <span className="text-xs ml-1.5 truncate" style={{ color: '#94A3B8' }}>{user.company}</span>
               )}
             </div>
           </div>
         </Link>
-        <button onClick={logout}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-sm transition-all hover:bg-red-500/10 hover:text-red-400"
-          style={{ color: '#475569' }}>
-          <LogOut size={15} />
-          Sign Out
+        <button onClick={logout} className="sidebar-logout">
+          <LogOut size={14} />
+          Sign out
         </button>
       </div>
     </aside>

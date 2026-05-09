@@ -599,7 +599,7 @@ export default function RentalsPage() {
         ) : (
           <>
             {/* Mobile card list — one card per bulk group */}
-            <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+            <div className="sm:hidden divide-y" style={{ borderColor: '#E2E8F0' }}>
               {rentalGroups.map(({ bulkId, items }) => {
                 const client   = items[0].client;
                 const grandSum = items.reduce((s, r) => s + Number(r.grand_total || 0), 0);
@@ -683,12 +683,12 @@ export default function RentalsPage() {
               })}
             </div>
 
-            {/* Desktop table — Excel grid style */}
+            {/* Desktop table */}
             <div className="hidden sm:block overflow-x-auto">
-              <table className="xl-rental" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr>
-                    <th style={{ padding: '6px 5px', background: '#060D1C', color: '#1C2E48', fontWeight: 700, fontSize: 10, textAlign: 'center', width: 32, userSelect: 'none', borderRight: '2px solid #0E1C34' }}>№</th>
+                    <th style={{ width: 32, textAlign: 'center' }}>№</th>
                     {[
                       { label: 'Bulk / Rental' },
                       { label: 'Client' },
@@ -699,7 +699,7 @@ export default function RentalsPage() {
                       { label: 'Status', center: true },
                       { label: 'Actions', center: true },
                     ].map(h => (
-                      <th key={h.label} style={{ padding: '6px 10px', background: '#060D1C', color: '#3A5578', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: h.right ? 'right' : h.center ? 'center' : 'left' }}>
+                      <th key={h.label} style={{ textAlign: h.right ? 'right' : h.center ? 'center' : 'left' }}>
                         {h.label}
                       </th>
                     ))}
@@ -717,60 +717,51 @@ export default function RentalsPage() {
 
                     if (bulkId) return (
                       <tr key={`bulk-${bulkId}`} className="bulk-row">
-                        {/* № */}
-                        <td style={{ padding: '5px 4px', textAlign: 'center', color: '#1C2E48', fontSize: 10, fontVariantNumeric: 'tabular-nums', borderRight: '2px solid #0E1C34' }}>
+                        <td style={{ textAlign: 'center', color: '#94A3B8', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>
                           {groupIdx + 1}
                         </td>
-                        {/* Bulk ID */}
-                        <td style={{ padding: '5px 10px' }}>
+                        <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <Layers size={11} color="#7C5CF6" />
+                            <Layers size={11} color="#7C3AED" />
                             <Link href={`/rentals/bulk/${encodeURIComponent(bulkId)}`}
-                              style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#9370F8', textDecoration: 'none', letterSpacing: '0.02em' }}>
+                              style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#7C3AED', textDecoration: 'none', letterSpacing: '0.02em' }}>
                               {bulkId.substring(0, 14)}
                             </Link>
                           </div>
-                          <div style={{ color: '#2A3A5A', fontSize: 10, marginTop: 1 }}>
+                          <div style={{ color: '#94A3B8', fontSize: 10, marginTop: 1 }}>
                             {items.length} laptop{items.length > 1 ? 's' : ''}
                           </div>
                         </td>
-                        {/* Client */}
-                        <td style={{ padding: '5px 10px' }}>
-                          <div style={{ color: '#BDD0E8', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{client?.company || client?.name || '—'}</div>
-                          {client?.company && <div style={{ color: '#2E4568', fontSize: 10.5, lineHeight: 1.3 }}>{client.name}</div>}
+                        <td>
+                          <div style={{ color: '#0F172A', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{client?.company || client?.name || '—'}</div>
+                          {client?.company && <div style={{ color: '#64748B', fontSize: 10.5, lineHeight: 1.3 }}>{client.name}</div>}
                         </td>
-                        {/* Laptops */}
-                        <td style={{ padding: '5px 10px' }}>
+                        <td>
                           {items.map(r => (
-                            <div key={r.id} style={{ color: '#4A6890', fontSize: 11, lineHeight: 1.4 }}>
+                            <div key={r.id} style={{ color: '#64748B', fontSize: 11, lineHeight: 1.4 }}>
                               {r.inventory?.brand} {r.inventory?.model_no}
                             </div>
                           ))}
                         </td>
-                        {/* Billing Period */}
-                        <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>
-                          <div style={{ color: '#7B9EC4', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(startDate)}</div>
-                          <div style={{ color: '#2A4060', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(billingMonthEnd(startDate))}</div>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(startDate)}</div>
+                          <div style={{ color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(billingMonthEnd(startDate))}</div>
                         </td>
-                        {/* Amount */}
-                        <td style={{ padding: '5px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                          <div style={{ color: '#1FC96A', fontWeight: 700, fontSize: 13 }}>{fmt(grandSum)}</div>
-                          <div style={{ color: '#1C4030', fontSize: 10.5 }}>GST: {fmt(gstSum)}</div>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#16A34A', fontWeight: 700, fontSize: 13 }}>{fmt(grandSum)}</div>
+                          <div style={{ color: '#94A3B8', fontSize: 10.5 }}>GST: {fmt(gstSum)}</div>
                         </td>
-                        {/* Payment */}
-                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
-                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: isAdv ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: isAdv ? '#10B981' : '#F59E0B' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: isAdv ? '#DCFCE7' : '#FEF9C3', color: isAdv ? '#15803D' : '#A16207' }}>
                             {isAdv ? 'advance' : 'postpaid'}
                           </span>
                         </td>
-                        {/* Status */}
-                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                        <td style={{ textAlign: 'center' }}>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
                             {statuses.map(s => <span key={s} className={`badge badge-${s}`} style={{ fontSize: 10 }}>{s}</span>)}
                           </div>
                         </td>
-                        {/* Actions */}
-                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                        <td style={{ textAlign: 'center' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                             <Link href={`/rentals/bulk/${encodeURIComponent(bulkId)}`}>
                               <Button variant="ghost" size="sm" icon={<Eye size={13} />} />
@@ -788,49 +779,40 @@ export default function RentalsPage() {
                     const r = items[0];
                     return (
                       <tr key={r.id}>
-                        {/* № */}
-                        <td style={{ padding: '5px 4px', textAlign: 'center', color: '#1C2E48', fontSize: 10, fontVariantNumeric: 'tabular-nums', borderRight: '2px solid #0E1C34' }}>
+                        <td style={{ textAlign: 'center', color: '#94A3B8', fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>
                           {groupIdx + 1}
                         </td>
-                        {/* Rental No */}
-                        <td style={{ padding: '5px 10px' }}>
+                        <td>
                           <Link href={`/rentals/${r.id}`}
-                            style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#4499F0', textDecoration: 'none', letterSpacing: '0.02em' }}>
+                            style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#2563EB', textDecoration: 'none', letterSpacing: '0.02em' }}>
                             {r.rental_no}
                           </Link>
                         </td>
-                        {/* Client */}
-                        <td style={{ padding: '5px 10px' }}>
-                          <div style={{ color: '#BDD0E8', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{client?.company || client?.name || '—'}</div>
-                          {client?.company && <div style={{ color: '#2E4568', fontSize: 10.5, lineHeight: 1.3 }}>{client.name}</div>}
+                        <td>
+                          <div style={{ color: '#0F172A', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{client?.company || client?.name || '—'}</div>
+                          {client?.company && <div style={{ color: '#64748B', fontSize: 10.5, lineHeight: 1.3 }}>{client.name}</div>}
                         </td>
-                        {/* Laptop */}
-                        <td style={{ padding: '5px 10px' }}>
-                          <div style={{ color: '#7B9EC4', fontSize: 11, lineHeight: 1.4 }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                          <div style={{ fontFamily: 'monospace', color: '#2A4060', fontSize: 10.5, lineHeight: 1.4 }}>{r.inventory?.asset_code}</div>
+                        <td>
+                          <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                          <div style={{ fontFamily: 'monospace', color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>{r.inventory?.asset_code}</div>
                         </td>
-                        {/* Billing Period */}
-                        <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>
-                          <div style={{ color: '#7B9EC4', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(r.start_date)}</div>
-                          <div style={{ color: '#2A4060', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(r.end_date || billingMonthEnd(r.start_date))}</div>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(r.start_date)}</div>
+                          <div style={{ color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(r.end_date || billingMonthEnd(r.start_date))}</div>
                         </td>
-                        {/* Amount */}
-                        <td style={{ padding: '5px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                          <div style={{ color: '#1FC96A', fontWeight: 600, fontSize: 13 }}>{fmt(r.grand_total)}</div>
-                          <div style={{ color: '#1C4030', fontSize: 10.5 }}>GST: {fmt(r.gst_amount)}</div>
+                        <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#16A34A', fontWeight: 600, fontSize: 13 }}>{fmt(r.grand_total)}</div>
+                          <div style={{ color: '#94A3B8', fontSize: 10.5 }}>GST: {fmt(r.gst_amount)}</div>
                         </td>
-                        {/* Payment */}
-                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
-                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: isAdv ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: isAdv ? '#10B981' : '#F59E0B' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: isAdv ? '#DCFCE7' : '#FEF9C3', color: isAdv ? '#15803D' : '#A16207' }}>
                             {isAdv ? 'advance' : 'postpaid'}
                           </span>
                         </td>
-                        {/* Status */}
-                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                        <td style={{ textAlign: 'center' }}>
                           <span className={`badge badge-${r.status}`} style={{ fontSize: 10 }}>{r.status}</span>
                         </td>
-                        {/* Actions */}
-                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                        <td style={{ textAlign: 'center' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                             <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
                             {isAdmin && <Button variant="outline" size="sm" icon={<SendHorizonal size={13} />} onClick={() => handleSendInvoice(r)} />}
@@ -845,18 +827,17 @@ export default function RentalsPage() {
                     );
                   })}
                 </tbody>
-                {/* Excel-style summary footer */}
                 <tfoot>
                   <tr>
-                    <td colSpan={5} style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F', color: '#2A4060', fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                    <td colSpan={5} style={{ padding: '5px 10px', borderTop: '2px solid #E2E8F0', color: '#64748B', fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums', background: '#F8FAFC' }}>
                       {total} rental{total !== 1 ? 's' : ''} total · page {page} of {lastPage}
                     </td>
-                    <td style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      <span style={{ color: '#1FC96A', fontWeight: 700, fontSize: 11 }}>
+                    <td style={{ padding: '5px 10px', borderTop: '2px solid #E2E8F0', textAlign: 'right', fontVariantNumeric: 'tabular-nums', background: '#F8FAFC' }}>
+                      <span style={{ color: '#16A34A', fontWeight: 700, fontSize: 11 }}>
                         {fmt(rentals.reduce((s, r) => s + Number(r.grand_total || 0), 0))}
                       </span>
                     </td>
-                    <td colSpan={3} style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F' }} />
+                    <td colSpan={3} style={{ padding: '5px 10px', borderTop: '2px solid #E2E8F0', background: '#F8FAFC' }} />
                   </tr>
                 </tfoot>
               </table>
@@ -864,7 +845,7 @@ export default function RentalsPage() {
           </>
         )}
         {lastPage > 1 && (
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid #1E3058' }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid #E2E8F0' }}>
             <span className="text-xs" style={{ color: '#475569' }}>Page {page} of {lastPage}</span>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
