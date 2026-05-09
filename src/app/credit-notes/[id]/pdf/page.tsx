@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Printer, ArrowLeft } from 'lucide-react';
+import '../../../invoice-print.css';
 
 const COMPANY = {
   name:    'Shine IT Service',
@@ -73,24 +74,6 @@ export default function CreditNotePdfPage() {
 
   return (
     <>
-      <style>{`
-        * { box-sizing: border-box; }
-        body { margin: 0; background: #f0f4f8; font-family: Arial, sans-serif; }
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white; }
-          .page { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
-        }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #bbb; padding: 6px 8px; font-size: 12px; }
-        th { background: #d9e1f2; font-weight: bold; text-align: center; }
-        .no-border { border: none !important; }
-        .right { text-align: right; }
-        .bold { font-weight: bold; }
-        .total-row td { background: #d9e1f2; font-weight: bold; }
-        .credit-row td { background: #d4edda; font-weight: bold; color: #155724; }
-      `}</style>
-
       {/* Toolbar */}
       <div className="no-print" style={{
         background: '#0B1628', padding: '10px 24px',

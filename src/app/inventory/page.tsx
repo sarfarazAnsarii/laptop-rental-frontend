@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Inventory } from '@/types';
-import { Monitor, Plus, Search, Edit, Trash2, Eye, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ImagePlus, X } from 'lucide-react';
+import { Monitor, Plus, Search, Edit, Trash2, Eye, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ImagePlus, X, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 
@@ -23,6 +23,7 @@ const EMPTY_FORM = {
 export default function InventoryPage() {
   const { user } = useAuth();
   const isStaff = user?.role === 'staff';
+  const [staffQ, setStaffQ] = useState('');
   const [items, setItems] = useState<Inventory[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -56,6 +57,8 @@ export default function InventoryPage() {
   };
 
   const load = useCallback(async () => {
+    // Staff must search first — don't auto-load full list
+    if (isStaff && !serialSearch.trim() && !search.trim()) return;
     setLoading(true);
     try {
       const params: Record<string, string> = { per_page: '12', page: String(page) };
@@ -68,7 +71,15 @@ export default function InventoryPage() {
       setLastPage(res.data?.last_page || 1);
       setTotal(res.data?.total || 0);
     } finally { setLoading(false); }
-  }, [page, search, serialSearch, status, type]);
+  }, [page, search, serialSearch, status, type, isStaff]);
+
+  function doStaffSearch() {
+    const q = staffQ.trim();
+    if (!q) return;
+    setSearch(q);
+    setSerialSearch('');
+    setPage(1);
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -182,28 +193,126 @@ export default function InventoryPage() {
         ) : undefined}
       />
 
-      {/* Filters */}
-      <div className="glass-card p-4 mb-6 flex flex-col sm:flex-row gap-3 flex-wrap">        
-        <div className="relative flex-1 min-w-[160px]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#475569' }} />
-          <input className="inp pl-35px"
-            placeholder="Search by serial number..."
-            value={serialSearch} onChange={e => { setSerialSearch(e.target.value); setPage(1); }} />
-        </div>
-        {!isStaff && (
-          <div className="flex gap-3">
-            <select className="inp flex-1 sm:w-40 sm:flex-none" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
-              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
-            </select>
-            <select className="inp flex-1 sm:w-36 sm:flex-none" value={type} onChange={e => { setType(e.target.value); setPage(1); }}>
-              {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t || 'All Types'}</option>)}
-            </select>
-          </div>
-        )}
-      </div>
+      {isStaff ? (
+        /* ── Staff: search-first view ── */
+        <div className="space-y-4">
 
-      {/* Table */}
-      <div className="glass-card overflow-hidden">
+          {/* Search hero */}
+          <div className="glass-card p-6 sm:p-8">
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg,#3B82F6,#14B8A6)', boxShadow: '0 0 30px rgba(59,130,246,0.25)' }}>
+                <Monitor size={24} color="white" />
+              </div>
+              <h2 className="text-xl font-bold mb-1" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>Find Laptop</h2>
+              <p className="text-sm" style={{ color: '#475569' }}>Search by serial number or asset code</p>
+            </div>
+            <div className="flex gap-2 max-w-md mx-auto">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#475569' }} />
+                <input
+                  className="inp pl-9"
+                  placeholder="e.g. F7088H2 or LR-001"
+                  value={staffQ}
+                  onChange={e => setStaffQ(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && doStaffSearch()}
+                  autoFocus
+                />
+              </div>
+              <Button onClick={doStaffSearch} loading={loading && !!serialSearch} disabled={!staffQ.trim()}>Search</Button>
+            </div>
+            {(serialSearch || search) && (
+              <div className="text-center mt-3">
+                <button
+                  onClick={() => { setStaffQ(''); setSearch(''); setSerialSearch(''); setItems([]); }}
+                  className="text-xs px-3 py-1 rounded-lg transition-colors"
+                  style={{ color: '#475569', background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.5)' }}>
+                  ✕ Clear search
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Results */}
+          {(serialSearch || search) && (
+            loading ? (
+              <div className="glass-card p-5 space-y-3">
+                {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-16 rounded-xl" />)}
+              </div>
+            ) : items.length === 0 ? (
+              <div className="glass-card p-10 text-center">
+                <Monitor size={28} style={{ color: '#334155' }} className="mx-auto mb-2" />
+                <p className="text-sm" style={{ color: '#475569' }}>
+                  No laptops found for "<strong style={{ color: '#94A3B8' }}>{serialSearch || search}</strong>"
+                </p>
+              </div>
+            ) : (
+              <div className="glass-card overflow-hidden">
+                <div className="px-4 py-2.5 text-xs font-semibold uppercase tracking-widest flex items-center gap-2"
+                  style={{ background: 'rgba(30,48,88,0.25)', borderBottom: '1px solid rgba(30,48,88,0.5)', color: '#475569' }}>
+                  <Search size={11} />
+                  {items.length} result{items.length !== 1 ? 's' : ''} for "{serialSearch || search}"
+                </div>
+                <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+                  {items.map(item => (
+                    <Link key={item.id} href={`/inventory/${item.id}`}
+                      className="flex items-center gap-4 px-4 py-4 hover:bg-white/[0.02] transition-colors"
+                      style={{ textDecoration: 'none' }}>
+                      {item.images?.[0] ? (
+                        <img src={IMG_BASE + item.images[0]} alt={item.brand}
+                          className="w-14 h-11 object-cover rounded-xl flex-shrink-0"
+                          style={{ border: '1px solid rgba(30,48,88,0.7)' }} />
+                      ) : (
+                        <div className="w-14 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: 'rgba(30,48,88,0.5)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                          <Monitor size={16} style={{ color: '#334155' }} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg"
+                            style={{ background: 'rgba(59,130,246,0.1)', color: '#3B82F6' }}>{item.asset_code}</span>
+                          <span className={`badge badge-${item.status}`}>{item.status}</span>
+                        </div>
+                        <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{item.brand} {item.model_no}</div>
+                        <div className="text-xs" style={{ color: '#475569' }}>
+                          {item.cpu}{(item as any).generation ? ` · ${(item as any).generation} Gen` : ''} · {item.ram} · {item.ssd}
+                        </div>
+                        {item.serial_number && (
+                          <div className="text-xs font-mono mt-0.5" style={{ color: '#64748B' }}>S/N: {item.serial_number}</div>
+                        )}
+                      </div>
+                      <ChevronRight size={16} style={{ color: '#334155', flexShrink: 0 }} />
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      ) : (
+        /* ── Admin: full list view ── */
+        <>
+          {/* Filters */}
+          <div className="glass-card p-4 mb-6 flex flex-col sm:flex-row gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[160px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#475569' }} />
+              <input className="inp pl-35px"
+                placeholder="Search by serial number..."
+                value={serialSearch} onChange={e => { setSerialSearch(e.target.value); setPage(1); }} />
+            </div>
+            <div className="flex gap-3">
+              <select className="inp flex-1 sm:w-40 sm:flex-none" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
+                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
+              </select>
+              <select className="inp flex-1 sm:w-36 sm:flex-none" value={type} onChange={e => { setType(e.target.value); setPage(1); }}>
+                {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t || 'All Types'}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="glass-card overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-12 rounded-xl" />)}</div>
         ) : items.length === 0 ? (
@@ -278,95 +387,109 @@ export default function InventoryPage() {
               ))}
             </div>
 
-            {/* Desktop table */}
+            {/* Desktop table — Excel grid style */}
             <div className="hidden sm:block overflow-x-auto">
-              <table className="data-table">
+              <table className="xl-inv" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr>
-                    <th>Asset Code</th>
-                    <th>Brand / Model</th>
-                    <th>Serial No</th>
-                    <th>Specs</th>
-                    <th>Type</th>
-                    <th>Rental/mo</th>
-                    <th>Delivery</th>
-                    <th>Vendor</th>
-                    <th className="hidden xl:table-cell">Employee</th>
-                    <th>Status / Client</th>
-                    <th>Actions</th>
+                    {/* Row # */}
+                    <th style={{ padding: '6px 5px', background: '#060D1C', color: '#1C2E48', fontWeight: 700, fontSize: 10, textAlign: 'center', width: 32, userSelect: 'none', borderRight: '2px solid #0E1C34' }}>№</th>
+                    {[
+                      { label: 'Asset Code' },
+                      { label: 'Brand / Model' },
+                      { label: 'Serial No' },
+                      { label: 'Specs' },
+                      { label: 'Type', center: true },
+                      { label: 'Monthly ▾', right: true },
+                      { label: 'Vendor' },
+                    ].map(h => (
+                      <th key={h.label} style={{ padding: '6px 10px', background: '#060D1C', color: '#3A5578', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: h.right ? 'right' : h.center ? 'center' : 'left' }}>
+                        {h.label}
+                      </th>
+                    ))}
+                    <th className="hidden xl:table-cell" style={{ padding: '6px 10px', background: '#060D1C', color: '#3A5578', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Employee</th>
+                    <th style={{ padding: '6px 10px', background: '#060D1C', color: '#3A5578', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '6px 10px', background: '#060D1C', color: '#3A5578', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Client</th>
+                    <th style={{ padding: '6px 10px', background: '#060D1C', color: '#3A5578', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map(item => (
-                    <tr key={item.id} className="animate-fade-in">
-                      <td>
-                        <span className="font-mono text-xs font-medium px-2 py-1 rounded" style={{ background: 'rgba(59,130,246,0.08)', color: '#3B82F6' }}>{item.asset_code}</span>
+                  {items.map((item, idx) => (
+                    <tr key={item.id}>
+                      {/* № */}
+                      <td style={{ padding: '5px 4px', textAlign: 'center', color: '#1C2E48', fontSize: 10, fontVariantNumeric: 'tabular-nums', borderRight: '2px solid #0E1C34', userSelect: 'none' }}>
+                        {(page - 1) * 12 + idx + 1}
                       </td>
-                      <td>
-                        <div className="flex items-center gap-2.5">
+                      {/* Asset Code */}
+                      <td style={{ padding: '5px 10px' }}>
+                        <Link href={`/inventory/${item.id}`} style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#4499F0', textDecoration: 'none', letterSpacing: '0.03em' }}>
+                          {item.asset_code}
+                        </Link>
+                      </td>
+                      {/* Brand / Model */}
+                      <td style={{ padding: '5px 10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                           {item.images?.[0] ? (
                             <img src={IMG_BASE + item.images[0]} alt={item.brand}
-                              className="w-10 h-8 object-cover rounded-lg flex-shrink-0"
-                              style={{ border: '1px solid rgba(30,48,88,0.7)' }} />
+                              style={{ width: 30, height: 22, objectFit: 'cover', borderRadius: 2, border: '1px solid #0E1C34', flexShrink: 0 }} />
                           ) : (
-                            <div className="w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                              style={{ background: 'rgba(30,48,88,0.5)', border: '1px solid rgba(30,48,88,0.7)' }}>
-                              <Monitor size={13} style={{ color: '#334155' }} />
+                            <div style={{ width: 30, height: 22, borderRadius: 2, background: '#080F1E', border: '1px solid #0E1C34', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Monitor size={11} color="#1C2E48" />
                             </div>
                           )}
                           <div>
-                            <div className="font-medium text-sm" style={{ color: '#F1F5F9' }}>{item.brand}</div>
-                            <div className="text-xs" style={{ color: '#475569' }}>{item.model_no}</div>
+                            <div style={{ color: '#BDD0E8', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{item.brand}</div>
+                            <div style={{ color: '#2E4568', fontSize: 10.5, lineHeight: 1.3 }}>{item.model_no}</div>
                           </div>
                         </div>
                       </td>
-                      <td>
-                        <span className="font-mono text-xs" style={{ color: '#94A3B8' }}>{item.serial_number || '—'}</span>
+                      {/* Serial No */}
+                      <td style={{ padding: '5px 10px', fontFamily: 'monospace', fontSize: 11, color: '#3A5880' }}>
+                        {item.serial_number || <span style={{ color: '#1C2E48' }}>—</span>}
                       </td>
-                      <td>
-                        <div className="text-xs space-y-0.5">
-                          <div style={{ color: '#F1F5F9' }}>{item.cpu}{item.generation ? ` · ${item.generation} Gen` : ''}</div>
-                          <div style={{ color: '#475569' }}>{item.ram} · {item.ssd}</div>
-                          {item.graphics && <div style={{ color: '#64748B' }}>{item.graphics}</div>}
-                        </div>
+                      {/* Specs */}
+                      <td style={{ padding: '5px 10px' }}>
+                        <div style={{ color: '#7B9EC4', fontSize: 11, lineHeight: 1.4 }}>{item.cpu}{item.generation ? ` · ${item.generation}G` : ''}</div>
+                        <div style={{ color: '#2A4060', fontSize: 10.5, lineHeight: 1.4 }}>{item.ram} · {item.ssd}</div>
+                        {item.graphics && <div style={{ color: '#1F3050', fontSize: 10, lineHeight: 1.4 }}>{item.graphics}</div>}
                       </td>
-                      <td><span className={`badge badge-${item.type}`}>{item.type}</span></td>
-                      <td>
-                        <span className="text-sm font-medium" style={{ color: '#10B981' }}>
+                      {/* Type */}
+                      <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                        <span className={`badge badge-${item.type}`} style={{ fontSize: 10 }}>{item.type}</span>
+                      </td>
+                      {/* Monthly */}
+                      <td style={{ padding: '5px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ color: item.monthly_rental ? '#1FC96A' : '#1C2E48', fontWeight: item.monthly_rental ? 600 : 400, fontSize: 12 }}>
                           {item.monthly_rental ? `₹${Number(item.monthly_rental).toLocaleString()}` : '—'}
                         </span>
                       </td>
-                      <td>
-                        <span className="text-xs" style={{ color: '#94A3B8' }}>
-                          {item.delivery_date ? new Date(item.delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                        </span>
+                      {/* Vendor */}
+                      <td style={{ padding: '5px 10px' }}>
+                        <div style={{ color: '#5E7FA4', fontSize: 11, lineHeight: 1.4 }}>{item.vendor_name || <span style={{ color: '#1C2E48' }}>—</span>}</div>
+                        {item.vendor_location && <div style={{ color: '#203650', fontSize: 10, lineHeight: 1.4 }}>{item.vendor_location}</div>}
                       </td>
-                      <td>
-                        <div className="text-xs">
-                          <div style={{ color: '#F1F5F9' }}>{item.vendor_name || '—'}</div>
-                          {item.vendor_location && <div style={{ color: '#475569' }}>{item.vendor_location}</div>}
-                        </div>
+                      {/* Employee */}
+                      <td className="hidden xl:table-cell" style={{ padding: '5px 10px' }}>
+                        <div style={{ color: '#5E7FA4', fontSize: 11, lineHeight: 1.4 }}>{item.employee_name || <span style={{ color: '#1C2E48' }}>—</span>}</div>
+                        {item.employee_mobile && <div style={{ color: '#203650', fontSize: 10, lineHeight: 1.4 }}>{item.employee_mobile}</div>}
+                        {item.employee_address && <div style={{ color: '#182840', fontSize: 10, lineHeight: 1.4 }}>{item.employee_address}</div>}
                       </td>
-                      <td className="hidden xl:table-cell">
-                        <div className="text-xs">
-                          <div style={{ color: '#F1F5F9' }}>{item.employee_name || '—'}</div>
-                          {item.employee_mobile && <div style={{ color: '#475569' }}>{item.employee_mobile}</div>}
-                          {item.employee_address && <div style={{ color: '#334155' }}>{item.employee_address}</div>}
-                        </div>
+                      {/* Status */}
+                      <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                        <span className={`badge badge-${item.status}`} style={{ fontSize: 10 }}>{item.status}</span>
                       </td>
-                      <td>
-                        <div className="space-y-1">
-                          <span className={`badge badge-${item.status}`}>{item.status}</span>
-                          {item.active_rental?.client && (
-                            <div className="text-xs" style={{ color: '#64748B' }}>
-                              <div style={{ color: '#94A3B8' }}>{item.active_rental.client.name}</div>
-                              {item.active_rental.client.company && <div style={{ color: '#475569' }}>{item.active_rental.client.company}</div>}
-                            </div>
-                          )}
-                        </div>
+                      {/* Client */}
+                      <td style={{ padding: '5px 10px' }}>
+                        {item.active_rental?.client ? (
+                          <>
+                            <div style={{ color: '#7B9EC4', fontSize: 11, fontWeight: 500, lineHeight: 1.4 }}>{item.active_rental.client.name}</div>
+                            {item.active_rental.client.company && <div style={{ color: '#2E4568', fontSize: 10, lineHeight: 1.4 }}>{item.active_rental.client.company}</div>}
+                          </>
+                        ) : <span style={{ color: '#1C2E48' }}>—</span>}
                       </td>
-                      <td>
-                        <div className="flex items-center gap-1">
+                      {/* Actions */}
+                      <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                           <Link href={`/inventory/${item.id}`}>
                             <Button variant="ghost" size="sm" icon={<Eye size={13} />} />
                           </Link>
@@ -381,6 +504,15 @@ export default function InventoryPage() {
                     </tr>
                   ))}
                 </tbody>
+                {/* Excel-style total footer row */}
+                <tfoot>
+                  <tr>
+                    <td colSpan={7} style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F', color: '#2A4060', fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {total} item{total !== 1 ? 's' : ''} total · page {page} of {lastPage}
+                    </td>
+                    <td colSpan={5} style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F' }} />
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </>
@@ -424,6 +556,8 @@ export default function InventoryPage() {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Add/Edit Modal */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editItem ? `Edit — ${editItem.asset_code}` : 'Add New Laptop'} width="max-w-2xl">

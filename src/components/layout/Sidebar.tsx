@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Monitor, FileText, Users, LogOut,
   Laptop, AlertCircle, ChevronRight, Wrench,
   AlertTriangle, Shield, X, UserCog, BarChart2, CalendarClock, ReceiptText, Wallet, ArrowLeftRight,
+  RotateCcw, BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -29,9 +30,11 @@ const NAV_STAFF = [
 
 const NAV_CLIENT = [
   { href: '/client/rentals',   label: 'My Rentals', icon: FileText       },
+  { href: '/client/returns',   label: 'Returns',    icon: RotateCcw      },
   { href: '/client/exchanges', label: 'Exchanges',  icon: ArrowLeftRight },
   { href: '/client/schedules', label: 'Schedules',  icon: Wrench         },
   { href: '/client/issues',    label: 'Issues',     icon: AlertTriangle  },
+  { href: '/client/ledger',    label: 'Ledger',     icon: BookOpen       },
 ];
 
 function getNav(role?: string) {
@@ -66,13 +69,6 @@ export default function Sidebar({ open = false, onClose }: SidebarProps) {
         transform: open ? 'translateX(0)' : undefined,
       }}
       data-open={open}>
-      {/* Inline style to handle translate — Tailwind classes for lg */}
-      <style>{`
-        @media (max-width: 1023px) {
-          aside[data-open="false"] { transform: translateX(-100%); }
-          aside[data-open="true"]  { transform: translateX(0); }
-        }
-      `}</style>
 
       {/* Logo + mobile close */}
       <div className="p-6 mb-2 flex items-center justify-between">

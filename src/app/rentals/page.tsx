@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Rental } from '@/types';
-import { FileText, Plus, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors, ArrowLeftRight } from 'lucide-react';
+import { FileText, Plus, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors, ArrowLeftRight, Search, X, UploadCloud, FileDown, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { generateInvoiceEmail, generateBulkInvoiceEmail } from '@/lib/ai';
@@ -47,6 +47,20 @@ function calcDeduction(rental: Rental, returnDate: string) {
   };
 }
 
+interface UploadRow {
+  rowNum: number;
+  client_email: string;
+  delivery_date: string;
+  asset_code: string;
+  monthly_rental: string;
+  quantity: string;
+  gst_percent: string;
+  notes: string;
+  clientObj?: any;
+  invObj?: any;
+  errors: string[];
+}
+
 export default function RentalsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -55,9 +69,19 @@ export default function RentalsPage() {
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('active');
+  const [search, setSearch]             = useState('');
+  const [status, setStatus]             = useState('active');
+  const [clientFilter, setClientFilter] = useState('');
+  const [monthFilter, setMonthFilter]   = useState('');
+  const [filterClients, setFilterClients] = useState<any[]>([]);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  // Bulk upload
+  const [showUpload,  setShowUpload]  = useState(false);
+  const [uploadRows,  setUploadRows]  = useState<UploadRow[]>([]);
+  const [uploading,   setUploading]   = useState(false);
+  const [importing,   setImporting]   = useState(false);
+  const [importDone,  setImportDone]  = useState<{ ok: number; fail: string[] } | null>(null);
   const [invoiceRental, setInvoiceRental] = useState<Rental | null>(null);
   const [bulkInvoiceGroup, setBulkInvoiceGroup] = useState<Rental[] | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState(false);
@@ -174,15 +198,27 @@ export default function RentalsPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = { per_page: '12', page: String(page) };
-      if (status) params.status = status;
+      if (status)                params.status         = status;
+      if (search.trim())         params.search         = search.trim();
+      if (clientFilter)          params.client_id      = clientFilter;
+      if (monthFilter)           params.billing_month  = monthFilter;
       const res = await api.rentals.list(params);
       setRentals(res.data?.data || []);
       setLastPage(res.data?.last_page || 1);
       setTotal(res.data?.total || 0);
     } finally { setLoading(false); }
-  }, [page, status]);
+  }, [page, status, search, clientFilter, monthFilter]);
 
+  // Reset to page 1 whenever a filter (not page itself) changes
+  useEffect(() => { setPage(1); }, [status, search, clientFilter, monthFilter]);
   useEffect(() => { load(); }, [load]);
+
+  // Load clients once for the filter dropdown
+  useEffect(() => {
+    api.users.list({ role: 'client', per_page: '200' })
+      .then(res => setFilterClients(res.data?.data || res.data || []))
+      .catch(() => {});
+  }, []);
 
   async function openBulk() {
     setBulkForm({ client_id: '', delivery_date: '', gst_percent: '18', notes: '' });
@@ -338,6 +374,137 @@ export default function RentalsPage() {
     } finally { setSendingInvoice(false); }
   }
 
+  // ── Bulk upload helpers ────────────────────────────────────────────────
+  function downloadTemplate() {
+    const csv = [
+      'client_email,delivery_date,asset_code,monthly_rental,quantity,gst_percent,notes',
+      'client@company.com,2025-01-15,LR-001,5000,1,18,Optional notes',
+      'client@company.com,2025-01-15,LR-002,6000,1,18,',
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'rental_upload_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleUploadFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setImportDone(null);
+    try {
+      const XLSX = await import('xlsx');
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf, { cellDates: true });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const raw  = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1 }) as any[][];
+      if (!raw.length) throw new Error('File is empty');
+
+      const headers = (raw[0] as any[]).map((h: any) =>
+        String(h ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_'));
+      const dataRows = raw.slice(1).filter((r: any[]) =>
+        r.some(c => c !== undefined && c !== null && String(c).trim() !== ''));
+
+      const parsed: UploadRow[] = dataRows.map((r: any[], idx: number) => {
+        const get = (key: string): string => {
+          const i = headers.indexOf(key);
+          if (i < 0) return '';
+          const v = r[i];
+          if (v instanceof Date) return v.toISOString().slice(0, 10);
+          return String(v ?? '').trim();
+        };
+        return {
+          rowNum:         idx + 2,
+          client_email:   get('client_email'),
+          delivery_date:  get('delivery_date'),
+          asset_code:     get('asset_code'),
+          monthly_rental: get('monthly_rental'),
+          quantity:       get('quantity') || '1',
+          gst_percent:    get('gst_percent') || '18',
+          notes:          get('notes'),
+          errors: [],
+        };
+      });
+
+      parsed.forEach(row => {
+        if (!row.client_email)  row.errors.push('client_email required');
+        if (!row.delivery_date || !/^\d{4}-\d{2}-\d{2}$/.test(row.delivery_date))
+          row.errors.push('delivery_date must be YYYY-MM-DD');
+        if (!row.asset_code)    row.errors.push('asset_code required');
+        if (!row.monthly_rental || isNaN(Number(row.monthly_rental)) || Number(row.monthly_rental) <= 0)
+          row.errors.push('monthly_rental must be > 0');
+      });
+
+      const [invRes, cliRes] = await Promise.all([
+        api.inventory.available(),
+        api.users.list({ role: 'client', per_page: '500' }),
+      ]);
+      const invMap: Record<string, any> = {};
+      (invRes.data || []).forEach((i: any) => { invMap[String(i.asset_code).trim()] = i; });
+      const cliMap: Record<string, any> = {};
+      (cliRes.data?.data || cliRes.data || []).forEach((c: any) => {
+        cliMap[String(c.email).toLowerCase().trim()] = c;
+      });
+
+      parsed.forEach(row => {
+        if (row.client_email) {
+          row.clientObj = cliMap[row.client_email.toLowerCase()];
+          if (!row.clientObj) row.errors.push(`Client not found: ${row.client_email}`);
+        }
+        if (row.asset_code) {
+          row.invObj = invMap[row.asset_code];
+          if (!row.invObj) row.errors.push(`Asset not found or not available: ${row.asset_code}`);
+        }
+      });
+
+      setUploadRows(parsed);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to parse file', 'error');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function doImport() {
+    const valid = uploadRows.filter(r => r.errors.length === 0);
+    if (!valid.length) return;
+    setImporting(true);
+    const fail: string[] = [];
+    let created = 0;
+    try {
+      const groups: Record<string, UploadRow[]> = {};
+      valid.forEach(row => {
+        const key = `${row.clientObj.id}__${row.delivery_date}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(row);
+      });
+      for (const rows of Object.values(groups)) {
+        try {
+          await api.rentals.createBulk({
+            client_id:     rows[0].clientObj.id,
+            delivery_date: rows[0].delivery_date,
+            gst_percent:   Number(rows[0].gst_percent) || 18,
+            notes:         rows[0].notes || undefined,
+            laptops: rows.map(r => ({
+              inventory_id:   r.invObj.id,
+              monthly_rental: Number(r.monthly_rental),
+              quantity:       Number(r.quantity) || 1,
+            })),
+          });
+          created += rows.length;
+        } catch (e: any) {
+          rows.forEach(r => fail.push(`Row ${r.rowNum} (${r.asset_code}): ${e.message || 'Failed'}`));
+        }
+      }
+      setImportDone({ ok: created, fail });
+      if (created > 0) { load(); }
+    } finally {
+      setImporting(false);
+    }
+  }
+  // ── end bulk upload helpers ────────────────────────────────────────────
+
   // Group rentals by bulk_id (string or null from API)
   const rentalGroups = (() => {
     const result: Array<{ bulkId: string | null; items: Rental[] }> = [];
@@ -361,16 +528,67 @@ export default function RentalsPage() {
         subtitle={`${total} rentals`}
         action={isAdmin ? (
           <div className="flex gap-2">
-            <Button variant="outline" icon={<Layers size={15} />} onClick={openBulk}>Create Rental</Button>            
+            <Button variant="ghost" icon={<UploadCloud size={15} />} onClick={() => { setUploadRows([]); setImportDone(null); setShowUpload(true); }}>
+              <span className="hidden sm:inline">Upload CSV</span>
+            </Button>
+            <Button variant="outline" icon={<Layers size={15} />} onClick={openBulk}>Create Rental</Button>
           </div>
         ) : undefined}
       />
 
       {/* Filters */}
       <div className="glass-card p-4 mb-6">
-        <select className="inp sm:w-48" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
-          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
-        </select>
+        <div className="flex flex-wrap gap-3 items-center">
+
+          {/* Search */}
+          <div className="relative flex-1 min-w-[180px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#475569' }} />
+            <input
+              className="inp pl-8 pr-8"
+              placeholder="Search rental no, client, laptop…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: '#475569' }}>
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Status */}
+          <select className="inp w-full sm:w-40" value={status} onChange={e => setStatus(e.target.value)}>
+            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
+          </select>
+
+          {/* Client */}
+          <select className="inp w-full sm:w-48" value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+            <option value="">All Clients</option>
+            {filterClients.map((c: any) => (
+              <option key={c.id} value={String(c.id)}>
+                {c.name}{c.company ? ` — ${c.company}` : ''}
+              </option>
+            ))}
+          </select>
+
+          {/* Month */}
+          <input
+            type="month"
+            className="inp w-full sm:w-40"
+            value={monthFilter}
+            onChange={e => setMonthFilter(e.target.value)}
+          />
+
+          {/* Clear all */}
+          {(search || clientFilter || monthFilter || status) && (
+            <button
+              onClick={() => { setSearch(''); setStatus(''); setClientFilter(''); setMonthFilter(''); }}
+              className="text-xs px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+              style={{ background: 'rgba(244,63,94,0.08)', color: '#FB7185', border: '1px solid rgba(244,63,94,0.2)' }}>
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
       {/* Table */}
       <div className="glass-card overflow-hidden">
@@ -465,72 +683,95 @@ export default function RentalsPage() {
               })}
             </div>
 
-            {/* Desktop table — one row per bulk group */}
+            {/* Desktop table — Excel grid style */}
             <div className="hidden sm:block overflow-x-auto">
-              <table className="data-table">
+              <table className="xl-rental" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr>
-                    <th>Bulk / Rental</th>
-                    <th>Client</th>
-                    <th>Laptops</th>
-                    <th>Billing Period</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th style={{ padding: '6px 5px', background: '#060D1C', color: '#1C2E48', fontWeight: 700, fontSize: 10, textAlign: 'center', width: 32, userSelect: 'none', borderRight: '2px solid #0E1C34' }}>№</th>
+                    {[
+                      { label: 'Bulk / Rental' },
+                      { label: 'Client' },
+                      { label: 'Laptops' },
+                      { label: 'Billing Period' },
+                      { label: 'Amount ▾', right: true },
+                      { label: 'Payment', center: true },
+                      { label: 'Status', center: true },
+                      { label: 'Actions', center: true },
+                    ].map(h => (
+                      <th key={h.label} style={{ padding: '6px 10px', background: '#060D1C', color: '#3A5578', fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', textAlign: h.right ? 'right' : h.center ? 'center' : 'left' }}>
+                        {h.label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {rentalGroups.map(({ bulkId, items }) => {
-                    const client   = items[0].client;
-                    const grandSum = items.reduce((s, r) => s + Number(r.grand_total || 0), 0);
-                    const gstSum   = items.reduce((s, r) => s + Number(r.gst_amount  || 0), 0);
-                    const statuses = [...new Set(items.map(r => r.status))];
+                  {rentalGroups.map(({ bulkId, items }, groupIdx) => {
+                    const client    = items[0].client;
+                    const grandSum  = items.reduce((s, r) => s + Number(r.grand_total || 0), 0);
+                    const gstSum    = items.reduce((s, r) => s + Number(r.gst_amount  || 0), 0);
+                    const statuses  = [...new Set(items.map(r => r.status))];
                     const startDate = items[0].start_date;
-                    const pt = (client as any)?.payment_type || 'advance';
-                    const isAdv = pt === 'advance';
+                    const pt        = (client as any)?.payment_type || 'advance';
+                    const isAdv     = pt === 'advance';
 
                     if (bulkId) return (
-                      <tr key={`bulk-${bulkId}`}>
-                        <td>
-                          <div className="flex items-center gap-1.5">
-                            <Layers size={12} style={{ color: '#A78BFA' }} />
-                            <Link href={`/rentals/bulk/${encodeURIComponent(bulkId)}`} className="font-mono text-xs font-bold" style={{ color: '#A78BFA' }}>
-                              {bulkId.substring(0, 10)}
+                      <tr key={`bulk-${bulkId}`} className="bulk-row">
+                        {/* № */}
+                        <td style={{ padding: '5px 4px', textAlign: 'center', color: '#1C2E48', fontSize: 10, fontVariantNumeric: 'tabular-nums', borderRight: '2px solid #0E1C34' }}>
+                          {groupIdx + 1}
+                        </td>
+                        {/* Bulk ID */}
+                        <td style={{ padding: '5px 10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Layers size={11} color="#7C5CF6" />
+                            <Link href={`/rentals/bulk/${encodeURIComponent(bulkId)}`}
+                              style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#9370F8', textDecoration: 'none', letterSpacing: '0.02em' }}>
+                              {bulkId.substring(0, 14)}
                             </Link>
                           </div>
-                          <div className="text-[10px] mt-0.5" style={{ color: '#475569' }}>{items.length} laptop{items.length > 1 ? 's' : ''}</div>
+                          <div style={{ color: '#2A3A5A', fontSize: 10, marginTop: 1 }}>
+                            {items.length} laptop{items.length > 1 ? 's' : ''}
+                          </div>
                         </td>
-                        <td>
-                          <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{client?.company || client?.name || '—'}</div>
-                          {client?.company && <div className="text-xs" style={{ color: '#64748B' }}>{client.name}</div>}
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold mt-1 inline-block" style={{ background: isAdv ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: isAdv ? '#10B981' : '#F59E0B' }}>
+                        {/* Client */}
+                        <td style={{ padding: '5px 10px' }}>
+                          <div style={{ color: '#BDD0E8', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{client?.company || client?.name || '—'}</div>
+                          {client?.company && <div style={{ color: '#2E4568', fontSize: 10.5, lineHeight: 1.3 }}>{client.name}</div>}
+                        </td>
+                        {/* Laptops */}
+                        <td style={{ padding: '5px 10px' }}>
+                          {items.map(r => (
+                            <div key={r.id} style={{ color: '#4A6890', fontSize: 11, lineHeight: 1.4 }}>
+                              {r.inventory?.brand} {r.inventory?.model_no}
+                            </div>
+                          ))}
+                        </td>
+                        {/* Billing Period */}
+                        <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#7B9EC4', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(startDate)}</div>
+                          <div style={{ color: '#2A4060', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(billingMonthEnd(startDate))}</div>
+                        </td>
+                        {/* Amount */}
+                        <td style={{ padding: '5px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#1FC96A', fontWeight: 700, fontSize: 13 }}>{fmt(grandSum)}</div>
+                          <div style={{ color: '#1C4030', fontSize: 10.5 }}>GST: {fmt(gstSum)}</div>
+                        </td>
+                        {/* Payment */}
+                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: isAdv ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: isAdv ? '#10B981' : '#F59E0B' }}>
                             {isAdv ? 'advance' : 'postpaid'}
                           </span>
                         </td>
-                        <td>
-                          <div className="space-y-0.5">
-                            {items.map(r => (
-                              <div key={r.id} className="text-xs" style={{ color: '#94A3B8' }}>
-                                {r.inventory?.brand} {r.inventory?.model_no}
-                              </div>
-                            ))}
+                        {/* Status */}
+                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center' }}>
+                            {statuses.map(s => <span key={s} className={`badge badge-${s}`} style={{ fontSize: 10 }}>{s}</span>)}
                           </div>
                         </td>
-                        <td>
-                          <div className="text-xs" style={{ color: '#F1F5F9' }}>{fmtDate(startDate)}</div>
-                          <div className="text-xs" style={{ color: '#475569' }}>→ {fmtDate(billingMonthEnd(startDate))}</div>
-                        </td>
-                        <td>
-                          <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(grandSum)}</div>
-                          <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(gstSum)}</div>
-                        </td>
-                        <td>
-                          <div className="flex flex-wrap gap-1">
-                            {statuses.map(s => <span key={s} className={`badge badge-${s}`}>{s}</span>)}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-1">
+                        {/* Actions */}
+                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                             <Link href={`/rentals/bulk/${encodeURIComponent(bulkId)}`}>
                               <Button variant="ghost" size="sm" icon={<Eye size={13} />} />
                             </Link>
@@ -547,28 +788,50 @@ export default function RentalsPage() {
                     const r = items[0];
                     return (
                       <tr key={r.id}>
-                        <td>
-                          <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-medium" style={{ color: '#3B82F6' }}>{r.rental_no}</Link>
+                        {/* № */}
+                        <td style={{ padding: '5px 4px', textAlign: 'center', color: '#1C2E48', fontSize: 10, fontVariantNumeric: 'tabular-nums', borderRight: '2px solid #0E1C34' }}>
+                          {groupIdx + 1}
                         </td>
-                        <td>
-                          <div className="text-sm" style={{ color: '#F1F5F9' }}>{client?.company || client?.name || '—'}</div>
-                          {client?.company && <div className="text-xs" style={{ color: '#64748B' }}>{client.name}</div>}
+                        {/* Rental No */}
+                        <td style={{ padding: '5px 10px' }}>
+                          <Link href={`/rentals/${r.id}`}
+                            style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#4499F0', textDecoration: 'none', letterSpacing: '0.02em' }}>
+                            {r.rental_no}
+                          </Link>
                         </td>
-                        <td>
-                          <div className="text-sm" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                          <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
+                        {/* Client */}
+                        <td style={{ padding: '5px 10px' }}>
+                          <div style={{ color: '#BDD0E8', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{client?.company || client?.name || '—'}</div>
+                          {client?.company && <div style={{ color: '#2E4568', fontSize: 10.5, lineHeight: 1.3 }}>{client.name}</div>}
                         </td>
-                        <td>
-                          <div className="text-xs" style={{ color: '#F1F5F9' }}>{fmtDate(r.start_date)}</div>
-                          <div className="text-xs" style={{ color: '#475569' }}>→ {fmtDate(r.end_date || billingMonthEnd(r.start_date))}</div>
+                        {/* Laptop */}
+                        <td style={{ padding: '5px 10px' }}>
+                          <div style={{ color: '#7B9EC4', fontSize: 11, lineHeight: 1.4 }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                          <div style={{ fontFamily: 'monospace', color: '#2A4060', fontSize: 10.5, lineHeight: 1.4 }}>{r.inventory?.asset_code}</div>
                         </td>
-                        <td>
-                          <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
-                          <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(r.gst_amount)}</div>
+                        {/* Billing Period */}
+                        <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#7B9EC4', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(r.start_date)}</div>
+                          <div style={{ color: '#2A4060', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(r.end_date || billingMonthEnd(r.start_date))}</div>
                         </td>
-                        <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
-                        <td>
-                          <div className="flex items-center gap-1">
+                        {/* Amount */}
+                        <td style={{ padding: '5px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: '#1FC96A', fontWeight: 600, fontSize: 13 }}>{fmt(r.grand_total)}</div>
+                          <div style={{ color: '#1C4030', fontSize: 10.5 }}>GST: {fmt(r.gst_amount)}</div>
+                        </td>
+                        {/* Payment */}
+                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 600, background: isAdv ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: isAdv ? '#10B981' : '#F59E0B' }}>
+                            {isAdv ? 'advance' : 'postpaid'}
+                          </span>
+                        </td>
+                        {/* Status */}
+                        <td style={{ padding: '5px 10px', textAlign: 'center' }}>
+                          <span className={`badge badge-${r.status}`} style={{ fontSize: 10 }}>{r.status}</span>
+                        </td>
+                        {/* Actions */}
+                        <td style={{ padding: '4px 6px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                             <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
                             {isAdmin && <Button variant="outline" size="sm" icon={<SendHorizonal size={13} />} onClick={() => handleSendInvoice(r)} />}
                             {isAdmin && r.status === 'active' && <>
@@ -582,6 +845,20 @@ export default function RentalsPage() {
                     );
                   })}
                 </tbody>
+                {/* Excel-style summary footer */}
+                <tfoot>
+                  <tr>
+                    <td colSpan={5} style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F', color: '#2A4060', fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                      {total} rental{total !== 1 ? 's' : ''} total · page {page} of {lastPage}
+                    </td>
+                    <td style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ color: '#1FC96A', fontWeight: 700, fontSize: 11 }}>
+                        {fmt(rentals.reduce((s, r) => s + Number(r.grand_total || 0), 0))}
+                      </span>
+                    </td>
+                    <td colSpan={3} style={{ padding: '5px 10px', background: '#060D1C', borderTop: '2px solid #1E3A5F' }} />
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </>
@@ -1569,6 +1846,203 @@ export default function RentalsPage() {
           </div>
         )}
       </Modal>
+      {/* ── Bulk Upload Modal ─────────────────────────────────── */}
+      <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Bulk Upload Rentals" width="max-w-4xl">
+        <div className="space-y-5">
+
+          {/* Instructions + template download */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-xl"
+            style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.18)' }}>
+            <div className="flex-1 text-xs" style={{ color: '#94A3B8' }}>
+              Upload a <strong style={{ color: '#F1F5F9' }}>CSV or Excel</strong> file with one row per laptop.
+              Rows sharing the same <em>client_email + delivery_date</em> are grouped as a bulk rental.
+            </div>
+            <button onClick={downloadTemplate}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0 transition-all hover:bg-blue-500/20"
+              style={{ background: 'rgba(59,130,246,0.12)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.25)' }}>
+              <FileDown size={14} /> Download Template
+            </button>
+          </div>
+
+          {/* Column reference */}
+          <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid rgba(30,48,88,0.6)' }}>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ background: 'rgba(30,48,88,0.35)', borderBottom: '1px solid rgba(30,48,88,0.6)' }}>
+                  {['Column', 'Required', 'Example', 'Notes'].map(h => (
+                    <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider" style={{ color: '#475569', fontSize: 10 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['client_email',   'Yes', 'client@company.com', 'Must match an existing client account'],
+                  ['delivery_date',  'Yes', '2025-01-15',         'YYYY-MM-DD format'],
+                  ['asset_code',     'Yes', 'LR-001',             'Must be available in inventory'],
+                  ['monthly_rental', 'Yes', '5000',               'Number only, no ₹ symbol'],
+                  ['quantity',       'No',  '1',                  'Defaults to 1'],
+                  ['gst_percent',    'No',  '18',                 'Defaults to 18'],
+                  ['notes',          'No',  'Project A',          'Optional notes for the rental'],
+                ].map(([col, req, ex, note]) => (
+                  <tr key={col} style={{ borderBottom: '1px solid rgba(30,48,88,0.3)' }}>
+                    <td className="px-3 py-2 font-mono font-semibold" style={{ color: '#60A5FA' }}>{col}</td>
+                    <td className="px-3 py-2">
+                      <span className={`badge ${req === 'Yes' ? 'badge-active' : 'badge-completed'}`}>{req}</span>
+                    </td>
+                    <td className="px-3 py-2 font-mono" style={{ color: '#94A3B8' }}>{ex}</td>
+                    <td className="px-3 py-2" style={{ color: '#64748B' }}>{note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* File drop zone */}
+          <label className="flex flex-col items-center justify-center gap-3 p-8 rounded-xl cursor-pointer transition-all hover:border-blue-500/50"
+            style={{ border: '2px dashed rgba(30,48,88,0.7)', background: 'rgba(11,22,40,0.4)' }}>
+            <UploadCloud size={32} style={{ color: uploading ? '#3B82F6' : '#334155' }}
+              className={uploading ? 'animate-pulse' : ''} />
+            <div className="text-center">
+              <div className="text-sm font-medium" style={{ color: '#94A3B8' }}>
+                {uploading ? 'Parsing file…' : 'Click to choose file, or drag & drop'}
+              </div>
+              <div className="text-xs mt-1" style={{ color: '#475569' }}>CSV, XLS, XLSX supported</div>
+            </div>
+            <input type="file" accept=".csv,.xls,.xlsx" className="hidden" disabled={uploading} onChange={handleUploadFile} />
+          </label>
+
+          {/* Preview table */}
+          {uploadRows.length > 0 && !importDone && (() => {
+            const valid   = uploadRows.filter(r => r.errors.length === 0);
+            const invalid = uploadRows.filter(r => r.errors.length > 0);
+            return (
+              <div className="space-y-3">
+                {/* Summary bar */}
+                <div className="flex flex-wrap gap-3 items-center">
+                  <span className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>
+                    {uploadRows.length} rows parsed
+                  </span>
+                  {valid.length > 0 && (
+                    <span className="badge badge-active">{valid.length} ready</span>
+                  )}
+                  {invalid.length > 0 && (
+                    <span className="badge badge-open">{invalid.length} with errors</span>
+                  )}
+                </div>
+
+                {/* Preview table */}
+                <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid rgba(30,48,88,0.6)', maxHeight: 320, overflowY: 'auto' }}>
+                  <table className="w-full text-xs">
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                      <tr style={{ background: '#060D1C', borderBottom: '1px solid rgba(30,48,88,0.6)' }}>
+                        {['Row', 'Client', 'Delivery', 'Asset', '₹/mo', 'Qty', 'Status'].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: '#3A5578', fontSize: 10 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadRows.map(row => {
+                        const hasError = row.errors.length > 0;
+                        return (
+                          <tr key={row.rowNum}
+                            style={{
+                              borderBottom: '1px solid rgba(30,48,88,0.3)',
+                              background: hasError ? 'rgba(244,63,94,0.05)' : undefined,
+                            }}>
+                            <td className="px-3 py-2 font-mono" style={{ color: '#475569' }}>{row.rowNum}</td>
+                            <td className="px-3 py-2" style={{ color: row.clientObj ? '#F1F5F9' : '#FB7185' }}>
+                              {row.clientObj
+                                ? <><div className="font-medium">{row.clientObj.name}</div><div style={{ color: '#475569' }}>{row.client_email}</div></>
+                                : row.client_email || <span style={{ color: '#334155' }}>—</span>}
+                            </td>
+                            <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ color: '#94A3B8' }}>{row.delivery_date}</td>
+                            <td className="px-3 py-2" style={{ color: row.invObj ? '#60A5FA' : '#FB7185' }}>
+                              {row.invObj
+                                ? <><div className="font-mono font-semibold">{row.asset_code}</div><div style={{ color: '#475569' }}>{row.invObj.brand} {row.invObj.model_no}</div></>
+                                : row.asset_code || <span style={{ color: '#334155' }}>—</span>}
+                            </td>
+                            <td className="px-3 py-2 font-mono" style={{ color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
+                              {row.monthly_rental ? `₹${Number(row.monthly_rental).toLocaleString('en-IN')}` : '—'}
+                            </td>
+                            <td className="px-3 py-2 font-mono text-center" style={{ color: '#94A3B8' }}>{row.quantity}</td>
+                            <td className="px-3 py-2">
+                              {hasError ? (
+                                <div className="space-y-1">
+                                  {row.errors.map((err, i) => (
+                                    <div key={i} className="flex items-start gap-1" style={{ color: '#FB7185' }}>
+                                      <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
+                                      <span className="text-[10px] leading-tight">{err}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="badge badge-active">Ready</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center justify-between pt-1">
+                  <button onClick={() => setUploadRows([])}
+                    className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                    style={{ color: '#475569', background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.6)' }}>
+                    Clear
+                  </button>
+                  <Button
+                    icon={<UploadCloud size={14} />}
+                    loading={importing}
+                    disabled={valid.length === 0}
+                    onClick={doImport}>
+                    Import {valid.length} Rental{valid.length !== 1 ? 's' : ''}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Import result */}
+          {importDone && (
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                {importDone.ok > 0 && (
+                  <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                    <CheckCircle size={20} style={{ color: '#10B981' }} />
+                    <div>
+                      <div className="font-semibold text-sm" style={{ color: '#10B981' }}>{importDone.ok} rental{importDone.ok !== 1 ? 's' : ''} created</div>
+                      <div className="text-xs" style={{ color: '#6EE7B7' }}>Rentals are now active</div>
+                    </div>
+                  </div>
+                )}
+                {importDone.fail.length > 0 && (
+                  <div className="flex-1 flex items-start gap-3 px-4 py-3 rounded-xl"
+                    style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)' }}>
+                    <XCircle size={20} style={{ color: '#F43F5E' }} className="mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="font-semibold text-sm" style={{ color: '#F43F5E' }}>{importDone.fail.length} failed</div>
+                      <div className="space-y-0.5 mt-1">
+                        {importDone.fail.map((msg, i) => (
+                          <div key={i} className="text-xs" style={{ color: '#FB7185' }}>{msg}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => { setImportDone(null); setUploadRows([]); }}>Upload Another</Button>
+                <Button onClick={() => setShowUpload(false)}>Done</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
     </DashboardLayout>
   );
 }

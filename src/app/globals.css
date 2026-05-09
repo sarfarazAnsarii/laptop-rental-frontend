@@ -136,3 +136,25 @@ body {
 }
 
 .pl-35px{padding-left: 35px !important;}
+
+/* ── Excel-grid tables ───────────────────────────────── */
+.xl-inv td, .xl-inv th,
+.xl-rental td, .xl-rental th { border: 1px solid #0E1C34; }
+
+.xl-inv thead th,
+.xl-rental thead th { position: sticky; top: 0; z-index: 2; }
+
+.xl-inv tbody tr:nth-child(even) td,
+.xl-rental tbody tr:nth-child(even) td { background: rgba(5,10,24,0.55); }
+
+.xl-inv tbody tr:hover td,
+.xl-rental tbody tr:hover td { background: rgba(29,68,168,0.13) !important; cursor: default; }
+
+.xl-rental .bulk-row td { background: rgba(80,50,168,0.07) !important; border-top: 1px solid rgba(100,60,200,0.2) !important; }
+.xl-rental .bulk-row:hover td { background: rgba(80,50,168,0.14) !important; }
+
+/* ── Sidebar mobile slide ───────────────────────────────── */
+@media (max-width: 1023px) {
+  aside[data-open="false"] { transform: translateX(-100%); }
+  aside[data-open="true"]  { transform: translateX(0); }
+}

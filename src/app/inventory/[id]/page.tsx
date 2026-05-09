@@ -12,6 +12,7 @@ import {
   Calendar, Building2, MapPin, FileText, Edit, Trash2,
   Clock, User, CheckCircle, AlertCircle, RotateCcw, Hash,
   Tag, Package, ChevronRight, ChevronLeft, X,
+  Truck, RefreshCw, Phone,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -71,6 +72,8 @@ function SectionTitle({ children }: { children: ReactNode }) {
 const IMG_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://laptop-rental-api.loc/api')
   .replace(/\/api\/?$/, '') + '/';
 
+const EMPTY_SCHED = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' };
+
 /* ── main page ── */
 export default function InventoryDetailPage() {
   const params   = useParams();
@@ -78,6 +81,7 @@ export default function InventoryDetailPage() {
   const id       = Number(params.id);
   const { user } = useAuth();
   const isAdmin  = user?.role === 'admin';
+  const isStaff  = user?.role === 'staff';
 
   const [item,    setItem]    = useState<Inventory | null>(null);
   const [rentals, setRentals] = useState<Rental[]>([]);
@@ -94,6 +98,10 @@ export default function InventoryDetailPage() {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  const [schedModal,  setSchedModal]  = useState<string | null>(null);
+  const [schedForm,   setSchedForm]   = useState({ ...EMPTY_SCHED });
+  const [schedSaving, setSchedSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -153,6 +161,25 @@ export default function InventoryDetailPage() {
       showToast('Deleted successfully');
       setTimeout(() => router.push('/inventory'), 1200);
     } catch (e: any) { showToast(e.message || 'Delete failed', 'error'); }
+  }
+
+  async function handleScheduleSubmit() {
+    const rentalId = (item as any)?.active_rental?.id ?? rentals[0]?.id;
+    if (!rentalId) return showToast('No rental found for this laptop', 'error');
+    const isDelivery = schedModal === 'delivery' || schedModal === 'repl_delivery';
+    setSchedSaving(true);
+    try {
+      if (isDelivery) {
+        await api.rentals.schedules.scheduleDelivery(rentalId, schedForm);
+      } else {
+        await api.rentals.schedules.schedulePickup(rentalId, schedForm);
+      }
+      showToast('Schedule created successfully');
+      setSchedModal(null);
+      setSchedForm({ ...EMPTY_SCHED });
+    } catch (e: any) {
+      showToast(e.message || 'Failed to create schedule', 'error');
+    } finally { setSchedSaving(false); }
   }
 
   const f = (k: string, v: string) => setEditForm(p => ({ ...p, [k]: v }));
@@ -276,6 +303,35 @@ export default function InventoryDetailPage() {
           </div>
         </div>
 
+        {/* ── Staff Actions ── */}
+        {isStaff && (
+          <div className="glass-card p-4 sm:p-5">
+            <SectionTitle>Actions</SectionTitle>
+            {!activeRental && (
+              <p className="text-xs mb-3" style={{ color: '#475569' }}>
+                No active rental — actions require an active rental for this laptop.
+              </p>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { key: 'delivery',      label: 'New Delivery',          icon: <Truck size={20} />,      bg: 'rgba(59,130,246,0.08)',   border: 'rgba(59,130,246,0.3)',   color: '#3B82F6' },
+                { key: 'pickup',        label: 'Returns',               icon: <RotateCcw size={20} />,  bg: 'rgba(245,158,11,0.08)',   border: 'rgba(245,158,11,0.3)',   color: '#F59E0B' },
+                { key: 'repl_delivery', label: 'Replacement Delivery',  icon: <RefreshCw size={20} />,  bg: 'rgba(139,92,246,0.08)',   border: 'rgba(139,92,246,0.3)',   color: '#8B5CF6' },
+                { key: 'repl_pickup',   label: 'Replacement Return',    icon: <RefreshCw size={20} />,  bg: 'rgba(20,184,166,0.08)',   border: 'rgba(20,184,166,0.3)',   color: '#14B8A6' },
+              ].map(({ key, label, icon, bg, border, color }) => (
+                <button key={key}
+                  disabled={!activeRental}
+                  onClick={() => { setSchedForm({ ...EMPTY_SCHED }); setSchedModal(key); }}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: bg, border: `1px solid ${border}`, color }}>
+                  {icon}
+                  <span className="text-xs font-semibold text-center leading-tight">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Specs + Purchase Info ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
@@ -305,13 +361,15 @@ export default function InventoryDetailPage() {
             {item.return_date     && <InfoRow icon={<RotateCcw size={13} />} label="Return Date"     value={fmtDate(item.return_date)} />}
             {item.return_location && <InfoRow icon={<MapPin size={13} />}    label="Return Location" value={item.return_location} />}
 
-            <div className="pt-3 mt-1" style={{ borderTop: '1px solid #1E3058' }}>
-              <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155' }}>Vendor</div>
-              <div className="space-y-3">
-                <InfoRow icon={<Building2 size={13} />} label="Name"     value={item.vendor_name     || '—'} />
-                <InfoRow icon={<MapPin size={13} />}    label="Location" value={item.vendor_location || '—'} />
+            {!isStaff && (
+              <div className="pt-3 mt-1" style={{ borderTop: '1px solid #1E3058' }}>
+                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155' }}>Vendor</div>
+                <div className="space-y-3">
+                  <InfoRow icon={<Building2 size={13} />} label="Name"     value={item.vendor_name     || '—'} />
+                  <InfoRow icon={<MapPin size={13} />}    label="Location" value={item.vendor_location || '—'} />
+                </div>
               </div>
-            </div>
+            )}
 
             {(item.employee_name || item.employee_mobile || item.employee_address) && (
               <div className="pt-3 mt-1" style={{ borderTop: '1px solid #1E3058' }}>
@@ -506,6 +564,52 @@ export default function InventoryDetailPage() {
           )}
         </div>
       </div>
+
+      {/* ── Schedule Modal (staff) ── */}
+      <Modal open={!!schedModal} onClose={() => setSchedModal(null)}
+        title={
+          schedModal === 'delivery'      ? 'Schedule New Delivery' :
+          schedModal === 'pickup'        ? 'Schedule Return Pickup' :
+          schedModal === 'repl_delivery' ? 'Schedule Replacement Delivery' :
+                                          'Schedule Replacement Return'
+        }>
+        <div className="space-y-4">
+          <FormField label="Address" required>
+            <input className="inp" placeholder="Full delivery / pickup address"
+              value={schedForm.address}
+              onChange={e => setSchedForm(p => ({ ...p, address: e.target.value }))} />
+          </FormField>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Scheduled Date & Time" required>
+              <input className="inp" type="datetime-local"
+                value={schedForm.scheduled_at}
+                onChange={e => setSchedForm(p => ({ ...p, scheduled_at: e.target.value }))} />
+            </FormField>
+            <FormField label="Contact Name">
+              <input className="inp" placeholder="Contact person"
+                value={schedForm.contact_name}
+                onChange={e => setSchedForm(p => ({ ...p, contact_name: e.target.value }))} />
+            </FormField>
+            <FormField label="Contact Phone">
+              <input className="inp" placeholder="+91 98765 43210"
+                value={schedForm.contact_phone}
+                onChange={e => setSchedForm(p => ({ ...p, contact_phone: e.target.value }))} />
+            </FormField>
+          </div>
+          <FormField label="Notes">
+            <textarea className="inp" rows={3} placeholder="Additional notes..."
+              value={schedForm.notes}
+              onChange={e => setSchedForm(p => ({ ...p, notes: e.target.value }))} />
+          </FormField>
+        </div>
+        <div className="flex justify-end gap-3 mt-5">
+          <Button variant="ghost" onClick={() => setSchedModal(null)}>Cancel</Button>
+          <Button onClick={handleScheduleSubmit} loading={schedSaving}
+            disabled={!schedForm.address.trim() || !schedForm.scheduled_at}>
+            Confirm Schedule
+          </Button>
+        </div>
+      </Modal>
 
       {/* ── Edit Modal ── */}
       <Modal open={showEdit} onClose={() => setShowEdit(false)}
