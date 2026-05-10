@@ -53,10 +53,10 @@ export default function ExchangesPage() {
       {/* Search */}
       <div className="mb-4 flex gap-3">
         <div className="relative flex-1 max-w-xs">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#475569' }} />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#94A3B8' }} />
           <input
             className="w-full pl-9 pr-3 py-2 rounded-xl text-sm"
-            style={{ background: 'rgba(15,23,42,0.6)', border: '1px solid #1E3058', color: '#F1F5F9' }}
+            style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', color: '#0F172A' }}
             placeholder="Search by EXC number…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -68,7 +68,7 @@ export default function ExchangesPage() {
       <div className="glass-card overflow-hidden">
 
       {/* ── Mobile card list (hidden on md+) ── */}
-      <div className="md:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+      <div className="md:hidden divide-y divide-slate-100">
         {loading ? (
           <div className="px-4 py-10 text-center text-sm" style={{ color: '#475569' }}>Loading…</div>
         ) : exchanges.length === 0 ? (
@@ -82,7 +82,7 @@ export default function ExchangesPage() {
             {/* Row 1: Exchange No + Date */}
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs font-semibold px-2 py-1 rounded-lg"
-                style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA' }}>
+                style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
                 {ex.exchange_no}
               </span>
               <div className="flex items-center gap-1.5 text-xs" style={{ color: '#94A3B8' }}>
@@ -98,16 +98,16 @@ export default function ExchangesPage() {
                 {ex.rental ? (
                   <Link href={`/rentals/${ex.rental_id}`}
                     className="font-mono text-xs font-semibold hover:underline"
-                    style={{ color: '#38BDF8' }}>
+                    style={{ color: '#2563EB' }}>
                     {ex.rental.rental_no}
                   </Link>
                 ) : (
-                  <span className="text-xs" style={{ color: '#475569' }}>#{ex.rental_id}</span>
+                  <span className="text-xs" style={{ color: '#94A3B8' }}>#{ex.rental_id}</span>
                 )}
               </div>
               <div className="text-right min-w-0">
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: '#475569' }}>Client</div>
-                <div className="text-xs font-medium truncate" style={{ color: '#F1F5F9' }}>
+                <div className="text-xs font-medium truncate" style={{ color: '#0F172A' }}>
                   {ex.rental?.client?.name ?? '—'}
                 </div>
                 {ex.rental?.client?.company && (
@@ -117,7 +117,7 @@ export default function ExchangesPage() {
             </div>
 
             {/* Row 3: Old → New Laptop */}
-            <div className="rounded-lg p-2.5 space-y-2" style={{ background: 'rgba(30,48,88,0.3)' }}>
+            <div className="rounded-lg p-2.5 space-y-2" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-semibold uppercase tracking-wider w-8 flex-shrink-0" style={{ color: '#475569' }}>Old</span>
                 <LaptopCell inv={ex.old_inventory} />
@@ -152,7 +152,7 @@ export default function ExchangesPage() {
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ borderBottom: '1px solid #1E3058' }}>
+            <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
               {['Exchange No', 'Date', 'Rental', 'Client', 'Old Laptop', 'New Laptop', 'Reason', 'By'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
                   style={{ color: '#475569' }}>{h}</th>
@@ -174,15 +174,15 @@ export default function ExchangesPage() {
                 </td>
               </tr>
             ) : exchanges.map(ex => (
-              <tr key={ex.id} style={{ borderBottom: '1px solid rgba(30,48,88,0.4)' }}
-                className="hover:bg-white/[0.02] transition-colors">
+              <tr key={ex.id} style={{ borderBottom: '1px solid #E2E8F0' }}
+                className="hover:bg-slate-50 transition-colors">
                 <td className="px-4 py-3">
                   <span className="font-mono text-xs font-semibold px-2 py-1 rounded-lg"
-                    style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA' }}>
+                    style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
                     {ex.exchange_no}
                   </span>
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#94A3B8' }}>
+                <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#64748B' }}>
                   <div className="flex items-center gap-1.5">
                     <Calendar size={13} style={{ color: '#475569' }} />
                     {fmtDate(ex.exchange_date)}
@@ -192,18 +192,18 @@ export default function ExchangesPage() {
                   {ex.rental ? (
                     <Link href={`/rentals/${ex.rental_id}`}
                       className="font-mono text-xs font-semibold hover:underline"
-                      style={{ color: '#38BDF8' }}>
+                      style={{ color: '#2563EB' }}>
                       {ex.rental.rental_no}
                     </Link>
                   ) : (
-                    <span className="text-xs" style={{ color: '#475569' }}>#{ex.rental_id}</span>
+                    <span className="text-xs" style={{ color: '#94A3B8' }}>#{ex.rental_id}</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     <User size={13} style={{ color: '#475569' }} />
                     <div>
-                      <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>
+                      <div className="text-xs font-medium" style={{ color: '#0F172A' }}>
                         {ex.rental?.client?.name ?? '—'}
                       </div>
                       {ex.rental?.client?.company && (
@@ -233,18 +233,18 @@ export default function ExchangesPage() {
       {/* ── Pagination (shared) ── */}
       {lastPage > 1 && (
         <div className="px-4 py-3 flex items-center justify-between"
-          style={{ borderTop: '1px solid #1E3058' }}>
+          style={{ borderTop: '1px solid #E2E8F0' }}>
           <span className="text-xs" style={{ color: '#475569' }}>
             Page {page} of {lastPage}
           </span>
           <div className="flex gap-2">
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-slate-100 transition-colors"
               style={{ color: '#94A3B8' }}>
               <ChevronLeft size={15} />
             </button>
             <button onClick={() => setPage(p => Math.min(lastPage, p + 1))} disabled={page === lastPage}
-              className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg disabled:opacity-40 hover:bg-slate-100 transition-colors"
               style={{ color: '#94A3B8' }}>
               <ChevronRight size={15} />
             </button>
@@ -258,15 +258,15 @@ export default function ExchangesPage() {
 }
 
 function LaptopCell({ inv, highlight }: { inv?: any; highlight?: boolean }) {
-  if (!inv) return <span className="text-xs" style={{ color: '#334155' }}>—</span>;
+  if (!inv) return <span className="text-xs" style={{ color: '#94A3B8' }}>—</span>;
   return (
     <div className="flex items-start gap-1.5">
-      <Laptop size={13} style={{ color: highlight ? '#10B981' : '#475569' }} className="mt-0.5 flex-shrink-0" />
+      <Laptop size={13} style={{ color: highlight ? '#16A34A' : '#94A3B8' }} className="mt-0.5 flex-shrink-0" />
       <div>
-        <div className="text-xs font-medium" style={{ color: highlight ? '#6EE7B7' : '#F1F5F9' }}>
+        <div className="text-xs font-medium" style={{ color: highlight ? '#16A34A' : '#0F172A' }}>
           {inv.brand} {inv.model_no}
         </div>
-        <div className="text-xs font-mono" style={{ color: '#475569' }}>
+        <div className="text-xs font-mono" style={{ color: '#64748B' }}>
           {inv.asset_code}
           {inv.serial_number && ` · ${inv.serial_number}`}
         </div>

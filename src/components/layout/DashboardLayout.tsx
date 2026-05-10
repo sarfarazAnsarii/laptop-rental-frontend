@@ -48,12 +48,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (loading) return;
     if (!user) { router.push('/auth/login'); return; }
     if (user.role === 'vendor') { router.push('/auth/login'); return; }
-    const clientAllowed =
-      pathname.startsWith('/client') ||
-      pathname === '/profile' ||
-      pathname.startsWith('/rentals/');
-    if (user.role === 'client' && !clientAllowed) { router.push('/client/rentals'); return; }
-    if (user.role !== 'client' && pathname.startsWith('/client')) { router.push('/dashboard'); }
+
+    // ── Staff: only inventory (list + detail) and issues ──
+    if (user.role === 'staff') {
+      const ok =
+        pathname === '/inventory' ||
+        pathname.startsWith('/inventory/') ||
+        pathname === '/issues' ||
+        pathname.startsWith('/issues/') ||
+        pathname === '/profile';
+      if (!ok) { router.push('/inventory'); return; }
+    }
+
+    // ── Client: only client portal, individual laptop detail, rental detail, profile ──
+    if (user.role === 'client') {
+      const ok =
+        pathname.startsWith('/client') ||
+        pathname.startsWith('/inventory/') ||
+        pathname.startsWith('/rentals/') ||
+        pathname === '/profile';
+      if (!ok) { router.push('/client/rentals'); return; }
+    }
+
+    // Non-clients must not access /client/* routes
+    if (user.role !== 'client' && pathname.startsWith('/client')) {
+      router.push('/dashboard');
+    }
   }, [user, loading, router, pathname]);
 
   const mobileNav = getMobileNav(user?.role);

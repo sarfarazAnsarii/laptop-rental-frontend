@@ -341,20 +341,56 @@ body {
 /* ── Animations ────────────────────────────────────────────── */
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideRight { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes kpiReveal { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes progressReveal { from { width: 0 !important; } }
+@keyframes pulseRing { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.35); } 70% { box-shadow: 0 0 0 8px rgba(37,99,235,0); } 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); } }
+@keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes gradientShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes numberPop { 0% { opacity: 0; transform: scale(0.8) translateY(6px); } 60% { transform: scale(1.04) translateY(-2px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes dotBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes barGrow { from { transform: scaleY(0); transform-origin: bottom; } to { transform: scaleY(1); } }
 
-.animate-fade-in    { animation: fadeIn 0.3s ease-out forwards; }
-.animate-slide-up   { animation: slideUp 0.3s ease-out forwards; }
-.animate-scale-in   { animation: scaleIn 0.2s ease-out forwards; }
-.delay-1 { animation-delay: 0.05s; opacity: 0; }
-.delay-2 { animation-delay: 0.10s; opacity: 0; }
-.delay-3 { animation-delay: 0.15s; opacity: 0; }
-.delay-4 { animation-delay: 0.20s; opacity: 0; }
-.delay-5 { animation-delay: 0.25s; opacity: 0; }
-.delay-6 { animation-delay: 0.30s; opacity: 0; }
+.animate-fade-in      { animation: fadeIn    0.35s ease-out forwards; }
+.animate-slide-up     { animation: slideUp   0.4s  cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-scale-in     { animation: scaleIn   0.2s  ease-out forwards; }
+.animate-kpi          { animation: kpiReveal 0.5s  cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-number-pop   { animation: numberPop 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+.animate-pulse-ring   { animation: pulseRing 2.2s ease-in-out infinite; }
+.animate-float        { animation: floatY    3s   ease-in-out infinite; }
+.animate-dot-blink    { animation: dotBlink  1.4s ease-in-out infinite; }
+
+.delay-1  { animation-delay: 0.05s;  opacity: 0; }
+.delay-2  { animation-delay: 0.10s;  opacity: 0; }
+.delay-3  { animation-delay: 0.15s;  opacity: 0; }
+.delay-4  { animation-delay: 0.20s;  opacity: 0; }
+.delay-5  { animation-delay: 0.25s;  opacity: 0; }
+.delay-6  { animation-delay: 0.30s;  opacity: 0; }
+.delay-7  { animation-delay: 0.35s;  opacity: 0; }
+.delay-8  { animation-delay: 0.40s;  opacity: 0; }
+
+/* KPI card premium style */
+.kpi-premium {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+  position: relative;
+  cursor: pointer;
+}
+.kpi-premium:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); border-color: rgba(37,99,235,0.18); }
+
+/* Gradient text utility */
+.gradient-text-blue  { background: linear-gradient(135deg,#2563EB,#7C3AED); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.gradient-text-green { background: linear-gradient(135deg,#16A34A,#059669); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
+/* Live dot */
+.live-dot { width:7px; height:7px; border-radius:50%; background:#16A34A; display:inline-block; animation: dotBlink 1.4s ease-in-out infinite; }
 
 /* ── Mobile sidebar ────────────────────────────────────────── */
 @media (max-width: 1023px) {

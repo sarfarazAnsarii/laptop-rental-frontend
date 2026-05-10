@@ -21,20 +21,20 @@ const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(
 const fmtDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-const STATUS_META: Record<string, { bg: string; border: string; text: string; Icon: any }> = {
-  active:    { bg: 'rgba(16,185,129,0.10)',  border: 'rgba(16,185,129,0.30)',  text: '#10B981', Icon: CheckCircle  },
-  completed: { bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.30)',  text: '#3B82F6', Icon: CheckCircle  },
-  cancelled: { bg: 'rgba(100,116,139,0.10)', border: 'rgba(100,116,139,0.30)', text: '#94A3B8', Icon: XCircle      },
-  overdue:   { bg: 'rgba(244,63,94,0.10)',   border: 'rgba(244,63,94,0.30)',   text: '#F43F5E', Icon: AlertTriangle },
+const STATUS_META: Record<string, { bg: string; border: string; text: string; accent: string; Icon: any }> = {
+  active:    { bg: '#F0FDF4', border: '#BBF7D0', text: '#16A34A', accent: '#16A34A', Icon: CheckCircle  },
+  completed: { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', accent: '#2563EB', Icon: CheckCircle  },
+  cancelled: { bg: '#F8FAFC', border: '#E2E8F0', text: '#64748B', accent: '#94A3B8', Icon: XCircle      },
+  overdue:   { bg: '#FFF1F2', border: '#FECDD3', text: '#DC2626', accent: '#DC2626', Icon: AlertTriangle },
 };
 
 function InfoRow({ icon, label, value, accent }: { icon: ReactNode; label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 flex-shrink-0" style={{ color: '#475569' }}>{icon}</span>
+      <span className="mt-0.5 flex-shrink-0" style={{ color: '#94A3B8' }}>{icon}</span>
       <div>
-        <div className="text-xs mb-0.5" style={{ color: '#475569' }}>{label}</div>
-        <div className="text-sm font-medium" style={{ color: accent ? '#3B82F6' : '#F1F5F9' }}>{value}</div>
+        <div className="text-xs mb-0.5 font-medium uppercase tracking-wider" style={{ color: '#94A3B8' }}>{label}</div>
+        <div className="text-sm font-semibold" style={{ color: accent ? '#2563EB' : '#0F172A' }}>{value}</div>
       </div>
     </div>
   );
@@ -42,7 +42,7 @@ function InfoRow({ icon, label, value, accent }: { icon: ReactNode; label: strin
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+    <h2 className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: '#94A3B8', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       {children}
     </h2>
   );
@@ -50,9 +50,9 @@ function SectionTitle({ children }: { children: ReactNode }) {
 
 function BillingRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-2.5" style={{ borderBottom: '1px solid rgba(30,48,88,0.6)' }}>
-      <span className="text-sm" style={{ color: highlight ? '#F1F5F9' : '#64748B' }}>{label}</span>
-      <span className="text-sm font-semibold" style={{ color: highlight ? '#10B981' : '#94A3B8' }}>{value}</span>
+    <div className="flex items-center justify-between py-2.5" style={{ borderBottom: '1px solid #F1F5F9' }}>
+      <span className="text-sm" style={{ color: highlight ? '#0F172A' : '#64748B' }}>{label}</span>
+      <span className="text-sm font-semibold tabular-nums" style={{ color: highlight ? '#16A34A' : '#334155' }}>{value}</span>
     </div>
   );
 }
@@ -245,10 +245,10 @@ export default function RentalDetailPage() {
 
         {/* Breadcrumb */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2 text-sm" style={{ color: '#475569' }}>
-            <Link href="/rentals" className="hover:text-blue-400 transition-colors">Rentals</Link>
-            <ChevronRight size={13} />
-            <span className="font-mono" style={{ color: '#94A3B8' }}>{rental.rental_no}</span>
+          <div className="flex items-center gap-2 text-sm" style={{ color: '#64748B' }}>
+            <Link href="/rentals" className="hover:text-blue-600 transition-colors" style={{ color: '#64748B' }}>Rentals</Link>
+            <ChevronRight size={13} style={{ color: '#CBD5E1' }} />
+            <span className="font-mono text-xs" style={{ color: '#94A3B8' }}>{rental.rental_no}</span>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Link href="/rentals">
@@ -301,43 +301,67 @@ export default function RentalDetailPage() {
           </div>
         </div>
 
-        {/* Hero */}
-        <div className="glass-card p-6" style={{
-          background: 'linear-gradient(135deg, rgba(13,27,46,0.95) 0%, rgba(17,34,62,0.95) 100%)',
-          borderColor: '#1E3058',
-        }}>
-          <div className="flex items-start gap-5 flex-wrap">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)', boxShadow: '0 0 30px rgba(59,130,246,0.25)' }}>
-              <FileText size={28} color="white" />
-            </div>
+        {/* ── Hero ── */}
+        <div className="glass-card overflow-hidden">
+          {/* Status accent bar */}
+          <div className="h-1 w-full" style={{ background: sm.accent }} />
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="font-mono text-sm px-2.5 py-1 rounded-lg font-semibold"
-                      style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.3)' }}>
-                      {rental.rental_no}
-                    </span>
-                    <span className={`badge badge-${rental.status}`}>{rental.status}</span>
-                  </div>
-                  <h1 className="text-2xl font-bold mb-1"
-                    style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>
-                    {rental.inventory?.brand} {rental.inventory?.model_no}
-                  </h1>
-                  <p className="text-xs font-mono" style={{ color: '#475569' }}>
-                    {rental.inventory?.asset_code} &nbsp;·&nbsp; Created {fmtDate(rental.created_at)}
-                  </p>
-                </div>
+          <div className="p-6">
+            <div className="flex items-start gap-4 flex-wrap sm:flex-nowrap">
 
-                {/* Status pill */}
-                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl flex-shrink-0"
-                  style={{ background: sm.bg, border: `1px solid ${sm.border}` }}>
-                  <StatusIcon size={15} style={{ color: sm.text }} />
-                  <span className="text-sm font-semibold capitalize" style={{ color: sm.text }}>
+              {/* Icon */}
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: sm.bg, border: `1px solid ${sm.border}` }}>
+                <FileText size={22} style={{ color: sm.text }} />
+              </div>
+
+              {/* Main info */}
+              <div className="flex-1 min-w-0">
+                {/* Rental No + status */}
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <code className="text-xs font-bold px-2.5 py-1 rounded-lg"
+                    style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid rgba(37,99,235,0.2)' }}>
+                    {rental.rental_no}
+                  </code>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                    style={{ background: sm.bg, border: `1px solid ${sm.border}`, color: sm.text }}>
+                    <StatusIcon size={11} />
                     {rental.status}
                   </span>
+                </div>
+
+                {/* Laptop name */}
+                <h1 className="text-xl sm:text-2xl font-bold leading-tight mb-1"
+                  style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#0F172A', letterSpacing: '-0.02em' }}>
+                  {rental.inventory?.brand} {rental.inventory?.model_no}
+                </h1>
+
+                {/* Sub-line */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded"
+                    style={{ background: '#F1F5F9', color: '#64748B' }}>
+                    {rental.inventory?.asset_code}
+                  </span>
+                  <span className="text-xs" style={{ color: '#94A3B8' }}>
+                    Created {fmtDate(rental.created_at)}
+                  </span>
+                  {rental.client?.company && (
+                    <>
+                      <span style={{ color: '#E2E8F0' }}>·</span>
+                      <span className="text-xs font-medium" style={{ color: '#64748B' }}>{rental.client.company}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Grand total — right aligned */}
+              <div className="flex-shrink-0 text-right sm:text-right">
+                <div className="text-xs font-medium uppercase tracking-wider mb-1" style={{ color: '#94A3B8' }}>Grand Total</div>
+                <div className="text-2xl font-bold tabular-nums" style={{ color: '#16A34A', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '-0.02em' }}>
+                  {fmt(rental.grand_total)}
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+                  incl. GST {rental.gst_percent}%
                 </div>
               </div>
             </div>
@@ -360,7 +384,7 @@ export default function RentalDetailPage() {
                 <InfoRow icon={<FileText size={13} />} label="Type"         value={rental.inventory?.type || '—'} />
               </div>
               {rental.inventory && (
-                <div className="mt-4 pt-4" style={{ borderTop: '1px solid #1E3058' }}>
+                <div className="mt-4 pt-4" style={{ borderTop: '1px solid #F1F5F9' }}>
                   <Link href={`/inventory/${rental.inventory_id}`}>
                     <Button variant="outline" size="sm">View Laptop →</Button>
                   </Link>
@@ -380,7 +404,7 @@ export default function RentalDetailPage() {
                   <InfoRow icon={<Hash size={13} />}      label="Client ID" value={`#${rental.client_id}`} />
                 </div>
               ) : (
-                <p className="text-sm" style={{ color: '#475569' }}>Client #{rental.client_id}</p>
+                <p className="text-sm" style={{ color: '#64748B' }}>Client #{rental.client_id}</p>
               )}
             </div>
 
@@ -388,7 +412,7 @@ export default function RentalDetailPage() {
             {rental.remarks && (
               <div className="glass-card p-5">
                 <SectionTitle>Remarks</SectionTitle>
-                <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{rental.remarks}</p>
+                <p className="text-sm leading-relaxed" style={{ color: '#64748B' }}>{rental.remarks}</p>
               </div>
             )}
           </div>
@@ -422,12 +446,12 @@ export default function RentalDetailPage() {
                 <BillingRow label={`GST (${rental.gst_percent}%)`} value={fmt(rental.gst_amount)} />
               </div>
               <div className="mt-4 p-4 rounded-xl flex items-center justify-between"
-                style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
                 <div className="flex items-center gap-2">
-                  <ReceiptText size={16} style={{ color: '#10B981' }} />
-                  <span className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>Grand Total</span>
+                  <ReceiptText size={16} style={{ color: '#16A34A' }} />
+                  <span className="text-sm font-semibold" style={{ color: '#0F172A' }}>Grand Total</span>
                 </div>
-                <span className="text-xl font-bold" style={{ color: '#10B981' }}>{fmt(rental.grand_total)}</span>
+                <span className="text-xl font-bold tabular-nums" style={{ color: '#16A34A' }}>{fmt(rental.grand_total)}</span>
               </div>
             </div>
 
@@ -455,7 +479,7 @@ export default function RentalDetailPage() {
           </div>
 
           {schedules.length === 0 ? (
-            <p className="text-sm" style={{ color: '#475569' }}>No schedules yet.</p>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>No schedules yet.</p>
           ) : (
             <div className="space-y-3">
               {schedules.map((s: any) => {
@@ -534,24 +558,24 @@ export default function RentalDetailPage() {
         {rental && (
           <div className="space-y-4">
             {/* To */}
-            <div className="p-3 rounded-xl flex items-center gap-3" style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.18)' }}>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg,#3B82F6,#14B8A6)', color: 'white', fontWeight: 700, fontSize: 15 }}>
+            <div className="p-3 rounded-xl flex items-center gap-3" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-white text-base"
+                style={{ background: 'linear-gradient(135deg,#2563EB,#7C3AED)' }}>
                 {rental.client?.name?.charAt(0)?.toUpperCase()}
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>{rental.client?.name}</div>
-                <div className="text-xs truncate" style={{ color: '#3B82F6' }}>{rental.client?.email}</div>
-                {rental.client?.company && <div className="text-xs truncate" style={{ color: '#475569' }}>{rental.client.company}</div>}
+                <div className="text-sm font-semibold truncate" style={{ color: '#0F172A' }}>{rental.client?.name}</div>
+                <div className="text-xs truncate" style={{ color: '#2563EB' }}>{rental.client?.email}</div>
+                {rental.client?.company && <div className="text-xs truncate" style={{ color: '#64748B' }}>{rental.client.company}</div>}
               </div>
             </div>
 
             {/* Rental details */}
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
-              <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: 'rgba(30,48,88,0.5)', color: '#475569' }}>
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+              <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: '#F8FAFC', color: '#64748B', borderBottom: '1px solid #E2E8F0' }}>
                 Rental Details
               </div>
-              <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+              <div className="divide-y divide-slate-100">
                 {[
                   ['Rental No',   rental.rental_no],
                   ['Laptop',      `${rental.inventory?.brand || ''} ${rental.inventory?.model_no || ''}`],
@@ -563,18 +587,18 @@ export default function RentalDetailPage() {
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-center justify-between px-4 py-2.5 text-sm">
                     <span style={{ color: '#64748B' }}>{label}</span>
-                    <span className="font-medium" style={{ color: '#F1F5F9' }}>{value}</span>
+                    <span className="font-semibold" style={{ color: '#0F172A' }}>{value}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Billing summary */}
-            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
-              <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: 'rgba(30,48,88,0.5)', color: '#475569' }}>
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+              <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: '#F8FAFC', color: '#64748B', borderBottom: '1px solid #E2E8F0' }}>
                 Billing Summary
               </div>
-              <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+              <div className="divide-y divide-slate-100">
                 {[
                   ['Monthly Rental',              `₹${Number(rental.monthly_rental).toLocaleString('en-IN')}`],
                   ['Pro-rated Amount',             `₹${Number(rental.pro_rental).toLocaleString('en-IN')}`],
@@ -582,13 +606,13 @@ export default function RentalDetailPage() {
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-center justify-between px-4 py-2.5 text-sm">
                     <span style={{ color: '#64748B' }}>{label}</span>
-                    <span style={{ color: '#94A3B8' }}>{value}</span>
+                    <span className="font-medium tabular-nums" style={{ color: '#334155' }}>{value}</span>
                   </div>
                 ))}
                 <div className="flex items-center justify-between px-4 py-3"
-                  style={{ background: 'rgba(16,185,129,0.07)' }}>
-                  <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Grand Total</span>
-                  <span className="text-lg font-bold" style={{ color: '#10B981' }}>
+                  style={{ background: '#F0FDF4' }}>
+                  <span className="text-sm font-bold" style={{ color: '#0F172A' }}>Grand Total</span>
+                  <span className="text-lg font-bold tabular-nums" style={{ color: '#16A34A' }}>
                     ₹{Number(rental.grand_total).toLocaleString('en-IN')}
                   </span>
                 </div>
@@ -623,49 +647,49 @@ export default function RentalDetailPage() {
             <div className="space-y-4">
               {/* Client */}
               <div className="p-3 rounded-xl flex items-center gap-3"
-                style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', color: 'white', fontWeight: 700, fontSize: 15 }}>
+                style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-white text-base"
+                  style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)' }}>
                   {rental.client?.name?.charAt(0)?.toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>{rental.client?.name}</div>
-                  <div className="text-xs truncate" style={{ color: '#F59E0B' }}>{rental.client?.email}</div>
-                  {rental.client?.company && <div className="text-xs truncate" style={{ color: '#475569' }}>{rental.client.company}</div>}
+                  <div className="text-sm font-semibold truncate" style={{ color: '#0F172A' }}>{rental.client?.name}</div>
+                  <div className="text-xs truncate" style={{ color: '#D97706' }}>{rental.client?.email}</div>
+                  {rental.client?.company && <div className="text-xs truncate" style={{ color: '#64748B' }}>{rental.client.company}</div>}
                 </div>
               </div>
 
               {/* Info banner */}
-              <div className="px-4 py-3 rounded-xl text-xs" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', color: '#F59E0B' }}>
+              <div className="px-4 py-3 rounded-xl text-xs" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
                 Advance payment covers <strong>30 days</strong> from delivery date ({new Date((rental as any).delivery_date || rental.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
               </div>
 
               {/* Billing breakdown */}
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
                 <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest"
-                  style={{ background: 'rgba(30,48,88,0.5)', color: '#475569' }}>
+                  style={{ background: '#F8FAFC', color: '#64748B', borderBottom: '1px solid #E2E8F0' }}>
                   Advance Billing — 30 Days
                 </div>
-                <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+                <div className="divide-y divide-slate-100">
                   {[
                     [`Monthly Rental × ${qty}`, loc(advance)],
                     [`GST (${gstPct}%)`,         loc(advGst)],
                   ].map(([label, value]) => (
                     <div key={label} className="flex items-center justify-between px-4 py-2.5 text-sm">
                       <span style={{ color: '#64748B' }}>{label}</span>
-                      <span style={{ color: '#94A3B8' }}>{value}</span>
+                      <span className="font-medium tabular-nums" style={{ color: '#334155' }}>{value}</span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-4 py-3"
-                    style={{ background: 'rgba(245,158,11,0.07)' }}>
-                    <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Advance Total</span>
-                    <span className="text-lg font-bold" style={{ color: '#F59E0B' }}>{loc(advTotal)}</span>
+                    style={{ background: '#FFFBEB' }}>
+                    <span className="text-sm font-bold" style={{ color: '#0F172A' }}>Advance Total</span>
+                    <span className="text-lg font-bold tabular-nums" style={{ color: '#D97706' }}>{loc(advTotal)}</span>
                   </div>
                 </div>
               </div>
 
-              <p className="text-xs text-center" style={{ color: '#475569' }}>
-                Advance invoice will be sent to <span style={{ color: '#F59E0B' }}>{rental.client?.email}</span>
+              <p className="text-xs text-center" style={{ color: '#64748B' }}>
+                Advance invoice will be sent to <span style={{ color: '#D97706' }}>{rental.client?.email}</span>
               </p>
 
               <div className="flex justify-end gap-3 pt-1">

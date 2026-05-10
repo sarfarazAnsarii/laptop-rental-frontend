@@ -17,10 +17,10 @@ const fmtDate = (d?: string) =>
 const fmtShort = (d?: string) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-const STATUS_META: Record<string, { color: string; bg: string; icon: any }> = {
-  scheduled: { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)',  icon: Clock       },
-  completed: { color: '#10B981', bg: 'rgba(16,185,129,0.1)', icon: CheckCircle },
-  cancelled: { color: '#64748B', bg: 'rgba(100,116,139,0.1)', icon: XCircle    },
+const STATUS_META: Record<string, { color: string; bg: string; border: string; icon: any }> = {
+  scheduled: { color: '#B45309', bg: '#FFFBEB', border: '#FDE68A', icon: Clock       },
+  completed: { color: '#16A34A', bg: '#F0FDF4', border: '#BBF7D0', icon: CheckCircle },
+  cancelled: { color: '#64748B', bg: '#F8FAFC', border: '#E2E8F0', icon: XCircle    },
 };
 
 export default function SchedulesPage() {
@@ -99,7 +99,7 @@ export default function SchedulesPage() {
           { label: 'Deliveries', value: deliveries, color: '#3B82F6' },
         ].map(s => (
           <div key={s.label} className="glass-card px-4 py-3">
-            <div className="text-2xl font-bold" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>{s.value}</div>
+            <div className="text-2xl font-bold" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#0F172A' }}>{s.value}</div>
             <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>{s.label}</div>
           </div>
         ))}
@@ -107,27 +107,29 @@ export default function SchedulesPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-5">
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(30,48,88,0.3)' }}>
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#F1F5F9' }}>
           {(['all', 'pickup', 'delivery'] as const).map(t => (
             <button key={t} onClick={() => setTypeTab(t)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all"
               style={{
-                background: typeTab === t ? 'rgba(59,130,246,0.2)' : 'transparent',
-                color:      typeTab === t ? '#3B82F6' : '#64748B',
-                border:     typeTab === t ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+                background: typeTab === t ? '#FFFFFF' : 'transparent',
+                color:      typeTab === t ? '#2563EB' : '#64748B',
+                border:     typeTab === t ? '1px solid #BFDBFE' : '1px solid transparent',
+                boxShadow:  typeTab === t ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
               }}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
           ))}
         </div>
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'rgba(30,48,88,0.3)' }}>
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#F1F5F9' }}>
           {(['all', 'scheduled', 'completed', 'cancelled'] as const).map(t => (
             <button key={t} onClick={() => setStatusTab(t)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all"
               style={{
-                background: statusTab === t ? 'rgba(59,130,246,0.2)' : 'transparent',
-                color:      statusTab === t ? '#3B82F6' : '#64748B',
-                border:     statusTab === t ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+                background: statusTab === t ? '#FFFFFF' : 'transparent',
+                color:      statusTab === t ? '#2563EB' : '#64748B',
+                border:     statusTab === t ? '1px solid #BFDBFE' : '1px solid transparent',
+                boxShadow:  statusTab === t ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
               }}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </button>
@@ -161,7 +163,7 @@ export default function SchedulesPage() {
 
                 {/* Header bar */}
                 <div className="flex items-center justify-between px-5 py-3 flex-wrap gap-3"
-                  style={{ background: typeBg, borderBottom: '1px solid rgba(30,48,88,0.5)' }}>
+                  style={{ background: typeBg, borderBottom: '1px solid #E2E8F0' }}>
                   <div className="flex items-center gap-3">
                     {/* Type */}
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold"
@@ -171,7 +173,7 @@ export default function SchedulesPage() {
                     </div>
                     {/* Status */}
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
-                      style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.color}30` }}>
+                      style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.border}` }}>
                       <StatusIcon size={11} />
                       <span className="capitalize">{s.status}</span>
                     </div>
@@ -209,8 +211,7 @@ export default function SchedulesPage() {
                 </div>
 
                 {/* Body — 3 column grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x"
-                  style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-100">
 
                   {/* Col 1: Schedule Details */}
                   <div className="p-4 space-y-2.5">
@@ -251,7 +252,7 @@ export default function SchedulesPage() {
                       </div>
                     )}
                     {s.created_by && (
-                      <div className="flex items-center gap-2 text-xs pt-1" style={{ borderTop: '1px solid rgba(30,48,88,0.4)' }}>
+                      <div className="flex items-center gap-2 text-xs pt-1" style={{ borderTop: '1px solid #E2E8F0' }}>
                         <span style={{ color: '#334155' }}>By:</span>
                         <span style={{ color: '#475569' }}>{s.created_by.name}</span>
                         <span className={`badge badge-${s.created_by.role}`}>{s.created_by.role}</span>
@@ -270,7 +271,7 @@ export default function SchedulesPage() {
                             <Monitor size={14} style={{ color: '#3B82F6' }} />
                           </div>
                           <div>
-                            <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{inv.brand} {inv.model_no}</div>
+                            <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{inv.brand} {inv.model_no}</div>
                             <div className="text-xs font-mono" style={{ color: '#475569' }}>{inv.asset_code}</div>
                           </div>
                         </div>
@@ -295,11 +296,11 @@ export default function SchedulesPage() {
                     {client && (
                       <div className="flex items-start gap-2 mb-3">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 font-bold text-sm"
-                          style={{ background: 'linear-gradient(135deg,#14B8A6,#0D9488)', color: 'white' }}>
+                          style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
                           {client.name?.charAt(0)?.toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>{client.name}</div>
+                          <div className="text-sm font-semibold truncate" style={{ color: '#0F172A' }}>{client.name}</div>
                           {client.company && <div className="text-xs truncate" style={{ color: '#475569' }}>{client.company}</div>}
                         </div>
                       </div>
@@ -323,7 +324,7 @@ export default function SchedulesPage() {
                       </div>
                     )}
                     {s.rental && (
-                      <div className="mt-2 pt-2 space-y-1" style={{ borderTop: '1px solid rgba(30,48,88,0.4)' }}>
+                      <div className="mt-2 pt-2 space-y-1" style={{ borderTop: '1px solid #E2E8F0' }}>
                         <div className="flex items-center gap-2 text-xs">
                           <Hash size={11} style={{ color: '#475569' }} />
                           <Link href={`/rentals/${s.rental.id}`}
@@ -338,11 +339,11 @@ export default function SchedulesPage() {
                         </div>
                         <div className="flex items-center gap-2 text-xs">
                           <span style={{ color: '#475569' }}>Monthly:</span>
-                          <span className="font-semibold" style={{ color: '#10B981' }}>
+                          <span className="font-semibold" style={{ color: '#16A34A' }}>
                             ₹{Number(s.rental.monthly_rental || 0).toLocaleString('en-IN')}
                           </span>
                           <span style={{ color: '#475569' }}>Grand:</span>
-                          <span className="font-semibold" style={{ color: '#10B981' }}>
+                          <span className="font-semibold" style={{ color: '#16A34A' }}>
                             ₹{Number(s.rental.grand_total || 0).toLocaleString('en-IN')}
                           </span>
                         </div>
@@ -372,8 +373,8 @@ export default function SchedulesPage() {
       <Modal open={!!completeModal} onClose={() => setCompleteModal(null)} title="Mark as Completed" width="max-w-sm">
         {completeModal && (
           <div className="p-3 rounded-xl mb-4 text-sm"
-            style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)' }}>
-            <div className="font-semibold capitalize" style={{ color: '#10B981' }}>{completeModal.type}</div>
+            style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+            <div className="font-semibold capitalize" style={{ color: '#16A34A' }}>{completeModal.type}</div>
             <div className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{completeModal.address}</div>
             {completeModal.rental?.inventory && (
               <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>

@@ -133,7 +133,7 @@ export default function IssuesPage() {
               <span style={{ color: s.color }}>{s.icon}</span>
             </div>
             <div>
-              <div className="text-xl font-bold" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>{s.value}</div>
+              <div className="text-xl font-bold" style={{ fontFamily: 'Syne, sans-serif', color: '#292929' }}>{s.value}</div>
               <div className="text-xs" style={{ color: '#64748B' }}>{s.label}</div>
             </div>
           </div>
@@ -149,7 +149,7 @@ export default function IssuesPage() {
               <button key={t} onClick={() => { setTab(t); setPage(1); }}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all whitespace-nowrap"
                 style={{
-                  background: tab === t ? 'rgba(59,130,246,0.2)' : 'transparent',
+                  background: tab === t ? 'rgba(230, 230, 230, 0.09)' : 'transparent',
                   color:      tab === t ? '#3B82F6' : '#64748B',
                   border:     tab === t ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
                 }}>
@@ -247,7 +247,7 @@ export default function IssuesPage() {
                             <>
                               <div className="flex items-center gap-1.5">
                                 <Monitor size={13} style={{ color: '#475569' }} />
-                                <span className="text-sm font-medium" style={{ color: '#F1F5F9' }}>
+                                <span className="text-sm font-medium" style={{ color: '#292929' }}>
                                   {issue.inventory.brand} {issue.inventory.model_no}
                                 </span>
                               </div>
@@ -264,7 +264,7 @@ export default function IssuesPage() {
                             <>
                               <div className="flex items-center gap-1.5">
                                 <User size={12} style={{ color: '#475569' }} />
-                                <span className="text-sm" style={{ color: '#F1F5F9' }}>{issue.reporter.name}</span>
+                                <span className="text-sm" style={{ color: '#292929' }}>{issue.reporter.name}</span>
                               </div>
                               {issue.reporter.company && (
                                 <div className="text-xs ml-4.5" style={{ color: '#475569' }}>{issue.reporter.company}</div>
@@ -275,7 +275,7 @@ export default function IssuesPage() {
                           )}
                         </td>
                         <td>
-                          <div className="text-sm font-medium" style={{ color: '#F1F5F9', maxWidth: 200 }}>
+                          <div className="text-sm font-medium" style={{ color: '#292929', maxWidth: 200 }}>
                             {issue.title}
                           </div>
                           {issue.admin_notes && (

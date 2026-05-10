@@ -76,7 +76,7 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
           <Laptop size={17} color="white" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="sidebar-logo-title">LaptopRent</div>
+          <div className="sidebar-logo-title">LaptopRental</div>
           <div className="sidebar-logo-sub">Management System</div>
         </div>
         <button

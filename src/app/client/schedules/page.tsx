@@ -61,7 +61,7 @@ export default function ClientSchedulesPage() {
               <span style={{ color: s.color }}>{s.icon}</span>
             </div>
             <div>
-              <div className="text-xl font-bold" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>{s.value}</div>
+              <div className="text-xl font-bold" style={{ fontFamily: 'Syne, sans-serif', color: '#131313' }}>{s.value}</div>
               <div className="text-xs" style={{ color: '#64748B' }}>{s.label}</div>
             </div>
           </div>

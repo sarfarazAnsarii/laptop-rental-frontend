@@ -58,7 +58,7 @@ export default function ProfilePage() {
             {user.name.charAt(0).toUpperCase()}
           </div>
 
-          <h2 className="text-lg font-bold mb-1" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>{user.name}</h2>
+          <h2 className="text-lg font-bold mb-1" style={{ fontFamily: 'Syne, sans-serif', color: '#29292a' }}>{user.name}</h2>
           <span className={'badge badge-' + user.role + ' mb-4'}>{user.role}</span>
 
           {/* Info rows */}
@@ -138,11 +138,11 @@ export default function ProfilePage() {
 
 function InfoRow({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: boolean }) {
   return (
-    <div className="flex items-start gap-2.5 py-2 px-3 rounded-xl" style={{ background: 'rgba(30,48,88,0.3)' }}>
+    <div className="flex items-start gap-2.5 py-2 px-3 rounded-xl" style={{ background: 'rgb(226, 226, 226)' }}>
       <span className="mt-0.5 flex-shrink-0" style={{ color: '#475569' }}>{icon}</span>
       <div className="min-w-0">
         <div className="text-xs mb-0.5" style={{ color: '#475569' }}>{label}</div>
-        <div className="text-sm font-medium truncate" style={{ color: accent ? '#3B82F6' : '#F1F5F9' }}>{value}</div>
+        <div className="text-sm font-medium truncate" style={{ color: accent ? '#3B82F6' : '#29292a' }}>{value}</div>
       </div>
     </div>
   );

@@ -22,12 +22,12 @@ const fmtDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 /* ── status config ── */
-const STATUS_META: Record<string, { bg: string; border: string; text: string; Icon: any }> = {
-  available:   { bg: 'rgba(16,185,129,0.10)',  border: 'rgba(16,185,129,0.30)',  text: '#10B981', Icon: CheckCircle },
-  rented:      { bg: 'rgba(59,130,246,0.10)',  border: 'rgba(59,130,246,0.30)',  text: '#3B82F6', Icon: FileText   },
-  maintenance: { bg: 'rgba(245,158,11,0.10)',  border: 'rgba(245,158,11,0.30)',  text: '#F59E0B', Icon: AlertCircle},
-  sold:        { bg: 'rgba(100,116,139,0.10)', border: 'rgba(100,116,139,0.30)', text: '#94A3B8', Icon: Tag        },
-  returned:    { bg: 'rgba(139,92,246,0.10)',  border: 'rgba(139,92,246,0.30)',  text: '#A78BFA', Icon: RotateCcw  },
+const STATUS_META: Record<string, { bg: string; border: string; text: string; accent: string; Icon: any }> = {
+  available:   { bg: '#F0FDF4', border: '#BBF7D0', text: '#16A34A', accent: '#16A34A', Icon: CheckCircle },
+  rented:      { bg: '#EFF6FF', border: '#BFDBFE', text: '#1D4ED8', accent: '#2563EB', Icon: FileText   },
+  maintenance: { bg: '#FFFBEB', border: '#FDE68A', text: '#B45309', accent: '#D97706', Icon: AlertCircle },
+  sold:        { bg: '#F8FAFC', border: '#E2E8F0', text: '#64748B', accent: '#94A3B8', Icon: Tag        },
+  returned:    { bg: '#FAF5FF', border: '#E9D5FF', text: '#7C3AED', accent: '#8B5CF6', Icon: RotateCcw  },
 };
 
 const EDIT_STATUSES = ['available', 'rented', 'maintenance', 'sold', 'returned'];
@@ -36,10 +36,10 @@ const EDIT_STATUSES = ['available', 'rented', 'maintenance', 'sold', 'returned']
 function InfoRow({ icon, label, value, accent }: { icon: ReactNode; label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 flex-shrink-0" style={{ color: '#475569' }}>{icon}</span>
+      <span className="mt-0.5 flex-shrink-0" style={{ color: '#94A3B8' }}>{icon}</span>
       <div>
-        <div className="text-xs mb-0.5" style={{ color: '#475569' }}>{label}</div>
-        <div className="text-sm font-medium" style={{ color: accent ? '#3B82F6' : '#F1F5F9' }}>{value}</div>
+        <div className="text-xs mb-0.5 uppercase tracking-wider" style={{ color: '#94A3B8' }}>{label}</div>
+        <div className="text-sm font-medium" style={{ color: accent ? '#2563EB' : '#0F172A' }}>{value}</div>
       </div>
     </div>
   );
@@ -48,14 +48,14 @@ function InfoRow({ icon, label, value, accent }: { icon: ReactNode; label: strin
 function SpecCard({ icon, label, value, color }: { icon: ReactNode; label: string; value: string; color: string }) {
   return (
     <div className="flex items-start gap-3 p-4 rounded-xl"
-      style={{ background: 'rgba(30,48,88,0.28)', border: '1px solid rgba(30,48,88,0.7)' }}>
+      style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
       <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
         style={{ background: `${color}14` }}>
         <span style={{ color }}>{icon}</span>
       </div>
       <div>
-        <div className="text-xs mb-0.5" style={{ color: '#475569' }}>{label}</div>
-        <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{value}</div>
+        <div className="text-xs mb-0.5 uppercase tracking-wider" style={{ color: '#94A3B8' }}>{label}</div>
+        <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{value}</div>
       </div>
     </div>
   );
@@ -63,7 +63,7 @@ function SpecCard({ icon, label, value, color }: { icon: ReactNode; label: strin
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h2 className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+    <h2 className="text-xs font-bold uppercase tracking-widest mb-4" style={{ color: '#94A3B8', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       {children}
     </h2>
   );
@@ -82,6 +82,7 @@ export default function InventoryDetailPage() {
   const { user } = useAuth();
   const isAdmin  = user?.role === 'admin';
   const isStaff  = user?.role === 'staff';
+  const isClient = user?.role === 'client';
 
   const [item,    setItem]    = useState<Inventory | null>(null);
   const [rentals, setRentals] = useState<Rental[]>([]);
@@ -106,18 +107,23 @@ export default function InventoryDetailPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [invRes, renRes] = await Promise.all([
-        api.inventory.get(id),
-        api.rentals.list({ inventory_id: String(id), per_page: '30' }),
-      ]);
-      setItem(invRes.data);
-      setRentals(renRes.data?.data || []);
+      if (isClient) {
+        const invRes = await api.inventory.get(id);
+        setItem(invRes.data);
+      } else {
+        const [invRes, renRes] = await Promise.all([
+          api.inventory.get(id),
+          api.rentals.list({ inventory_id: String(id), per_page: '30' }),
+        ]);
+        setItem(invRes.data);
+        setRentals(renRes.data?.data || []);
+      }
     } catch {
-      router.push('/inventory');
+      router.push(isClient ? '/client/rentals' : '/inventory');
     } finally {
       setLoading(false);
     }
-  }, [id, router]);
+  }, [id, router, isClient]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -212,12 +218,14 @@ export default function InventoryDetailPage() {
         {/* ── Breadcrumb / Back bar ── */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 text-sm min-w-0" style={{ color: '#475569' }}>
-            <Link href="/inventory" className="hover:text-blue-400 transition-colors shrink-0">Inventory</Link>
+            <Link href={isClient ? '/client/rentals' : '/inventory'} className="hover:text-blue-600 transition-colors shrink-0">
+              {isClient ? 'My Rentals' : 'Inventory'}
+            </Link>
             <ChevronRight size={13} className="shrink-0" />
             <span className="truncate font-mono text-xs" style={{ color: '#94A3B8' }}>{item.asset_code}</span>
           </div>
           <div className="flex gap-1.5 sm:gap-2 shrink-0">
-            <Link href="/inventory">
+            <Link href={isClient ? '/client/rentals' : '/inventory'}>
               <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />}>
                 <span className="hidden sm:inline">Back</span>
               </Button>
@@ -234,70 +242,62 @@ export default function InventoryDetailPage() {
         </div>
 
         {/* ── Hero ── */}
-        <div className="glass-card p-4 sm:p-6" style={{
-          background: 'linear-gradient(135deg, rgba(13,27,46,0.95) 0%, rgba(17,34,62,0.95) 100%)',
-          borderColor: '#1E3058',
-        }}>
-          <div className="flex items-start gap-3 sm:gap-5">
-            {/* laptop thumbnail or icon */}
-            {item.images?.[0] ? (
-              <div className="w-16 h-14 sm:w-20 sm:h-16 rounded-2xl overflow-hidden flex-shrink-0 cursor-pointer"
-                style={{ border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 0 20px rgba(59,130,246,0.15)' }}
-                onClick={() => setLightbox(0)}>
-                <img src={IMG_BASE + item.images![0]} alt={item.brand} className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #3B82F6, #14B8A6)', boxShadow: '0 0 30px rgba(59,130,246,0.25)' }}>
-                <Monitor size={22} className="sm:hidden" color="white" />
-                <Monitor size={28} className="hidden sm:block" color="white" />
-              </div>
-            )}
-
-            {/* info */}
-            <div className="flex-1 min-w-0">
-              {/* asset code + type badges */}
-              <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
-                <span className="font-mono text-xs sm:text-sm px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg font-semibold"
-                  style={{ background: 'rgba(59,130,246,0.15)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.3)' }}>
-                  {item.asset_code}
-                </span>
-                <span className={`badge badge-${item.type}`}>{item.type}</span>
-                {/* status badge inline on mobile, pill on desktop */}
-                <span className="sm:hidden flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold"
-                  style={{ background: sm.bg, border: `1px solid ${sm.border}`, color: sm.text }}>
-                  <StatusIcon size={11} />
-                  {item.status}
-                </span>
-              </div>
-
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h1 className="text-lg sm:text-2xl font-bold mb-0.5 sm:mb-1 leading-tight"
-                    style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>
-                    {item.brand} {item.model_no}
-                  </h1>
-                  <p className="text-xs" style={{ color: '#475569' }}>
-                    Added {fmtDate(item.created_at)} · Updated {fmtDate(item.updated_at)}
-                  </p>
+        <div className="glass-card overflow-hidden">
+          <div className="h-1 w-full" style={{ background: sm.accent }} />
+          <div className="p-4 sm:p-6">
+            <div className="flex items-start gap-3 sm:gap-5">
+              {/* laptop thumbnail or status icon */}
+              {item.images?.[0] ? (
+                <div className="w-16 h-14 sm:w-20 sm:h-16 rounded-2xl overflow-hidden flex-shrink-0 cursor-pointer"
+                  style={{ border: `1px solid ${sm.border}` }}
+                  onClick={() => setLightbox(0)}>
+                  <img src={IMG_BASE + item.images![0]} alt={item.brand} className="w-full h-full object-cover" />
                 </div>
-
-                {/* status pill — desktop only */}
-                <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 rounded-xl flex-shrink-0"
+              ) : (
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
                   style={{ background: sm.bg, border: `1px solid ${sm.border}` }}>
-                  <StatusIcon size={15} style={{ color: sm.text }} />
-                  <span className="text-sm font-semibold capitalize" style={{ color: sm.text }}>{item.status}</span>
+                  <Monitor size={22} className="sm:hidden" style={{ color: sm.text }} />
+                  <Monitor size={28} className="hidden sm:block" style={{ color: sm.text }} />
                 </div>
-              </div>
+              )}
 
-              {/* quick spec pills */}
-              <div className="flex flex-wrap gap-1.5 mt-2.5">
-                {[item.cpu, item.ram, item.ssd].filter(Boolean).map(spec => (
-                  <span key={spec} className="text-xs px-2 py-0.5 rounded-md"
-                    style={{ background: 'rgba(30,48,88,0.6)', color: '#94A3B8', border: '1px solid rgba(30,48,88,0.9)' }}>
-                    {spec}
+              {/* info */}
+              <div className="flex-1 min-w-0">
+                {/* asset code + type + status badges */}
+                <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
+                  <span className="font-mono text-xs sm:text-sm px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg font-semibold"
+                    style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
+                    {item.asset_code}
                   </span>
-                ))}
+                  <span className={`badge badge-${item.type}`}>{item.type}</span>
+                  <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-semibold"
+                    style={{ background: sm.bg, border: `1px solid ${sm.border}`, color: sm.text }}>
+                    <StatusIcon size={11} />
+                    {item.status}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h1 className="text-lg sm:text-2xl font-bold mb-0.5 sm:mb-1 leading-tight"
+                      style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#0F172A' }}>
+                      {item.brand} {item.model_no}
+                    </h1>
+                    <p className="text-xs" style={{ color: '#94A3B8' }}>
+                      Added {fmtDate(item.created_at)} · Updated {fmtDate(item.updated_at)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* quick spec pills */}
+                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                  {[item.cpu, item.ram, item.ssd].filter(Boolean).map(spec => (
+                    <span key={spec} className="text-xs px-2 py-0.5 rounded-md"
+                      style={{ background: '#F1F5F9', color: '#64748B', border: '1px solid #E2E8F0' }}>
+                      {spec}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -361,9 +361,9 @@ export default function InventoryDetailPage() {
             {item.return_date     && <InfoRow icon={<RotateCcw size={13} />} label="Return Date"     value={fmtDate(item.return_date)} />}
             {item.return_location && <InfoRow icon={<MapPin size={13} />}    label="Return Location" value={item.return_location} />}
 
-            {!isStaff && (
-              <div className="pt-3 mt-1" style={{ borderTop: '1px solid #1E3058' }}>
-                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155' }}>Vendor</div>
+            {!isStaff && !isClient && (
+              <div className="pt-3 mt-1" style={{ borderTop: '1px solid #E2E8F0' }}>
+                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#94A3B8' }}>Vendor</div>
                 <div className="space-y-3">
                   <InfoRow icon={<Building2 size={13} />} label="Name"     value={item.vendor_name     || '—'} />
                   <InfoRow icon={<MapPin size={13} />}    label="Location" value={item.vendor_location || '—'} />
@@ -372,8 +372,8 @@ export default function InventoryDetailPage() {
             )}
 
             {(item.employee_name || item.employee_mobile || item.employee_address) && (
-              <div className="pt-3 mt-1" style={{ borderTop: '1px solid #1E3058' }}>
-                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155' }}>Employee</div>
+              <div className="pt-3 mt-1" style={{ borderTop: '1px solid #E2E8F0' }}>
+                <div className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#94A3B8' }}>Employee</div>
                 <div className="space-y-3">
                   {item.employee_name    && <InfoRow icon={<User size={13} />}    label="Name"    value={item.employee_name} />}
                   {item.employee_mobile  && <InfoRow icon={<Hash size={13} />}    label="Mobile"  value={item.employee_mobile} />}
@@ -387,12 +387,12 @@ export default function InventoryDetailPage() {
         {/* ── Active Rental ── */}
         {activeRental && (
           <div className="glass-card p-4 sm:p-5"
-            style={{ border: '1px solid rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.04)' }}>
+            style={{ border: '1px solid #BFDBFE', background: '#EFF6FF' }}>
 
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#3B82F6' }} />
-                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+                <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#2563EB' }} />
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#1D4ED8', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                   Active Rental
                 </span>
               </div>
@@ -414,22 +414,22 @@ export default function InventoryDetailPage() {
 
             {/* Billing stats — 2-col on mobile, 4-col on sm+ */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pt-4"
-              style={{ borderTop: '1px solid rgba(59,130,246,0.15)' }}>
+              style={{ borderTop: '1px solid #DBEAFE' }}>
               {[
                 { label: 'Duration',                              value: `${activeRental.duration_days} days` },
                 { label: 'Monthly Rent',                         value: fmt(activeRental.monthly_rental) },
                 { label: `GST (${activeRental.gst_percent}%)`,   value: fmt(activeRental.gst_amount) },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center px-2 sm:px-3 py-2.5 rounded-xl"
-                  style={{ background: 'rgba(30,48,88,0.4)', border: '1px solid rgba(30,48,88,0.7)' }}>
-                  <div className="text-[10px] sm:text-xs mb-1 leading-tight" style={{ color: '#475569' }}>{label}</div>
-                  <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{value}</div>
+                  style={{ background: '#FFFFFF', border: '1px solid #E2E8F0' }}>
+                  <div className="text-[10px] sm:text-xs mb-1 leading-tight" style={{ color: '#64748B' }}>{label}</div>
+                  <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{value}</div>
                 </div>
               ))}
               <div className="text-center px-2 sm:px-3 py-2.5 rounded-xl"
-                style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                <div className="text-[10px] sm:text-xs mb-1" style={{ color: '#10B981' }}>Grand Total</div>
-                <div className="text-sm sm:text-base font-bold" style={{ color: '#10B981' }}>{fmt(activeRental.grand_total)}</div>
+                style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div className="text-[10px] sm:text-xs mb-1" style={{ color: '#16A34A' }}>Grand Total</div>
+                <div className="text-sm sm:text-base font-bold" style={{ color: '#16A34A' }}>{fmt(activeRental.grand_total)}</div>
               </div>
             </div>
           </div>
@@ -439,7 +439,7 @@ export default function InventoryDetailPage() {
         {item.notes && (
           <div className="glass-card p-4 sm:p-5">
             <SectionTitle>Notes</SectionTitle>
-            <p className="text-sm leading-relaxed" style={{ color: '#94A3B8' }}>{item.notes}</p>
+            <p className="text-sm leading-relaxed" style={{ color: '#475569' }}>{item.notes}</p>
           </div>
         )}
 
@@ -451,7 +451,7 @@ export default function InventoryDetailPage() {
               {item.images.map((path, idx) => (
                 <div key={idx} onClick={() => setLightbox(idx)}
                   className="relative rounded-xl overflow-hidden cursor-pointer group"
-                  style={{ aspectRatio: '4/3', background: 'rgba(11,22,40,0.8)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                  style={{ aspectRatio: '4/3', background: '#F1F5F9', border: '1px solid #E2E8F0' }}>
                   <img src={IMG_BASE + path} alt={`${item.brand} image ${idx + 1}`}
                     className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
@@ -466,12 +466,12 @@ export default function InventoryDetailPage() {
           </div>
         )}
 
-        {/* ── Rental History ── */}
-        <div className="glass-card overflow-hidden">
+        {/* ── Rental History (admin/staff only) ── */}
+        {!isClient && <div className="glass-card overflow-hidden">
           <div className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4"
-            style={{ borderBottom: '1px solid #1E3058' }}>
+            style={{ borderBottom: '1px solid #E2E8F0' }}>
             <span className="text-xs font-bold uppercase tracking-widest"
-              style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+              style={{ color: '#94A3B8', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               Rental History
             </span>
             {rentals.length > 0 && (
@@ -485,18 +485,18 @@ export default function InventoryDetailPage() {
           {rentals.length === 0 ? (
             <div className="py-12 text-center">
               <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center"
-                style={{ background: 'rgba(30,48,88,0.4)' }}>
-                <Clock size={20} style={{ color: '#334155' }} />
+                style={{ background: '#F1F5F9' }}>
+                <Clock size={20} style={{ color: '#94A3B8' }} />
               </div>
-              <p className="text-sm" style={{ color: '#475569' }}>No rental history found</p>
+              <p className="text-sm" style={{ color: '#64748B' }}>No rental history found</p>
             </div>
           ) : (
             <>
               {/* Mobile card list */}
-              <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+              <div className="sm:hidden divide-y divide-slate-100">
                 {rentals.map(r => (
                   <Link key={r.id} href={`/rentals/${r.id}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
                     style={{ textDecoration: 'none' }}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
@@ -508,8 +508,8 @@ export default function InventoryDetailPage() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
-                      <div className="text-[10px]" style={{ color: '#475569' }}>{r.duration_days}d</div>
+                      <div className="text-sm font-bold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</div>
+                      <div className="text-[10px]" style={{ color: '#94A3B8' }}>{r.duration_days}d</div>
                     </div>
                   </Link>
                 ))}
@@ -539,20 +539,20 @@ export default function InventoryDetailPage() {
                           </Link>
                         </td>
                         <td>
-                          <div style={{ color: '#F1F5F9' }}>{r.client?.name || '—'}</div>
+                          <div style={{ color: '#0F172A' }}>{r.client?.name || '—'}</div>
                           {r.client?.company && (
                             <div className="text-xs" style={{ color: '#475569' }}>{r.client.company}</div>
                           )}
                         </td>
                         <td className="hidden md:table-cell">
                           <div className="text-xs">
-                            <div style={{ color: '#F1F5F9' }}>{fmtDate(r.start_date)}</div>
+                            <div style={{ color: '#0F172A' }}>{fmtDate(r.start_date)}</div>
                             <div style={{ color: '#475569' }}>→ {fmtDate(r.end_date)}</div>
                           </div>
                         </td>
                         <td className="hidden md:table-cell text-sm">{r.duration_days}d</td>
                         <td>
-                          <span className="font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</span>
+                          <span className="font-semibold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</span>
                         </td>
                         <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
                       </tr>
@@ -562,7 +562,7 @@ export default function InventoryDetailPage() {
               </div>
             </>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* ── Schedule Modal (staff) ── */}
@@ -631,8 +631,8 @@ export default function InventoryDetailPage() {
           </FormField>
         </div>
 
-        <div className="mt-4 pt-4" style={{ borderTop: '1px solid #1E3058' }}>
-          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Employee Assignment</div>
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid #E2E8F0' }}>
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#94A3B8' }}>Employee Assignment</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <FormField label="Employee Name">
               <input className="inp" value={editForm.employee_name} onChange={e => f('employee_name', e.target.value)} placeholder="John Doe" />

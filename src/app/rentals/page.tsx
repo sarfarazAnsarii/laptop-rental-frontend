@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Rental } from '@/types';
-import { FileText, Plus, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors, ArrowLeftRight, Search, X, UploadCloud, FileDown, AlertCircle } from 'lucide-react';
+import { FileText, Plus, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors, ArrowLeftRight, Search, X, UploadCloud, FileDown, AlertCircle, Filter, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { generateInvoiceEmail, generateBulkInvoiceEmail } from '@/lib/ai';
@@ -536,59 +536,128 @@ export default function RentalsPage() {
         ) : undefined}
       />
 
-      {/* Filters */}
-      <div className="glass-card p-4 mb-6">
-        <div className="flex flex-wrap gap-3 items-center">
+      {/* ── Filter bar ── */}
+      <div className="glass-card mb-6 overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-stretch divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
 
-          {/* Search */}
-          <div className="relative flex-1 min-w-[180px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#475569' }} />
+          {/* Search — primary, takes remaining space */}
+          <div className="relative flex-1 min-w-0">
+            <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
             <input
-              className="inp pl-8 pr-8"
-              placeholder="Search rental no, client, laptop…"
+              className="w-full bg-transparent border-0 outline-none text-sm py-3.5 pr-4 focus:ring-0"
+              style={{ paddingLeft: '2.5rem', color: '#0F172A', fontFamily: 'Inter, sans-serif' }}
+              placeholder="Search by rental no, client name, laptop model…"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2" style={{ color: '#475569' }}>
-                <X size={13} />
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center transition-colors hover:bg-slate-200"
+                style={{ color: '#94A3B8' }}>
+                <X size={11} />
               </button>
             )}
           </div>
 
-          {/* Status */}
-          <select className="inp w-full sm:w-40" value={status} onChange={e => setStatus(e.target.value)}>
-            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
-          </select>
+          {/* Filter segments */}
+          <div className="flex items-stretch divide-x divide-slate-200 flex-shrink-0 flex-wrap sm:flex-nowrap">
 
-          {/* Client */}
-          <select className="inp w-full sm:w-48" value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
-            <option value="">All Clients</option>
-            {filterClients.map((c: any) => (
-              <option key={c.id} value={String(c.id)}>
-                {c.name}{c.company ? ` — ${c.company}` : ''}
-              </option>
-            ))}
-          </select>
+            {/* Status */}
+            <div className="relative flex items-center">
+              <select
+                className="appearance-none h-full px-4 py-3 pr-7 text-xs font-medium bg-transparent border-0 outline-none cursor-pointer focus:ring-0 hover:bg-slate-50 transition-colors"
+                style={{ color: status ? '#2563EB' : '#64748B', minWidth: 116 }}
+                value={status}
+                onChange={e => setStatus(e.target.value)}>
+                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
+              </select>
+              {status && <span className="absolute right-6 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pointer-events-none" style={{ background: '#2563EB' }} />}
+              <ChevronRight size={11} className="absolute right-2 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: '#CBD5E1' }} />
+            </div>
 
-          {/* Month */}
-          <input
-            type="month"
-            className="inp w-full sm:w-40"
-            value={monthFilter}
-            onChange={e => setMonthFilter(e.target.value)}
-          />
+            {/* Client */}
+            <div className="relative flex items-center">
+              <select
+                className="appearance-none h-full px-4 py-3 pr-7 text-xs font-medium bg-transparent border-0 outline-none cursor-pointer focus:ring-0 hover:bg-slate-50 transition-colors"
+                style={{ color: clientFilter ? '#2563EB' : '#64748B', minWidth: 132 }}
+                value={clientFilter}
+                onChange={e => setClientFilter(e.target.value)}>
+                <option value="">All Clients</option>
+                {filterClients.map((c: any) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}{c.company ? ` — ${c.company}` : ''}
+                  </option>
+                ))}
+              </select>
+              {clientFilter && <span className="absolute right-6 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pointer-events-none" style={{ background: '#2563EB' }} />}
+              <ChevronRight size={11} className="absolute right-2 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: '#CBD5E1' }} />
+            </div>
 
-          {/* Clear all */}
-          {(search || clientFilter || monthFilter || status) && (
-            <button
-              onClick={() => { setSearch(''); setStatus(''); setClientFilter(''); setMonthFilter(''); }}
-              className="text-xs px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-              style={{ background: 'rgba(244,63,94,0.08)', color: '#FB7185', border: '1px solid rgba(244,63,94,0.2)' }}>
-              Clear filters
-            </button>
-          )}
+            {/* Month */}
+            <div className="relative flex items-center">
+              <input
+                type="month"
+                className="appearance-none h-full px-4 py-3 text-xs font-medium bg-transparent border-0 outline-none cursor-pointer focus:ring-0 hover:bg-slate-50 transition-colors"
+                style={{ color: monthFilter ? '#2563EB' : '#64748B', minWidth: 130, colorScheme: 'light' }}
+                value={monthFilter}
+                onChange={e => setMonthFilter(e.target.value)}
+              />
+              {!monthFilter && (
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-medium pointer-events-none" style={{ color: '#64748B' }}>
+                  All Months
+                </span>
+              )}
+              {monthFilter && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: '#2563EB' }} />}
+            </div>
+
+            {/* Clear — appears only when any filter is active */}
+            {(search || clientFilter || monthFilter || status) && (
+              <button
+                onClick={() => { setSearch(''); setStatus(''); setClientFilter(''); setMonthFilter(''); }}
+                className="flex items-center gap-1.5 px-4 py-3 text-xs font-medium transition-colors hover:bg-red-50 whitespace-nowrap"
+                style={{ color: '#EF4444' }}>
+                <X size={11} />
+                Clear
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Active filter pills — shown below bar when filters are on */}
+        {(status || clientFilter || monthFilter) && (
+          <div className="flex items-center gap-2 flex-wrap px-4 py-2 border-t" style={{ borderColor: '#EFF6FF', background: '#FAFCFF' }}>
+            <Filter size={10} style={{ color: '#94A3B8' }} />
+            <span className="text-xs" style={{ color: '#94A3B8' }}>Filtering by:</span>
+            {status && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid rgba(37,99,235,0.2)' }}>
+                {status}
+                <button onClick={() => setStatus('')}><X size={9} /></button>
+              </span>
+            )}
+            {clientFilter && (() => {
+              const c = filterClients.find((x: any) => String(x.id) === clientFilter);
+              return c ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                  style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid rgba(37,99,235,0.2)' }}>
+                  {c.name}
+                  <button onClick={() => setClientFilter('')}><X size={9} /></button>
+                </span>
+              ) : null;
+            })()}
+            {monthFilter && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid rgba(37,99,235,0.2)' }}>
+                {monthFilter}
+                <button onClick={() => setMonthFilter('')}><X size={9} /></button>
+              </span>
+            )}
+            <span className="ml-auto text-xs" style={{ color: '#94A3B8' }}>
+              {total} result{total !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
       </div>
       {/* Table */}
       <div className="glass-card overflow-hidden">
@@ -1299,7 +1368,7 @@ export default function RentalsPage() {
                 {bulkInvoiceGroup[0].client?.name?.charAt(0)?.toUpperCase()}
               </div>
               <div>
-                <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{bulkInvoiceGroup[0].client?.name}</div>
+                <div className="text-sm font-semibold" style={{ color: '#475569' }}>{bulkInvoiceGroup[0].client?.name}</div>
                 <div className="text-xs" style={{ color: '#A78BFA' }}>{bulkInvoiceGroup[0].client?.email}</div>
                 {bulkInvoiceGroup[0].client?.company && <div className="text-xs" style={{ color: '#475569' }}>{bulkInvoiceGroup[0].client.company}</div>}
               </div>
@@ -1307,7 +1376,7 @@ export default function RentalsPage() {
 
             {/* Laptops list */}
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
-              <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(30,48,88,0.5)' }}>
+              <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(30, 48, 88, 0.1)' }}>
                 <Layers size={13} style={{ color: '#A78BFA' }} />
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>
                   {bulkInvoiceGroup.length} Laptop{bulkInvoiceGroup.length > 1 ? 's' : ''} in this Bulk

@@ -77,10 +77,12 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      await login(email, password);
+      const loggedInUser = await login(email, password);
       if (remember) localStorage.setItem('lr_remember_email', email);
       else          localStorage.removeItem('lr_remember_email');
-      router.push('/dashboard');
+      if (loggedInUser.role === 'client')     router.push('/client/rentals');
+      else if (loggedInUser.role === 'staff') router.push('/inventory');
+      else                                    router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Invalid credentials. Please try again.');
     } finally { setLoading(false); }

@@ -296,33 +296,123 @@ export default function InventoryPage() {
       ) : (
         /* ── Admin: full list view ── */
         <>
-          {/* Filters bar */}
-          <div className="glass-card p-4 mb-5 flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
-            <div className="relative flex-1 min-w-[220px]">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
-              <input className="inp" style={{ paddingLeft: '2.375rem' }}
-                placeholder="Search by asset code, serial, model…"
-                value={serialSearch} onChange={e => { setSerialSearch(e.target.value); setPage(1); }} />
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <select className="inp h-9 w-36" value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
-                {STATUS_OPTS.map(s => <option key={s} value={s}>{s||'All Status'}</option>)}
-              </select>
-              <select className="inp h-9 w-32" value={type} onChange={e => { setType(e.target.value); setPage(1); }}>
-                {TYPE_OPTS.map(t => <option key={t} value={t}>{t||'All Types'}</option>)}
-              </select>
-              {/* Grid / List toggle */}
-              <div className="flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: '#F1F5F9', border: '1px solid #E2E8F0' }}>
-                <button onClick={() => setViewMode('table')} className="w-8 h-7 rounded-md flex items-center justify-center transition-all"
-                  style={{ background: viewMode==='table'?'white':'transparent', color: viewMode==='table'?'#2563EB':'#94A3B8', boxShadow: viewMode==='table'?'0 1px 2px rgba(0,0,0,0.08)':undefined }}>
-                  <List size={13} />
-                </button>
-                <button onClick={() => setViewMode('grid')} className="w-8 h-7 rounded-md flex items-center justify-center transition-all"
-                  style={{ background: viewMode==='grid'?'white':'transparent', color: viewMode==='grid'?'#2563EB':'#94A3B8', boxShadow: viewMode==='grid'?'0 1px 2px rgba(0,0,0,0.08)':undefined }}>
-                  <LayoutGrid size={13} />
-                </button>
+          {/* ── Filter bar ── */}
+          <div className="glass-card mb-5 overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-200">
+
+              {/* Search — primary action */}
+              <div className="relative flex-1 min-w-0">
+                <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#94A3B8' }} />
+                <input
+                  className="w-full bg-transparent border-0 outline-none text-sm py-3.5 pr-4 focus:ring-0"
+                  style={{ paddingLeft: '2.75rem', color: '#0F172A', fontFamily: 'Inter, sans-serif' }}
+                  placeholder="Search by asset code, serial number, brand or model…"
+                  value={serialSearch}
+                  onChange={e => { setSerialSearch(e.target.value); setPage(1); }}
+                />
+                {serialSearch && (
+                  <button onClick={() => { setSerialSearch(''); setPage(1); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center transition-colors hover:bg-slate-200"
+                    style={{ color: '#94A3B8' }}>
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter group */}
+              <div className="flex items-center gap-0 divide-x divide-slate-200" style={{ flexShrink: 0 }}>
+
+                {/* Status filter */}
+                <div className="relative">
+                  <select
+                    className="appearance-none h-full px-4 py-3.5 pr-8 text-xs font-medium bg-transparent border-0 outline-none cursor-pointer focus:ring-0 transition-colors hover:bg-slate-50"
+                    style={{ color: status ? '#2563EB' : '#64748B', minWidth: 120 }}
+                    value={status}
+                    onChange={e => { setStatus(e.target.value); setPage(1); }}>
+                    {STATUS_OPTS.map(s => <option key={s} value={s}>{s || 'All Status'}</option>)}
+                  </select>
+                  {status && (
+                    <span className="absolute right-7 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: '#2563EB' }} />
+                  )}
+                  <ChevronRight size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: '#CBD5E1' }} />
+                </div>
+
+                {/* Type filter */}
+                <div className="relative">
+                  <select
+                    className="appearance-none h-full px-4 py-3.5 pr-8 text-xs font-medium bg-transparent border-0 outline-none cursor-pointer focus:ring-0 transition-colors hover:bg-slate-50"
+                    style={{ color: type ? '#2563EB' : '#64748B', minWidth: 110 }}
+                    value={type}
+                    onChange={e => { setType(e.target.value); setPage(1); }}>
+                    {TYPE_OPTS.map(t => <option key={t} value={t}>{t || 'All Types'}</option>)}
+                  </select>
+                  {type && (
+                    <span className="absolute right-7 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: '#2563EB' }} />
+                  )}
+                  <ChevronRight size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 rotate-90 pointer-events-none" style={{ color: '#CBD5E1' }} />
+                </div>
+
+                {/* Clear filters */}
+                {(serialSearch || status || type) && (
+                  <button
+                    onClick={() => { setSerialSearch(''); setStatus(''); setType(''); setPage(1); }}
+                    className="flex items-center gap-1.5 px-3.5 py-3.5 text-xs font-medium transition-colors hover:bg-red-50"
+                    style={{ color: '#EF4444', whiteSpace: 'nowrap' }}>
+                    <X size={11} />
+                    Clear
+                  </button>
+                )}
+
+                {/* Divider + View toggle */}
+                <div className="flex items-center gap-0.5 px-3 py-2.5">
+                  <button
+                    onClick={() => setViewMode('table')}
+                    className="w-8 h-7 rounded-lg flex items-center justify-center transition-all"
+                    style={{
+                      background: viewMode === 'table' ? '#EFF6FF' : 'transparent',
+                      color: viewMode === 'table' ? '#2563EB' : '#CBD5E1',
+                    }}
+                    title="Table view">
+                    <List size={14} />
+                  </button>
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className="w-8 h-7 rounded-lg flex items-center justify-center transition-all"
+                    style={{
+                      background: viewMode === 'grid' ? '#EFF6FF' : 'transparent',
+                      color: viewMode === 'grid' ? '#2563EB' : '#CBD5E1',
+                    }}
+                    title="Grid view">
+                    <LayoutGrid size={14} />
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Active filter pills */}
+            {(status || type) && (
+              <div className="flex items-center gap-2 px-4 py-2 border-t" style={{ borderColor: '#EFF6FF', background: '#FAFCFF' }}>
+                <Filter size={10} style={{ color: '#94A3B8' }} />
+                <span className="text-xs" style={{ color: '#94A3B8' }}>Active:</span>
+                {status && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                    style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid rgba(37,99,235,0.2)' }}>
+                    {status}
+                    <button onClick={() => { setStatus(''); setPage(1); }}><X size={9} /></button>
+                  </span>
+                )}
+                {type && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                    style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid rgba(37,99,235,0.2)' }}>
+                    {type}
+                    <button onClick={() => { setType(''); setPage(1); }}><X size={9} /></button>
+                  </span>
+                )}
+                <span className="ml-auto text-xs" style={{ color: '#94A3B8' }}>
+                  {total} result{total !== 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="glass-card overflow-hidden">
@@ -374,117 +464,255 @@ export default function InventoryPage() {
               /* ── Table view ── */
               <>
                 <div className="hidden sm:block overflow-x-auto">
-                  <table className="data-table">
+                  <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
-                      <tr>
-                        <th className="w-8 text-center">#</th>
-                        <th>Asset Code</th>
-                        <th>Brand / Model</th>
-                        <th>Serial No</th>
-                        <th>Specs</th>
-                        <th>Type</th>
-                        <th className="text-right">Monthly</th>
-                        <th>Vendor</th>
-                        <th className="hidden xl:table-cell">Employee</th>
-                        <th>Status</th>
-                        <th>Client</th>
-                        <th className="text-center">Actions</th>
+                      <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
+                        {[
+                          { label: 'Laptop', wide: true },
+                          { label: 'Specs' },
+                          { label: 'Monthly', right: true },
+                          { label: 'Type', center: true },
+                          { label: 'Vendor / Employee' },
+                          { label: 'Status', center: true },
+                          { label: 'Client' },
+                          { label: '', center: true, w: 80 },
+                        ].map(h => (
+                          <th key={h.label}
+                            style={{
+                              padding: '10px 14px',
+                              background: '#F8FAFC',
+                              color: '#64748B',
+                              fontWeight: 600,
+                              fontSize: 11,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              textAlign: h.right ? 'right' : h.center ? 'center' : 'left',
+                              whiteSpace: 'nowrap',
+                              width: h.w,
+                            }}>
+                            {h.label}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((item, idx) => (
-                        <tr key={item.id}>
-                          <td className="text-center text-xs" style={{ color: '#94A3B8' }}>{(page-1)*15+idx+1}</td>
-                          <td>
-                            <Link href={`/inventory/${item.id}`}
-                              className="font-mono text-xs font-bold"
-                              style={{ color: '#2563EB', textDecoration: 'none' }}>
-                              {item.asset_code}
-                            </Link>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              {item.images?.[0] ? (
-                                <img src={IMG_BASE+item.images[0]} alt={item.brand}
-                                  className="w-8 h-6 object-cover rounded flex-shrink-0" style={{ border: '1px solid #E2E8F0' }} />
-                              ) : (
-                                <div className="w-8 h-6 rounded flex items-center justify-center flex-shrink-0" style={{ background: '#F1F5F9' }}>
-                                  <Monitor size={11} style={{ color: '#CBD5E1' }} />
+                      {items.map((item) => {
+                        const sc = STATUS_COLORS[item.status] || STATUS_COLORS.available;
+                        const isActive = item.status === 'rented';
+                        return (
+                          <tr key={item.id}
+                            className="group transition-colors hover:bg-slate-50"
+                            style={{ borderBottom: '1px solid #F1F5F9' }}>
+
+                            {/* Laptop — merged thumbnail + asset code + brand/model */}
+                            <td style={{ padding: '10px 14px' }}>
+                              <div className="flex items-center gap-3">
+                                {/* Thumbnail */}
+                                <div className="flex-shrink-0 relative">
+                                  {item.images?.[0] ? (
+                                    <img src={IMG_BASE + item.images[0]} alt={item.brand}
+                                      className="w-10 h-8 object-cover rounded-lg"
+                                      style={{ border: '1px solid #E2E8F0' }} />
+                                  ) : (
+                                    <div className="w-10 h-8 rounded-lg flex items-center justify-center"
+                                      style={{ background: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+                                      <Monitor size={13} style={{ color: '#CBD5E1' }} />
+                                    </div>
+                                  )}
+                                  {/* Active rental indicator dot */}
+                                  {isActive && (
+                                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white"
+                                      style={{ background: '#2563EB' }} />
+                                  )}
                                 </div>
-                              )}
-                              <div>
-                                <div className="font-semibold text-sm" style={{ color: '#0F172A' }}>{item.brand}</div>
-                                <div className="text-xs" style={{ color: '#64748B' }}>{item.model_no}</div>
+
+                                {/* Info */}
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <Link href={`/inventory/${item.id}`}
+                                      className="font-mono text-xs font-bold hover:underline"
+                                      style={{ color: '#2563EB', textDecoration: 'none' }}>
+                                      {item.asset_code}
+                                    </Link>
+                                  </div>
+                                  <div className="font-semibold text-sm leading-tight" style={{ color: '#0F172A' }}>
+                                    {item.brand} {item.model_no}
+                                  </div>
+                                  {item.serial_number && (
+                                    <div className="font-mono text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+                                      {item.serial_number}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td><code className="text-xs" style={{ color: '#64748B' }}>{item.serial_number||'—'}</code></td>
-                          <td>
-                            <div className="text-xs" style={{ color: '#334155' }}>{item.cpu}{(item as any).generation?` · ${(item as any).generation}G`:''}</div>
-                            <div className="text-xs" style={{ color: '#94A3B8' }}>{item.ram} · {item.ssd}</div>
-                          </td>
-                          <td><span className={`badge badge-${item.type}`}>{item.type}</span></td>
-                          <td className="text-right">
-                            <span className="text-sm font-semibold tabular-nums" style={{ color: item.monthly_rental?'#16A34A':'#CBD5E1' }}>
-                              {item.monthly_rental ? `₹${Number(item.monthly_rental).toLocaleString()}` : '—'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="text-xs" style={{ color: '#334155' }}>{item.vendor_name||'—'}</div>
-                            {item.vendor_location && <div className="text-xs" style={{ color: '#94A3B8' }}>{item.vendor_location}</div>}
-                          </td>
-                          <td className="hidden xl:table-cell">
-                            <div className="text-xs" style={{ color: '#334155' }}>{item.employee_name||'—'}</div>
-                            {item.employee_mobile && <div className="text-xs" style={{ color: '#94A3B8' }}>{item.employee_mobile}</div>}
-                          </td>
-                          <td><span className={`badge badge-${item.status}`}>{item.status}</span></td>
-                          <td>
-                            {item.active_rental?.client ? (
-                              <>
-                                <div className="text-xs font-medium" style={{ color: '#334155' }}>{item.active_rental.client.name}</div>
-                                {item.active_rental.client.company && <div className="text-xs" style={{ color: '#94A3B8' }}>{item.active_rental.client.company}</div>}
-                              </>
-                            ) : <span style={{ color: '#CBD5E1' }}>—</span>}
-                          </td>
-                          <td>
-                            <div className="flex items-center justify-center gap-1">
-                              <Link href={`/inventory/${item.id}`}>
-                                <Button variant="ghost" size="xs" icon={<Eye size={12} />} />
-                              </Link>
-                              {!isStaff && (
-                                <>
-                                  <Button variant="ghost" size="xs" icon={<Edit size={12} />} onClick={() => openEdit(item)} />
-                                  <Button variant="danger" size="xs" icon={<Trash2 size={12} />} onClick={() => handleDelete(item)} />
-                                </>
+                            </td>
+
+                            {/* Specs */}
+                            <td style={{ padding: '10px 14px' }}>
+                              <div className="text-xs font-medium" style={{ color: '#334155' }}>
+                                {item.cpu}{(item as any).generation ? ` ${(item as any).generation}G` : ''}
+                              </div>
+                              <div className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+                                {item.ram} · {item.ssd}
+                              </div>
+                            </td>
+
+                            {/* Monthly */}
+                            <td style={{ padding: '10px 14px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              {item.monthly_rental ? (
+                                <span className="text-sm font-bold tabular-nums" style={{ color: '#16A34A' }}>
+                                  ₹{Number(item.monthly_rental).toLocaleString()}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#E2E8F0' }}>—</span>
                               )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+
+                            {/* Type */}
+                            <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                              <span className={`badge badge-${item.type}`}>{item.type}</span>
+                            </td>
+
+                            {/* Vendor / Employee */}
+                            <td style={{ padding: '10px 14px', maxWidth: 140 }}>
+                              {item.vendor_name ? (
+                                <div className="text-xs font-medium truncate" style={{ color: '#334155' }}>{item.vendor_name}</div>
+                              ) : null}
+                              {item.employee_name ? (
+                                <div className="text-xs truncate mt-0.5" style={{ color: '#64748B' }}>
+                                  {item.employee_name}
+                                </div>
+                              ) : !item.vendor_name ? (
+                                <span style={{ color: '#E2E8F0', fontSize: 12 }}>—</span>
+                              ) : null}
+                            </td>
+
+                            {/* Status */}
+                            <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold"
+                                style={{ background: sc.bg, color: sc.text }}>
+                                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                  style={{ background: sc.text }} />
+                                {item.status}
+                              </span>
+                            </td>
+
+                            {/* Client */}
+                            <td style={{ padding: '10px 14px', maxWidth: 130 }}>
+                              {item.active_rental?.client ? (
+                                <div>
+                                  <div className="text-xs font-medium truncate" style={{ color: '#334155' }}>
+                                    {item.active_rental.client.name}
+                                  </div>
+                                  {item.active_rental.client.company && (
+                                    <div className="text-xs truncate" style={{ color: '#94A3B8' }}>
+                                      {item.active_rental.client.company}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : <span style={{ color: '#E2E8F0', fontSize: 12 }}>—</span>}
+                            </td>
+
+                            {/* Actions — always visible, tighter */}
+                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                              <div className="flex items-center justify-center gap-0.5">
+                                <Link href={`/inventory/${item.id}`}>
+                                  <button
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-blue-50"
+                                    style={{ color: '#94A3B8' }}
+                                    title="View details">
+                                    <Eye size={13} />
+                                  </button>
+                                </Link>
+                                {!isStaff && (
+                                  <>
+                                    <button
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-slate-100"
+                                      style={{ color: '#94A3B8' }}
+                                      onClick={() => openEdit(item)}
+                                      title="Edit">
+                                      <Edit size={13} />
+                                    </button>
+                                    <button
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-red-50"
+                                      style={{ color: '#94A3B8' }}
+                                      onClick={() => handleDelete(item)}
+                                      title="Delete">
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
 
                 {/* Mobile cards */}
                 <div className="sm:hidden divide-y" style={{ borderColor: '#F1F5F9' }}>
-                  {items.map(item => (
-                    <div key={item.id} className="p-4 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <code className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: '#EFF6FF', color: '#2563EB' }}>{item.asset_code}</code>
-                        <div className="flex items-center gap-1.5">
+                  {items.map(item => {
+                    const sc = STATUS_COLORS[item.status] || STATUS_COLORS.available;
+                    return (
+                      <div key={item.id} className="p-4">
+                        <div className="flex items-start gap-3">
+                          {/* Thumbnail */}
+                          {item.images?.[0] ? (
+                            <img src={IMG_BASE + item.images[0]} alt={item.brand}
+                              className="w-12 h-10 object-cover rounded-xl flex-shrink-0"
+                              style={{ border: '1px solid #E2E8F0' }} />
+                          ) : (
+                            <div className="w-12 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                              style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                              <Monitor size={16} style={{ color: '#CBD5E1' }} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <div>
+                                <Link href={`/inventory/${item.id}`}
+                                  className="font-mono text-xs font-bold"
+                                  style={{ color: '#2563EB', textDecoration: 'none' }}>
+                                  {item.asset_code}
+                                </Link>
+                                <div className="font-semibold text-sm mt-0.5" style={{ color: '#0F172A' }}>
+                                  {item.brand} {item.model_no}
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0"
+                                style={{ background: sc.bg, color: sc.text }}>
+                                {item.status}
+                              </span>
+                            </div>
+                            <div className="text-xs" style={{ color: '#64748B' }}>
+                              {item.cpu} · {item.ram} · {item.ssd}
+                            </div>
+                            {item.monthly_rental && (
+                              <div className="text-xs font-bold mt-1" style={{ color: '#16A34A' }}>
+                                ₹{Number(item.monthly_rental).toLocaleString()}/mo
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid #F8FAFC' }}>
                           <span className={`badge badge-${item.type}`}>{item.type}</span>
-                          <span className={`badge badge-${item.status}`}>{item.status}</span>
+                          <div className="flex items-center gap-1">
+                            <Link href={`/inventory/${item.id}`}>
+                              <Button variant="ghost" size="sm" icon={<Eye size={13} />} />
+                            </Link>
+                            {!isStaff && (
+                              <>
+                                <Button variant="ghost" size="sm" icon={<Edit size={13} />} onClick={() => openEdit(item)} />
+                                <Button variant="danger" size="sm" icon={<Trash2 size={13} />} onClick={() => handleDelete(item)} />
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="font-semibold text-sm" style={{ color: '#0F172A' }}>{item.brand} {item.model_no}</div>
-                      <div className="text-xs" style={{ color: '#64748B' }}>{item.cpu} · {item.ram} · {item.ssd}</div>
-                      {item.monthly_rental && <div className="text-xs font-semibold" style={{ color: '#16A34A' }}>₹{Number(item.monthly_rental).toLocaleString()}/mo</div>}
-                      <div className="flex items-center justify-end gap-1 pt-1">
-                        <Link href={`/inventory/${item.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
-                        {!isStaff && <><Button variant="ghost" size="sm" icon={<Edit size={13} />} onClick={() => openEdit(item)} /><Button variant="danger" size="sm" icon={<Trash2 size={13} />} onClick={() => handleDelete(item)} /></>}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

@@ -43,7 +43,7 @@ function dailyRate(monthlyRental: number, startDate: string): number {
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <h2 className="text-xs font-bold uppercase tracking-widest mb-4"
-      style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+      style={{ color: '#94A3B8', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       {children}
     </h2>
   );
@@ -52,10 +52,10 @@ function SectionTitle({ children }: { children: ReactNode }) {
 function InfoRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 flex-shrink-0" style={{ color: '#475569' }}>{icon}</span>
+      <span className="mt-0.5 flex-shrink-0" style={{ color: '#94A3B8' }}>{icon}</span>
       <div>
-        <div className="text-xs mb-0.5" style={{ color: '#475569' }}>{label}</div>
-        <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{value}</div>
+        <div className="text-xs mb-0.5 uppercase tracking-wider" style={{ color: '#94A3B8' }}>{label}</div>
+        <div className="text-sm font-medium" style={{ color: '#0F172A' }}>{value}</div>
       </div>
     </div>
   );
@@ -232,36 +232,54 @@ export default function BulkRentalDetailPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.rentals.list({ bulk_id: bulkId, per_page: '100' });
-      const all  = res.data?.data || res.data || [];
-      const data = all.filter((r: any) => r.bulk_id === bulkId);
-      if (data.length === 0) { router.push('/rentals'); return; }
+      let data: any[];
+      if (isClient) {
+        // Clients use the restricted client endpoint
+        const res = await api.client.myRentals({ bulk_id: bulkId, per_page: '100' });
+        const all = res.data?.data || res.data || [];
+        data = all.filter((r: any) => r.bulk_id === bulkId);
+      } else {
+        const res = await api.rentals.list({ bulk_id: bulkId, per_page: '100' });
+        const all = res.data?.data || res.data || [];
+        data = all.filter((r: any) => r.bulk_id === bulkId);
+      }
+
+      if (data.length === 0) {
+        router.push(isClient ? '/client/rentals' : '/rentals');
+        return;
+      }
       setRentals(data);
-      // Load existing credit notes for this bulk to know which cancelled rentals already have one
-      try {
-        const cnRes = await api.creditNotes.list({ bulk_id: bulkId, per_page: '100' });
-        const cnList = cnRes.data?.data || cnRes.data || [];
-        setCreditNotedIds(new Set(cnList.map((cn: any) => cn.rental_id).filter(Boolean)));
-      } catch { /* non-critical */ }
-      // Load schedules for all rentals in this bulk
+
+      // Load existing credit notes (admin/staff only)
+      if (!isClient) {
+        try {
+          const cnRes = await api.creditNotes.list({ bulk_id: bulkId, per_page: '100' });
+          const cnList = cnRes.data?.data || cnRes.data || [];
+          setCreditNotedIds(new Set(cnList.map((cn: any) => cn.rental_id).filter(Boolean)));
+        } catch { /* non-critical */ }
+      }
+
+      // Load schedules for all rentals
       const schedResults = await Promise.allSettled(data.map((r: any) => api.rentals.schedules.list(r.id)));
       const allSchedules = schedResults.flatMap((res, i) =>
         res.status === 'fulfilled' ? (res.value.data || []).map((s: any) => ({ ...s, _rental: data[i] })) : []
       );
       setSchedules(allSchedules.sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()));
 
-      // Load exchange history for all rentals in this bulk
-      try {
-        const excResults = await Promise.allSettled(data.map((r: any) => api.exchanges.list({ rental_id: String(r.id), per_page: '100' })));
-        const allExchanges = excResults.flatMap((res, i) =>
-          res.status === 'fulfilled' ? (res.value.data?.data || res.value.data || []).map((ex: any) => ({ ...ex, _rental: data[i] })) : []
-        );
-        setExchanges(allExchanges.sort((a: any, b: any) => new Date(b.exchange_date).getTime() - new Date(a.exchange_date).getTime()));
-      } catch { /* non-critical */ }
+      // Load exchange history (admin/staff only)
+      if (!isClient) {
+        try {
+          const excResults = await Promise.allSettled(data.map((r: any) => api.exchanges.list({ rental_id: String(r.id), per_page: '100' })));
+          const allExchanges = excResults.flatMap((res, i) =>
+            res.status === 'fulfilled' ? (res.value.data?.data || res.value.data || []).map((ex: any) => ({ ...ex, _rental: data[i] })) : []
+          );
+          setExchanges(allExchanges.sort((a: any, b: any) => new Date(b.exchange_date).getTime() - new Date(a.exchange_date).getTime()));
+        } catch { /* non-critical */ }
+      }
     } catch {
-      router.push('/rentals');
+      router.push(isClient ? '/client/rentals' : '/rentals');
     } finally { setLoading(false); }
-  }, [bulkId, router]);
+  }, [bulkId, router, isClient]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -403,19 +421,21 @@ export default function BulkRentalDetailPage() {
   const gstSum     = rentals.reduce((s: number, r: any) => s + Number(r.gst_amount  || 0), 0);
   const totalSum   = rentals.reduce((s: number, r: any) => s + Number(r.total       || 0), 0);
 
+  const backHref = isClient ? '/client/rentals' : '/rentals';
+
   return (
     <DashboardLayout>
       <div className="animate-fade-in space-y-5">
 
         {/* Breadcrumb */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-2 text-sm" style={{ color: '#475569' }}>
-            <Link href="/rentals" className="hover:text-blue-400 transition-colors">Rentals</Link>
+          <div className="flex items-center gap-2 text-sm" style={{ color: '#64748B' }}>
+            <Link href={backHref} className="hover:text-blue-600 transition-colors">Rentals</Link>
             <ChevronRight size={13} />
-            <span style={{ color: '#A78BFA' }}>{bulkId}</span>
+            <span style={{ color: '#7C3AED' }}>{bulkId}</span>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Link href="/rentals">
+            <Link href={backHref}>
               <Button variant="ghost" size="sm" icon={<ArrowLeft size={14} />}>Back</Button>
             </Link>
             <Link href={`/rentals/bulk/${encodeURIComponent(bulkId)}/invoice`} target="_blank">
@@ -461,51 +481,53 @@ export default function BulkRentalDetailPage() {
         </div>
 
         {/* Hero */}
-        <div className="glass-card p-6"
-          style={{ background: 'linear-gradient(135deg,rgba(13,27,46,0.95),rgba(17,34,62,0.95))', borderColor: '#1E3058' }}>
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', boxShadow: '0 0 30px rgba(139,92,246,0.25)' }}>
-              <Layers size={24} color="white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                <span className="font-mono text-sm px-2.5 py-1 rounded-lg font-semibold"
-                  style={{ background: 'rgba(139,92,246,0.15)', color: '#A78BFA', border: '1px solid rgba(139,92,246,0.3)' }}>
-                  {bulkId}
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                  style={{ background: 'rgba(139,92,246,0.12)', color: '#A78BFA' }}>
-                  {rentals.length} Laptops
-                </span>
-                {statuses.map(s => (
-                  <span key={s} className={`badge badge-${s}`}>{s}</span>
-                ))}
+        <div className="glass-card overflow-hidden">
+          <div className="h-1 w-full" style={{ background: '#8B5CF6' }} />
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: '#FAF5FF', border: '1px solid #E9D5FF' }}>
+                <Layers size={24} style={{ color: '#7C3AED' }} />
               </div>
-              <h1 className="text-xl font-bold" style={{ fontFamily: 'Syne, sans-serif', color: '#F1F5F9' }}>
-                Bulk Rental
-              </h1>
-              <p className="text-xs mt-1" style={{ color: '#475569' }}>
-                Delivery: {fmtDate(rentals[0]?.delivery_date || rentals[0]?.start_date)}
-              </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <span className="font-mono text-sm px-2.5 py-1 rounded-lg font-semibold"
+                    style={{ background: '#FAF5FF', color: '#7C3AED', border: '1px solid #E9D5FF' }}>
+                    {bulkId}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style={{ background: '#FAF5FF', color: '#7C3AED', border: '1px solid #E9D5FF' }}>
+                    {rentals.length} Laptops
+                  </span>
+                  {statuses.map(s => (
+                    <span key={s} className={`badge badge-${s}`}>{s}</span>
+                  ))}
+                </div>
+                <h1 className="text-xl font-bold" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#0F172A' }}>
+                  Bulk Rental
+                </h1>
+                <p className="text-xs mt-1" style={{ color: '#64748B' }}>
+                  Delivery: {fmtDate(rentals[0]?.delivery_date || rentals[0]?.start_date)}
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Client + Vendor + Billing */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+        <div className={`grid grid-cols-1 gap-5 ${!isClient ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
 
           {/* Client Info */}
           <div className="glass-card p-5 space-y-3.5">
             <SectionTitle>Client</SectionTitle>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold"
-                style={{ background: 'linear-gradient(135deg,#14B8A6,#0D9488)', color: 'white' }}>
+                style={{ background: '#EFF6FF', color: '#2563EB', fontSize: 16 }}>
                 {client?.name?.charAt(0)?.toUpperCase()}
               </div>
               <div>
-                <div className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>{client?.name || '—'}</div>
-                {client?.company && <div className="text-xs" style={{ color: '#475569' }}>{client.company}</div>}
+                <div className="font-semibold text-sm" style={{ color: '#0F172A' }}>{client?.name || '—'}</div>
+                {client?.company && <div className="text-xs" style={{ color: '#64748B' }}>{client.company}</div>}
               </div>
             </div>
             {client?.phone   && <InfoRow icon={<Phone     size={13} />} label="Phone"   value={client.phone} />}
@@ -514,46 +536,48 @@ export default function BulkRentalDetailPage() {
             {client?.company && <InfoRow icon={<Building2 size={13} />} label="Company" value={client.company} />}
           </div>
 
-          {/* Vendor Info */}
-          <div className="glass-card p-5 space-y-3.5">
-            <SectionTitle>Vendor</SectionTitle>
-            {vendors.length === 0 ? (
-              <div className="text-xs py-6 text-center" style={{ color: '#334155' }}>No vendor assigned</div>
-            ) : vendors.map((inv: any) => (
-              <div key={inv.vendor_id} className="space-y-3">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', color: 'white' }}>
-                    {inv.vendor_name?.charAt(0)?.toUpperCase() || 'V'}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>
-                      {inv.vendor_name || `Vendor #${inv.vendor_id}`}
+          {/* Vendor Info — admin/staff only */}
+          {!isClient && (
+            <div className="glass-card p-5 space-y-3.5">
+              <SectionTitle>Vendor</SectionTitle>
+              {vendors.length === 0 ? (
+                <div className="text-xs py-6 text-center" style={{ color: '#94A3B8' }}>No vendor assigned</div>
+              ) : vendors.map((inv: any) => (
+                <div key={inv.vendor_id} className="space-y-3">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold flex-shrink-0"
+                      style={{ background: '#FFFBEB', color: '#B45309', fontSize: 16 }}>
+                      {inv.vendor_name?.charAt(0)?.toUpperCase() || 'V'}
                     </div>
-                    <div className="text-xs" style={{ color: '#475569' }}>ID: {inv.vendor_id}</div>
+                    <div>
+                      <div className="font-semibold text-sm" style={{ color: '#0F172A' }}>
+                        {inv.vendor_name || `Vendor #${inv.vendor_id}`}
+                      </div>
+                      <div className="text-xs" style={{ color: '#64748B' }}>ID: {inv.vendor_id}</div>
+                    </div>
                   </div>
+                  {inv.vendor_name     && <InfoRow icon={<Building2 size={13} />} label="Vendor Name"     value={inv.vendor_name} />}
+                  {inv.vendor_location && <InfoRow icon={<MapPin    size={13} />} label="Vendor Location" value={inv.vendor_location} />}
+                  {inv.return_location && <InfoRow icon={<MapPin    size={13} />} label="Return Location" value={inv.return_location} />}
+                  {inv.return_date     && <InfoRow icon={<Contact   size={13} />} label="Return Date"     value={fmtDate(inv.return_date)} />}
                 </div>
-                {inv.vendor_name     && <InfoRow icon={<Building2 size={13} />} label="Vendor Name"     value={inv.vendor_name} />}
-                {inv.vendor_location && <InfoRow icon={<MapPin    size={13} />} label="Vendor Location" value={inv.vendor_location} />}
-                {inv.return_location && <InfoRow icon={<MapPin    size={13} />} label="Return Location" value={inv.return_location} />}
-                {inv.return_date     && <InfoRow icon={<Contact   size={13} />} label="Return Date"     value={fmtDate(inv.return_date)} />}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Billing Summary */}
-          <div className="lg:col-span-2 glass-card p-5">
+          <div className={`${!isClient ? 'lg:col-span-2' : 'lg:col-span-2'} glass-card p-5`}>
             <SectionTitle>Billing Summary</SectionTitle>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Laptops',     value: String(rentals.length),  color: '#A78BFA' },
-                { label: 'Total Rental', value: fmt(totalSum),           color: '#F1F5F9' },
-                { label: 'Total GST',   value: fmt(gstSum),              color: '#F59E0B' },
-                { label: 'Grand Total', value: fmt(grandSum),            color: '#10B981' },
+                { label: 'Laptops',      value: String(rentals.length), color: '#7C3AED' },
+                { label: 'Total Rental', value: fmt(totalSum),           color: '#0F172A' },
+                { label: 'Total GST',    value: fmt(gstSum),             color: '#B45309' },
+                { label: 'Grand Total',  value: fmt(grandSum),           color: '#16A34A' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="text-center px-3 py-3.5 rounded-xl"
-                  style={{ background: 'rgba(30,48,88,0.4)', border: '1px solid rgba(30,48,88,0.7)' }}>
-                  <div className="text-xs mb-1" style={{ color: '#475569' }}>{label}</div>
+                  style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+                  <div className="text-xs mb-1" style={{ color: '#94A3B8' }}>{label}</div>
                   <div className="text-base font-bold" style={{ color }}>{value}</div>
                 </div>
               ))}
@@ -563,8 +587,8 @@ export default function BulkRentalDetailPage() {
 
         {/* Laptops Table */}
         <div className="glass-card overflow-hidden">
-          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #1E3058' }}>
-            <h2 className="text-xs font-bold uppercase tracking-widest m-0" style={{ color: '#475569', fontFamily: 'Syne, sans-serif' }}>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid #E2E8F0' }}>
+            <h2 className="text-xs font-bold uppercase tracking-widest m-0" style={{ color: '#94A3B8', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               Laptops in this Bulk
             </h2>
             {isAdmin && selectedIds.size > 0 && (
@@ -576,22 +600,22 @@ export default function BulkRentalDetailPage() {
           </div>
 
           {/* Mobile */}
-          <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+          <div className="sm:hidden divide-y divide-slate-100">
             {rentals.map((r: any) => (
               <div key={r.id} className="p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-semibold" style={{ color: '#3B82F6' }}>{r.rental_no}</Link>
+                  <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-semibold" style={{ color: '#2563EB' }}>{r.rental_no}</Link>
                   <span className={`badge badge-${r.status}`}>{r.status}</span>
                 </div>
                 <div>
-                  <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                  <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
-                  {r.inventory?.cpu && <div className="text-xs" style={{ color: '#64748B' }}>{r.inventory.cpu}{r.inventory.generation ? ` ${r.inventory.generation} Gen` : ''} · {r.inventory.ram} · {r.inventory.ssd}</div>}
+                  <div className="text-sm font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                  <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.inventory?.asset_code}</div>
+                  {r.inventory?.cpu && <div className="text-xs" style={{ color: '#94A3B8' }}>{r.inventory.cpu}{r.inventory.generation ? ` ${r.inventory.generation} Gen` : ''} · {r.inventory.ram} · {r.inventory.ssd}</div>}
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs" style={{ color: '#64748B' }}>{fmtDate(r.start_date)} · {r.duration_days}d</div>
-                    <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                    <div className="text-sm font-semibold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</div>
                   </div>
                   <div className="flex gap-1">
                     <Link href={`/rentals/${r.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
@@ -622,7 +646,7 @@ export default function BulkRentalDetailPage() {
                       <input type="checkbox"
                         checked={selectedIds.size > 0 && selectedIds.size === rentals.filter(r => r.status === 'active').length}
                         onChange={toggleSelectAll}
-                        style={{ accentColor: '#3B82F6', cursor: 'pointer' }} />
+                        style={{ accentColor: '#2563EB', cursor: 'pointer' }} />
                     </th>
                   )}
                   <th>Rental No</th>
@@ -639,7 +663,7 @@ export default function BulkRentalDetailPage() {
               <tbody>
                 {rentals.map((r: any) => (
                   <tr key={r.id} className="animate-fade-in"
-                    style={selectedIds.has(r.id) ? { background: 'rgba(244,63,94,0.06)' } : undefined}>
+                    style={selectedIds.has(r.id) ? { background: 'rgba(244,63,94,0.04)' } : undefined}>
                     {isAdmin && (
                       <td style={{ textAlign: 'center' }}>
                         {r.status === 'active' && (
@@ -651,28 +675,28 @@ export default function BulkRentalDetailPage() {
                       </td>
                     )}
                     <td>
-                      <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-semibold hover:underline" style={{ color: '#3B82F6' }}>
+                      <Link href={`/rentals/${r.id}`} className="font-mono text-xs font-semibold hover:underline" style={{ color: '#2563EB' }}>
                         {r.rental_no}
                       </Link>
                     </td>
                     <td>
-                      <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                      <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.inventory?.asset_code}</div>
+                      <div className="text-sm font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                      <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.inventory?.asset_code}</div>
                     </td>
                     <td className="hidden lg:table-cell">
                       <div className="text-xs" style={{ color: '#94A3B8' }}>
                         {[r.inventory?.cpu, r.inventory?.generation ? `${r.inventory.generation} Gen` : '', r.inventory?.ram, r.inventory?.ssd].filter(Boolean).join(' · ')}
                       </div>
                     </td>
-                    <td className="text-xs" style={{ color: '#F1F5F9' }}>
+                    <td className="text-xs" style={{ color: '#0F172A' }}>
                       <div>{fmtDate(r.start_date)}</div>
-                      <div style={{ color: '#475569' }}>→ {fmtDate(billingEnd(r.start_date))}</div>
+                      <div style={{ color: '#64748B' }}>→ {fmtDate(billingEnd(r.start_date))}</div>
                     </td>
                     <td className="text-sm" style={{ color: '#94A3B8' }}>{billingDays(r.start_date)}d</td>
-                    <td className="text-sm" style={{ color: '#F1F5F9' }}>{fmt(r.monthly_rental)}</td>
+                    <td className="text-sm" style={{ color: '#0F172A' }}>{fmt(r.monthly_rental)}</td>
                     <td>
-                      <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
-                      <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(r.gst_amount)}</div>
+                      <div className="text-sm font-semibold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</div>
+                      <div className="text-xs" style={{ color: '#64748B' }}>GST: {fmt(r.gst_amount)}</div>
                     </td>
                     <td><span className={`badge badge-${r.status}`}>{r.status}</span></td>
                     <td>
@@ -704,11 +728,11 @@ export default function BulkRentalDetailPage() {
                 ))}
               </tbody>
               <tfoot>
-                <tr style={{ background: 'rgba(16,185,129,0.05)', borderTop: '2px solid rgba(16,185,129,0.2)' }}>
-                  <td colSpan={isAdmin ? 7 : 6} className="text-right text-xs font-bold" style={{ color: '#475569' }}>Total ({rentals.length} rentals)</td>
+                <tr style={{ background: '#F0FDF4', borderTop: '2px solid #BBF7D0' }}>
+                  <td colSpan={isAdmin ? 7 : 6} className="text-right text-xs font-bold" style={{ color: '#94A3B8' }}>Total ({rentals.length} rentals)</td>
                   <td>
-                    <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(grandSum)}</div>
-                    <div className="text-xs" style={{ color: '#475569' }}>GST: {fmt(gstSum)}</div>
+                    <div className="text-sm font-bold" style={{ color: '#16A34A' }}>{fmt(grandSum)}</div>
+                    <div className="text-xs" style={{ color: '#64748B' }}>GST: {fmt(gstSum)}</div>
                   </td>
                   <td colSpan={2} />
                 </tr>
@@ -738,14 +762,14 @@ export default function BulkRentalDetailPage() {
           </div>
 
           {schedules.length === 0 ? (
-            <p className="text-sm" style={{ color: '#475569' }}>No schedules yet.</p>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>No schedules yet.</p>
           ) : (
             <div className="space-y-3">
               {schedules.map((s: any) => {
-                const isPickup   = s.type === 'pickup';
-                const color      = isPickup ? '#F59E0B' : '#3B82F6';
-                const bgColor    = isPickup ? 'rgba(245,158,11,0.07)' : 'rgba(59,130,246,0.07)';
-                const borderColor = isPickup ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)';
+                const isPickup    = s.type === 'pickup';
+                const color       = isPickup ? '#B45309' : '#1D4ED8';
+                const bgColor     = isPickup ? '#FFFBEB' : '#EFF6FF';
+                const borderColor = isPickup ? '#FDE68A' : '#BFDBFE';
                 return (
                   <div key={s.id} className="p-4 rounded-xl" style={{ background: bgColor, border: `1px solid ${borderColor}` }}>
                     <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -753,11 +777,12 @@ export default function BulkRentalDetailPage() {
                         <Truck size={14} style={{ color }} />
                         <span className="text-sm font-semibold capitalize" style={{ color }}>{s.type}</span>
                         <span className={`badge badge-${s.status}`}>{s.status}</span>
-                        <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: 'rgba(139,92,246,0.1)', color: '#A78BFA' }}>
+                        <span className="text-xs font-mono px-1.5 py-0.5 rounded"
+                          style={{ background: '#FAF5FF', color: '#7C3AED', border: '1px solid #E9D5FF' }}>
                           {s._rental?.rental_no}
                         </span>
                       </div>
-                      {isAdmin && s.status === 'scheduled' && (
+                      {isAdminOrStaff && s.status === 'scheduled' && (
                         <div className="flex gap-1">
                           <Button size="sm" variant="success" icon={<CheckCircle size={12} />}
                             onClick={() => { setCompleteModal(s); setCompleteNote(''); }}>
@@ -772,28 +797,28 @@ export default function BulkRentalDetailPage() {
                     </div>
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                       <div className="flex items-start gap-1.5">
-                        <MapPin size={11} style={{ color: '#475569', marginTop: 2, flexShrink: 0 }} />
-                        <span style={{ color: '#94A3B8' }}>{s.address}</span>
+                        <MapPin size={11} style={{ color: '#94A3B8', marginTop: 2, flexShrink: 0 }} />
+                        <span style={{ color: '#64748B' }}>{s.address}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <FileText size={11} style={{ color: '#475569' }} />
-                        <span style={{ color: '#94A3B8' }}>
+                        <FileText size={11} style={{ color: '#94A3B8' }} />
+                        <span style={{ color: '#64748B' }}>
                           {new Date(s.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                       {s.contact_name && (
                         <div className="flex items-center gap-1.5">
-                          <Contact size={11} style={{ color: '#475569' }} />
-                          <span style={{ color: '#94A3B8' }}>{s.contact_name}{s.contact_phone ? ` · ${s.contact_phone}` : ''}</span>
+                          <Contact size={11} style={{ color: '#94A3B8' }} />
+                          <span style={{ color: '#64748B' }}>{s.contact_name}{s.contact_phone ? ` · ${s.contact_phone}` : ''}</span>
                         </div>
                       )}
                       {s.notes && (
-                        <div className="flex items-start gap-1.5 sm:col-span-2" style={{ color: '#64748B' }}>{s.notes}</div>
+                        <div className="flex items-start gap-1.5 sm:col-span-2" style={{ color: '#94A3B8' }}>{s.notes}</div>
                       )}
                       {s.completed_at && (
                         <div className="flex items-center gap-1.5">
-                          <CheckCircle size={11} style={{ color: '#10B981' }} />
-                          <span style={{ color: '#10B981' }}>Completed: {new Date(s.completed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                          <CheckCircle size={11} style={{ color: '#16A34A' }} />
+                          <span style={{ color: '#16A34A' }}>Completed: {new Date(s.completed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       )}
                     </div>
@@ -804,21 +829,21 @@ export default function BulkRentalDetailPage() {
           )}
         </div>
 
-        {/* ── Exchange History ── */}
-        {(isAdminOrStaff || exchanges.length > 0) && (
+        {/* ── Exchange History (admin/staff only) ── */}
+        {isAdminOrStaff && (
           <div className="glass-card p-5">
             <div className="flex items-center justify-between mb-4">
               <SectionTitle>Exchange History</SectionTitle>
               {exchanges.length > 0 && (
                 <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                  style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA', border: '1px solid rgba(59,130,246,0.2)' }}>
+                  style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
                   {exchanges.length} exchange{exchanges.length !== 1 ? 's' : ''}
                 </span>
               )}
             </div>
 
             {exchanges.length === 0 ? (
-              <div className="flex items-center gap-2 py-4" style={{ color: '#334155' }}>
+              <div className="flex items-center gap-2 py-4" style={{ color: '#94A3B8' }}>
                 <ArrowLeftRight size={15} />
                 <span className="text-sm">No laptop exchanges on this bulk group.</span>
               </div>
@@ -826,19 +851,19 @@ export default function BulkRentalDetailPage() {
               <div className="space-y-3">
                 {exchanges.map((ex: any) => (
                   <div key={ex.id} className="rounded-xl p-4"
-                    style={{ background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                    style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
                     {/* Header */}
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-lg"
-                          style={{ background: 'rgba(59,130,246,0.1)', color: '#60A5FA' }}>
+                          style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE' }}>
                           {ex.exchange_no}
                         </span>
-                        <span className="font-mono text-xs" style={{ color: '#475569' }}>
+                        <span className="font-mono text-xs" style={{ color: '#64748B' }}>
                           {ex._rental?.rental_no}
                         </span>
                       </div>
-                      <span className="text-xs" style={{ color: '#64748B' }}>
+                      <span className="text-xs" style={{ color: '#94A3B8' }}>
                         {fmtDate(ex.exchange_date)}
                         {ex.exchanged_by_user?.name || ex.exchanged_by_name
                           ? ` · by ${ex.exchanged_by_user?.name ?? ex.exchanged_by_name}`
@@ -849,24 +874,24 @@ export default function BulkRentalDetailPage() {
                     {/* Old → New laptops */}
                     <div className="flex items-center gap-3">
                       <div className="flex-1 rounded-xl p-3"
-                        style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.15)' }}>
-                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#F87171' }}>Returned</div>
-                        <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                        style={{ background: 'rgba(244,63,94,0.05)', border: '1px solid rgba(244,63,94,0.15)' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#F43F5E' }}>Returned</div>
+                        <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>
                           {ex.old_inventory?.brand} {ex.old_inventory?.model_no}
                         </div>
-                        <div className="text-xs font-mono mt-0.5" style={{ color: '#64748B' }}>
+                        <div className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>
                           {ex.old_inventory?.asset_code}
                           {ex.old_inventory?.serial_number ? ` · ${ex.old_inventory.serial_number}` : ''}
                         </div>
                       </div>
-                      <ArrowLeftRight size={16} style={{ color: '#334155', flexShrink: 0 }} />
+                      <ArrowLeftRight size={16} style={{ color: '#94A3B8', flexShrink: 0 }} />
                       <div className="flex-1 rounded-xl p-3"
-                        style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#34D399' }}>Received</div>
-                        <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                        style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#16A34A' }}>Received</div>
+                        <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>
                           {ex.new_inventory?.brand} {ex.new_inventory?.model_no}
                         </div>
-                        <div className="text-xs font-mono mt-0.5" style={{ color: '#64748B' }}>
+                        <div className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>
                           {ex.new_inventory?.asset_code}
                           {ex.new_inventory?.serial_number ? ` · ${ex.new_inventory.serial_number}` : ''}
                         </div>
@@ -874,7 +899,7 @@ export default function BulkRentalDetailPage() {
                     </div>
 
                     {(ex.reason || ex.notes) && (
-                      <div className="mt-2 text-xs px-2 py-1.5 rounded-lg" style={{ background: 'rgba(15,23,42,0.4)', color: '#64748B' }}>
+                      <div className="mt-2 text-xs px-2 py-1.5 rounded-lg" style={{ background: '#F1F5F9', color: '#64748B' }}>
                         {ex.reason}{ex.reason && ex.notes ? ' · ' : ''}{ex.notes}
                       </div>
                     )}
@@ -895,25 +920,25 @@ export default function BulkRentalDetailPage() {
           {/* Result view after success */}
           {pcResult ? (
             <div className="space-y-4">
-              <div className="p-4 rounded-xl text-center" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                <CheckCircle size={28} style={{ color: '#10B981', margin: '0 auto 8px' }} />
-                <div className="text-sm font-bold" style={{ color: '#10B981' }}>{pcResult.message}</div>
-                <div className="flex justify-center gap-6 mt-3 text-xs" style={{ color: '#94A3B8' }}>
-                  <span>Credit: <strong style={{ color: '#10B981' }}>₹{Number(pcResult.total_credit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-                  <span>Adjusted Total: <strong style={{ color: '#F1F5F9' }}>₹{Number(pcResult.total_adjusted || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+              <div className="p-4 rounded-xl text-center" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <CheckCircle size={28} style={{ color: '#16A34A', margin: '0 auto 8px' }} />
+                <div className="text-sm font-bold" style={{ color: '#16A34A' }}>{pcResult.message}</div>
+                <div className="flex justify-center gap-6 mt-3 text-xs" style={{ color: '#64748B' }}>
+                  <span>Credit: <strong style={{ color: '#16A34A' }}>₹{Number(pcResult.total_credit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                  <span>Adjusted Total: <strong style={{ color: '#0F172A' }}>₹{Number(pcResult.total_adjusted || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
                 </div>
               </div>
 
               {pcResult.cancelled?.length > 0 && (
-                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
-                  <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: 'rgba(30,48,88,0.5)', color: '#475569' }}>
+                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+                  <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: '#F8FAFC', color: '#94A3B8' }}>
                     Cancelled Rentals
                   </div>
-                  <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+                  <div className="divide-y divide-slate-100">
                     {pcResult.cancelled.map((c: any) => (
                       <div key={c.rental_id} className="px-4 py-3 text-xs space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <div className="font-semibold" style={{ color: '#F1F5F9' }}>
+                          <div className="font-semibold" style={{ color: '#0F172A' }}>
                             {c.rental_no} — {c.inventory}
                           </div>
                           <Button size="sm" variant="outline" icon={<ReceiptText size={12} />}
@@ -928,11 +953,11 @@ export default function BulkRentalDetailPage() {
                           </Button>
                         </div>
                         <div className="grid grid-cols-2 gap-x-4">
-                          <div style={{ color: '#64748B' }}>Days Used / Month: <span style={{ color: '#F1F5F9' }}>{c.days_used} / {c.days_in_month}</span></div>
-                          <div style={{ color: '#64748B' }}>Monthly Rental: <span style={{ color: '#F1F5F9' }}>₹{Number(c.monthly_rental).toLocaleString('en-IN')}</span></div>
-                          <div style={{ color: '#64748B' }}>Original Total: <span style={{ color: '#F1F5F9' }}>₹{Number(c.original_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                          <div style={{ color: '#64748B' }}>Adjusted Total: <span style={{ color: '#10B981' }}>₹{Number(c.adjusted_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
-                          <div className="col-span-2" style={{ color: '#64748B' }}>Credit: <span style={{ color: '#F59E0B', fontWeight: 700 }}>₹{Number(c.credit_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                          <div style={{ color: '#64748B' }}>Days Used / Month: <span style={{ color: '#0F172A' }}>{c.days_used} / {c.days_in_month}</span></div>
+                          <div style={{ color: '#64748B' }}>Monthly Rental: <span style={{ color: '#0F172A' }}>₹{Number(c.monthly_rental).toLocaleString('en-IN')}</span></div>
+                          <div style={{ color: '#64748B' }}>Original Total: <span style={{ color: '#0F172A' }}>₹{Number(c.original_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                          <div style={{ color: '#64748B' }}>Adjusted Total: <span style={{ color: '#16A34A' }}>₹{Number(c.adjusted_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                          <div className="col-span-2" style={{ color: '#64748B' }}>Credit: <span style={{ color: '#B45309', fontWeight: 700 }}>₹{Number(c.credit_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
                         </div>
                       </div>
                     ))}
@@ -947,30 +972,30 @@ export default function BulkRentalDetailPage() {
           ) : (
             <>
               {/* Selected rentals preview */}
-              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
-                <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(244,63,94,0.08)' }}>
+              <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+                <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(244,63,94,0.06)' }}>
                   <Scissors size={13} style={{ color: '#F43F5E' }} />
                   <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#F43F5E' }}>
                     {selectedIds.size} Rental(s) to Cancel
                   </span>
                 </div>
-                <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+                <div className="divide-y divide-slate-100">
                   {rentals.filter(r => selectedIds.has(r.id)).map((r: any) => {
                     const preview = pcForm.end_date ? previewProRated(r, pcForm.end_date) : null;
                     return (
                       <div key={r.id} className="px-4 py-3">
                         <div className="flex items-center justify-between mb-1">
                           <div>
-                            <span className="font-mono text-xs font-semibold" style={{ color: '#3B82F6' }}>{r.rental_no}</span>
+                            <span className="font-mono text-xs font-semibold" style={{ color: '#2563EB' }}>{r.rental_no}</span>
                             <span className="text-xs ml-2" style={{ color: '#94A3B8' }}>{r.inventory?.brand} {r.inventory?.model_no}</span>
                           </div>
-                          <button onClick={() => toggleSelect(r.id)} style={{ color: '#64748B', fontSize: 11, background: 'none', border: 'none', cursor: 'pointer' }}>✕ Remove</button>
+                          <button onClick={() => toggleSelect(r.id)} style={{ color: '#94A3B8', fontSize: 11, background: 'none', border: 'none', cursor: 'pointer' }}>✕ Remove</button>
                         </div>
                         {preview && (
                           <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs mt-1" style={{ color: '#64748B' }}>
-                            <span>Used: <strong style={{ color: '#F1F5F9' }}>{preview.daysUsed}/{preview.daysInMonth}d</strong></span>
-                            <span>Pro-rated: <strong style={{ color: '#F1F5F9' }}>₹{preview.proTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-                            <span>Credit: <strong style={{ color: '#10B981' }}>₹{Math.max(0, preview.credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                            <span>Used: <strong style={{ color: '#0F172A' }}>{preview.daysUsed}/{preview.daysInMonth}d</strong></span>
+                            <span>Pro-rated: <strong style={{ color: '#0F172A' }}>₹{preview.proTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                            <span>Credit: <strong style={{ color: '#16A34A' }}>₹{Math.max(0, preview.credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
                           </div>
                         )}
                       </div>
@@ -984,9 +1009,9 @@ export default function BulkRentalDetailPage() {
                   }, { proTotal: 0, credit: 0 });
                   return (
                     <div className="flex items-center justify-between px-4 py-3"
-                      style={{ background: 'rgba(244,63,94,0.07)', borderTop: '1px solid rgba(244,63,94,0.2)' }}>
+                      style={{ background: 'rgba(244,63,94,0.05)', borderTop: '1px solid rgba(244,63,94,0.15)' }}>
                       <span className="text-xs" style={{ color: '#F43F5E' }}>Total Credit to Client</span>
-                      <span className="text-sm font-bold" style={{ color: '#10B981' }}>
+                      <span className="text-sm font-bold" style={{ color: '#16A34A' }}>
                         ₹{totals.credit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -1009,7 +1034,7 @@ export default function BulkRentalDetailPage() {
                 </FormField>
               </div>
 
-              <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)', color: '#94A3B8' }}>
+              <div className="p-3 rounded-xl text-xs" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#64748B' }}>
                 Pro-rated = (monthly × qty × days used) ÷ days in month + GST. Credit = original grand total − pro-rated total. Each cancelled rental will record the deduction reason for invoice adjustments.
               </div>
 
@@ -1031,48 +1056,48 @@ export default function BulkRentalDetailPage() {
       <Modal open={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} title="Send Bulk Invoice" width="max-w-md">
         <div className="space-y-4">
           <div className="p-3 rounded-xl flex items-center gap-3"
-            style={{ background: 'rgba(139,92,246,0.07)', border: '1px solid rgba(139,92,246,0.2)' }}>
+            style={{ background: '#FAF5FF', border: '1px solid #E9D5FF' }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'linear-gradient(135deg,#8B5CF6,#6D28D9)', color: 'white', fontWeight: 700, fontSize: 15 }}>
               {client?.name?.charAt(0)?.toUpperCase()}
             </div>
             <div>
-              <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{client?.name}</div>
-              <div className="text-xs" style={{ color: '#A78BFA' }}>{client?.email}</div>
+              <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{client?.name}</div>
+              <div className="text-xs" style={{ color: '#7C3AED' }}>{client?.email}</div>
             </div>
           </div>
 
-          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
-            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(30,48,88,0.5)' }}>
-              <Layers size={13} style={{ color: '#A78BFA' }} />
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: '#F8FAFC' }}>
+              <Layers size={13} style={{ color: '#7C3AED' }} />
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#94A3B8' }}>
                 {rentals.length} Rental(s)
               </span>
             </div>
-            <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+            <div className="divide-y divide-slate-100">
               {rentals.map((r: any) => (
                 <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
                   <div>
-                    <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                    <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.rental_no}</div>
-                    <div className="text-xs" style={{ color: '#64748B' }}>
+                    <div className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                    <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.rental_no}</div>
+                    <div className="text-xs" style={{ color: '#94A3B8' }}>
                       {fmtDate(r.start_date)} → {fmtDate(billingEnd(r.start_date))} · {billingDays(r.start_date)}d
                     </div>
                   </div>
-                  <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
+                  <div className="text-sm font-semibold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</div>
                 </div>
               ))}
             </div>
             <div className="flex items-center justify-between px-4 py-3"
-              style={{ background: 'rgba(16,185,129,0.07)', borderTop: '1px solid rgba(16,185,129,0.2)' }}>
-              <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Grand Total</span>
-              <span className="text-base font-bold" style={{ color: '#10B981' }}>{fmt(grandSum)}</span>
+              style={{ background: '#F0FDF4', borderTop: '1px solid #BBF7D0' }}>
+              <span className="text-sm font-bold" style={{ color: '#0F172A' }}>Grand Total</span>
+              <span className="text-base font-bold" style={{ color: '#16A34A' }}>{fmt(grandSum)}</span>
             </div>
           </div>
 
-          <p className="text-xs text-center" style={{ color: '#475569' }}>
+          <p className="text-xs text-center" style={{ color: '#64748B' }}>
             Invoice for all {rentals.length} rental(s) will be sent to{' '}
-            <span style={{ color: '#A78BFA' }}>{client?.email}</span>
+            <span style={{ color: '#7C3AED' }}>{client?.email}</span>
           </p>
 
           <div className="flex justify-end gap-3 pt-1">
@@ -1088,31 +1113,31 @@ export default function BulkRentalDetailPage() {
       <Modal open={showAdvanceModal} onClose={() => setShowAdvanceModal(false)} title="Send Advance Invoice" width="max-w-md">
         <div className="space-y-4">
           <div className="p-3 rounded-xl flex items-center gap-3"
-            style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
+            style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: 'linear-gradient(135deg,#F59E0B,#D97706)', color: 'white', fontWeight: 700, fontSize: 15 }}>
               {client?.name?.charAt(0)?.toUpperCase()}
             </div>
             <div>
-              <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{client?.name}</div>
-              <div className="text-xs" style={{ color: '#F59E0B' }}>{client?.email}</div>
+              <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{client?.name}</div>
+              <div className="text-xs" style={{ color: '#B45309' }}>{client?.email}</div>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
-            <div className="font-semibold mb-1" style={{ color: '#F59E0B' }}>Advance Payment — Billing Period</div>
-            <div className="text-xs" style={{ color: '#94A3B8' }}>
-              Advance invoice from <strong style={{ color: '#F1F5F9' }}>{fmtDate(rentals[0]?.start_date)}</strong> to{' '}
-              <strong style={{ color: '#F1F5F9' }}>{fmtDate(billingEnd(rentals[0]?.start_date))}</strong> will be generated
-              for each of the <strong style={{ color: '#F1F5F9' }}>{rentals.length} rental(s)</strong> in this bulk group.
+          <div className="p-3 rounded-xl text-sm" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
+            <div className="font-semibold mb-1" style={{ color: '#B45309' }}>Advance Payment — Billing Period</div>
+            <div className="text-xs" style={{ color: '#64748B' }}>
+              Advance invoice from <strong style={{ color: '#0F172A' }}>{fmtDate(rentals[0]?.start_date)}</strong> to{' '}
+              <strong style={{ color: '#0F172A' }}>{fmtDate(billingEnd(rentals[0]?.start_date))}</strong> will be generated
+              for each of the <strong style={{ color: '#0F172A' }}>{rentals.length} rental(s)</strong> in this bulk group.
             </div>
           </div>
 
-          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #1E3058' }}>
-            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(30,48,88,0.5)' }}>
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>Advance Breakdown</span>
+          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
+            <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: '#F8FAFC' }}>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: '#94A3B8' }}>Advance Breakdown</span>
             </div>
-            <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.6)' }}>
+            <div className="divide-y divide-slate-100">
               {rentals.map((r: any) => {
                 const days    = billingDays(r.start_date);
                 const rate    = dailyRate(Number(r.monthly_rental || 0), r.start_date);
@@ -1121,26 +1146,26 @@ export default function BulkRentalDetailPage() {
                 return (
                   <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
                     <div>
-                      <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                      <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.rental_no}</div>
-                      <div className="text-xs" style={{ color: '#64748B' }}>
+                      <div className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                      <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.rental_no}</div>
+                      <div className="text-xs" style={{ color: '#94A3B8' }}>
                         {fmtDate(r.start_date)} → {fmtDate(billingEnd(r.start_date))} · {days}d
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-semibold" style={{ color: '#F59E0B' }}>
+                      <div className="text-sm font-semibold" style={{ color: '#B45309' }}>
                         {'₹' + (advance + gst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </div>
-                      <div className="text-xs" style={{ color: '#475569' }}>GST: {'₹' + gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      <div className="text-xs" style={{ color: '#94A3B8' }}>GST: {'₹' + gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                     </div>
                   </div>
                 );
               })}
             </div>
             <div className="flex items-center justify-between px-4 py-3"
-              style={{ background: 'rgba(245,158,11,0.07)', borderTop: '1px solid rgba(245,158,11,0.2)' }}>
-              <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Total Advance</span>
-              <span className="text-base font-bold" style={{ color: '#F59E0B' }}>
+              style={{ background: '#FFFBEB', borderTop: '1px solid #FDE68A' }}>
+              <span className="text-sm font-bold" style={{ color: '#0F172A' }}>Total Advance</span>
+              <span className="text-base font-bold" style={{ color: '#B45309' }}>
                 {'₹' + rentals.reduce((s: number, r: any) => {
                   const days = billingDays(r.start_date);
                   const rate = dailyRate(Number(r.monthly_rental || 0), r.start_date);
@@ -1151,8 +1176,8 @@ export default function BulkRentalDetailPage() {
             </div>
           </div>
 
-          <p className="text-xs text-center" style={{ color: '#475569' }}>
-            Advance invoices will be sent to <span style={{ color: '#F59E0B' }}>{client?.email}</span>
+          <p className="text-xs text-center" style={{ color: '#64748B' }}>
+            Advance invoices will be sent to <span style={{ color: '#B45309' }}>{client?.email}</span>
           </p>
 
           <div className="flex justify-end gap-3 pt-1">
@@ -1168,7 +1193,7 @@ export default function BulkRentalDetailPage() {
       <Modal open={!!scheduleModal} onClose={() => setScheduleModal(null)}
         title={`Schedule ${scheduleModal === 'pickup' ? 'Pickup' : 'Delivery'} — All ${rentals.length} Rentals`}
         width="max-w-lg">
-        <div className="p-3 rounded-xl mb-4 text-xs" style={{ background: 'rgba(139,92,246,0.07)', border: '1px solid rgba(139,92,246,0.2)', color: '#A78BFA' }}>
+        <div className="p-3 rounded-xl mb-4 text-xs" style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', color: '#7C3AED' }}>
           This schedule will be applied to all {rentals.length} rentals in this bulk group.
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1217,12 +1242,12 @@ export default function BulkRentalDetailPage() {
         title="Schedule Pickup" width="max-w-lg">
         {indPickupRental && (
           <div className="flex items-center gap-2 mb-4 p-3 rounded-xl"
-            style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.18)' }}>
-            <Truck size={13} style={{ color: '#3B82F6' }} />
-            <span className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+            style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+            <Truck size={13} style={{ color: '#1D4ED8' }} />
+            <span className="text-sm font-semibold" style={{ color: '#0F172A' }}>
               {indPickupRental.inventory?.brand} {indPickupRental.inventory?.model_no}
             </span>
-            <span className="text-xs font-mono" style={{ color: '#475569' }}>{indPickupRental.inventory?.asset_code}</span>
+            <span className="text-xs font-mono" style={{ color: '#64748B' }}>{indPickupRental.inventory?.asset_code}</span>
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1269,10 +1294,10 @@ export default function BulkRentalDetailPage() {
       <Modal open={!!completeModal} onClose={() => setCompleteModal(null)} title="Mark as Completed" width="max-w-sm">
         <div className="space-y-4">
           {completeModal && (
-            <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)' }}>
-              <div className="font-semibold capitalize" style={{ color: '#10B981' }}>{completeModal.type}</div>
-              <div className="text-xs mt-1" style={{ color: '#94A3B8' }}>{completeModal.address}</div>
-              <div className="text-xs mt-0.5 font-mono" style={{ color: '#A78BFA' }}>{completeModal._rental?.rental_no}</div>
+            <div className="p-3 rounded-xl text-sm" style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+              <div className="font-semibold capitalize" style={{ color: '#16A34A' }}>{completeModal.type}</div>
+              <div className="text-xs mt-1" style={{ color: '#64748B' }}>{completeModal.address}</div>
+              <div className="text-xs mt-0.5 font-mono" style={{ color: '#7C3AED' }}>{completeModal._rental?.rental_no}</div>
             </div>
           )}
           <FormField label="Completion Notes">
@@ -1295,14 +1320,14 @@ export default function BulkRentalDetailPage() {
           return (
             <div className="space-y-4">
               <div className="p-3 rounded-xl flex items-center gap-3"
-                style={{ background: isAdvanceClient ? 'rgba(59,130,246,0.07)' : 'rgba(16,185,129,0.07)', border: `1px solid ${isAdvanceClient ? 'rgba(59,130,246,0.2)' : 'rgba(16,185,129,0.2)'}` }}>
+                style={{ background: isAdvanceClient ? '#EFF6FF' : '#F0FDF4', border: `1px solid ${isAdvanceClient ? '#BFDBFE' : '#BBF7D0'}` }}>
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold flex-shrink-0"
-                  style={{ background: isAdvanceClient ? 'linear-gradient(135deg,#3B82F6,#1D4ED8)' : 'linear-gradient(135deg,#10B981,#059669)', color: 'white' }}>
+                  style={{ background: isAdvanceClient ? 'linear-gradient(135deg,#2563EB,#1D4ED8)' : 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white' }}>
                   {cl?.name?.charAt(0)?.toUpperCase()}
                 </div>
                 <div>
-                  <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{cl?.name}</div>
-                  <div className="text-xs" style={{ color: isAdvanceClient ? '#3B82F6' : '#10B981' }}>
+                  <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{cl?.name}</div>
+                  <div className="text-xs" style={{ color: isAdvanceClient ? '#1D4ED8' : '#16A34A' }}>
                     {isAdvanceClient ? 'Advance' : 'Postpaid'} · {bulkId}
                   </div>
                 </div>
@@ -1363,10 +1388,10 @@ export default function BulkRentalDetailPage() {
       <Modal open={!!cnModal} onClose={() => setCnModal(null)} title="Generate Credit Note" width="max-w-sm">
         {cnModal && (
           <div className="space-y-4">
-            <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.2)' }}>
-              <div className="font-semibold" style={{ color: '#A78BFA' }}>{cnModal.rental_no}</div>
+            <div className="p-3 rounded-xl text-xs" style={{ background: '#FAF5FF', border: '1px solid #E9D5FF' }}>
+              <div className="font-semibold" style={{ color: '#7C3AED' }}>{cnModal.rental_no}</div>
               <div className="mt-1" style={{ color: '#64748B' }}>
-                Original Grand Total: <span style={{ color: '#F1F5F9' }}>₹{Number(cnModal.grand_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                Original Grand Total: <span style={{ color: '#0F172A' }}>₹{Number(cnModal.grand_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
             <FormField label="Advance Paid by Client (₹)" required>
@@ -1404,19 +1429,19 @@ export default function BulkRentalDetailPage() {
           <div className="space-y-4">
             {/* Current laptop info */}
             <div className="flex items-start gap-3 p-3 rounded-xl"
-              style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              style={{ background: '#EFF6FF', border: '1px solid #BFDBFE' }}>
               <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(59,130,246,0.15)' }}>
-                <ArrowLeftRight size={15} style={{ color: '#3B82F6' }} />
+                style={{ background: '#DBEAFE' }}>
+                <ArrowLeftRight size={15} style={{ color: '#1D4ED8' }} />
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>
                   {exchangeModal.inventory?.brand} {exchangeModal.inventory?.model_no}
                 </div>
-                <div className="text-xs font-mono" style={{ color: '#475569' }}>
+                <div className="text-xs font-mono" style={{ color: '#64748B' }}>
                   {exchangeModal.rental_no} · {exchangeModal.inventory?.asset_code}
                 </div>
-                <div className="text-xs mt-1" style={{ color: '#64748B' }}>
+                <div className="text-xs mt-1" style={{ color: '#94A3B8' }}>
                   Rental terms (amount, billing cycle) remain unchanged after exchange.
                 </div>
               </div>
@@ -1424,7 +1449,7 @@ export default function BulkRentalDetailPage() {
 
             {/* New laptop selector */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
                 Replace with <span style={{ color: '#F43F5E' }}>*</span>
               </label>
               <select
@@ -1442,7 +1467,7 @@ export default function BulkRentalDetailPage() {
                 const inv = exchangeInvList.find((i: any) => String(i.id) === exchangeForm.new_inventory_id);
                 return inv ? (
                   <div className="mt-1.5 text-xs px-2 py-1.5 rounded-lg"
-                    style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', color: '#6EE7B7' }}>
+                    style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#16A34A' }}>
                     {inv.cpu}{inv.ram ? ` · ${inv.ram}` : ''}{inv.ssd ? ` · ${inv.ssd}` : ''}
                   </div>
                 ) : null;
@@ -1451,7 +1476,7 @@ export default function BulkRentalDetailPage() {
 
             {/* Exchange date */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
                 Exchange Date <span style={{ color: '#F43F5E' }}>*</span>
               </label>
               <input
@@ -1464,8 +1489,8 @@ export default function BulkRentalDetailPage() {
 
             {/* Reason */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
-                Reason <span style={{ color: '#475569' }}>(optional)</span>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
+                Reason <span style={{ color: '#94A3B8' }}>(optional)</span>
               </label>
               <input
                 className="inp w-full"
@@ -1477,8 +1502,8 @@ export default function BulkRentalDetailPage() {
 
             {/* Notes */}
             <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>
-                Notes <span style={{ color: '#475569' }}>(optional)</span>
+              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#64748B' }}>
+                Notes <span style={{ color: '#94A3B8' }}>(optional)</span>
               </label>
               <textarea
                 className="inp w-full resize-none"
@@ -1490,8 +1515,8 @@ export default function BulkRentalDetailPage() {
             </div>
 
             <div className="p-3 rounded-xl text-xs"
-              style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', color: '#94A3B8' }}>
-              The old laptop becomes <strong style={{ color: '#F1F5F9' }}>available</strong>. The new laptop is <strong style={{ color: '#F1F5F9' }}>assigned to this rental</strong>. Monthly charges, GST, and billing dates are unchanged.
+              style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#64748B' }}>
+              The old laptop becomes <strong style={{ color: '#0F172A' }}>available</strong>. The new laptop is <strong style={{ color: '#0F172A' }}>assigned to this rental</strong>. Monthly charges, GST, and billing dates are unchanged.
             </div>
 
             <div className="flex justify-end gap-3 pt-1">

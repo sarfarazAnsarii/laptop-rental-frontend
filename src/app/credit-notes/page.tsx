@@ -115,7 +115,7 @@ export default function CreditNotesPage() {
         ) : (
           <>
             {/* Mobile */}
-            <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(30,48,88,0.4)' }}>
+            <div className="sm:hidden divide-y divide-slate-100">
               {notes.map((cn: any) => (
                 <div key={cn.id} className="p-4 space-y-2 animate-fade-in">
                   <div className="flex items-center justify-between">
@@ -125,12 +125,12 @@ export default function CreditNotesPage() {
                       {RESOLUTION_LABEL[cn.resolution] || cn.resolution}
                     </span>
                   </div>
-                  <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{cn.rental?.client?.name || cn.client?.name || '—'}</div>
+                  <div className="text-sm font-medium" style={{ color: '#0F172A' }}>{cn.rental?.client?.name || cn.client?.name || '—'}</div>
                   <div className="text-xs font-mono" style={{ color: '#475569' }}>{cn.rental?.rental_no}</div>
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-xs" style={{ color: '#64748B' }}>Credit Amount</div>
-                      <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(cn.credit_amount)}</div>
+                      <div className="text-sm font-bold" style={{ color: '#16A34A' }}>{fmt(cn.credit_amount)}</div>
                     </div>
                     <div className="flex gap-1">
                       <Link href={`/credit-notes/${cn.id}`}><Button variant="ghost" size="sm" icon={<Eye size={13} />} /></Link>
@@ -169,7 +169,7 @@ export default function CreditNotesPage() {
                         <span className="font-mono text-xs font-semibold" style={{ color: '#A78BFA' }}>{cn.credit_note_no}</span>
                       </td>
                       <td>
-                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{cn.rental?.client?.name || cn.client?.name || '—'}</div>
+                        <div className="text-sm" style={{ color: '#0F172A' }}>{cn.rental?.client?.name || cn.client?.name || '—'}</div>
                         <div className="text-xs" style={{ color: '#475569' }}>{cn.rental?.client?.company || cn.client?.company || ''}</div>
                       </td>
                       <td>
@@ -178,13 +178,13 @@ export default function CreditNotesPage() {
                         </Link>
                       </td>
                       <td className="text-xs" style={{ color: '#94A3B8' }}>{fmtDate(cn.created_at)}</td>
-                      <td className="text-sm" style={{ color: '#F1F5F9' }}>{fmt(cn.advance_paid)}</td>
+                      <td className="text-sm" style={{ color: '#0F172A' }}>{fmt(cn.advance_paid)}</td>
                       <td>
-                        <div className="text-sm" style={{ color: '#F1F5F9' }}>{fmt(cn.pro_rated_total)}</div>
+                        <div className="text-sm" style={{ color: '#0F172A' }}>{fmt(cn.pro_rated_total)}</div>
                         <div className="text-xs" style={{ color: '#475569' }}>{cn.days_used}/{cn.days_in_month} days</div>
                       </td>
                       <td>
-                        <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(cn.credit_amount)}</div>
+                        <div className="text-sm font-bold" style={{ color: '#16A34A' }}>{fmt(cn.credit_amount)}</div>
                       </td>
                       <td>
                         <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
@@ -216,7 +216,7 @@ export default function CreditNotesPage() {
         )}
 
         {lastPage > 1 && (
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid #1E3058' }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderTop: '1px solid #E2E8F0' }}>
             <span className="text-xs" style={{ color: '#475569' }}>Page {page} of {lastPage} · {total} total</span>
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</Button>
@@ -230,13 +230,13 @@ export default function CreditNotesPage() {
       <Modal open={!!sendModal} onClose={() => setSendModal(null)} title="Send Credit Note" width="max-w-sm">
         {sendModal && (
           <div className="space-y-4">
-            <div className="p-4 rounded-xl" style={{ background: 'rgba(167,139,250,0.07)', border: '1px solid rgba(167,139,250,0.2)' }}>
-              <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{sendModal.credit_note_no}</div>
-              <div className="text-xs mt-1" style={{ color: '#475569' }}>
-                Credit: <span style={{ color: '#10B981', fontWeight: 700 }}>{fmt(sendModal.credit_amount)}</span>
+            <div className="p-4 rounded-xl" style={{ background: '#FAF5FF', border: '1px solid #E9D5FF' }}>
+              <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{sendModal.credit_note_no}</div>
+              <div className="text-xs mt-1" style={{ color: '#64748B' }}>
+                Credit: <span style={{ color: '#16A34A', fontWeight: 700 }}>{fmt(sendModal.credit_amount)}</span>
               </div>
-              <div className="text-xs mt-1" style={{ color: '#475569' }}>
-                To: <span style={{ color: '#A78BFA' }}>{sendModal.rental?.client?.email || sendModal.client?.email || '—'}</span>
+              <div className="text-xs mt-1" style={{ color: '#64748B' }}>
+                To: <span style={{ color: '#7C3AED' }}>{sendModal.rental?.client?.email || sendModal.client?.email || '—'}</span>
               </div>
             </div>
             <p className="text-xs" style={{ color: '#64748B' }}>
@@ -254,9 +254,9 @@ export default function CreditNotesPage() {
       <Modal open={!!resolveModal} onClose={() => setResolveModal(null)} title="Update Resolution" width="max-w-sm">
         {resolveModal && (
           <div className="space-y-4">
-            <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(30,48,88,0.5)', border: '1px solid #1E3058' }}>
-              <div className="font-semibold mb-1" style={{ color: '#F1F5F9' }}>{resolveModal.credit_note_no}</div>
-              <div style={{ color: '#64748B' }}>Credit: <span style={{ color: '#10B981' }}>{fmt(resolveModal.credit_amount)}</span></div>
+            <div className="p-3 rounded-xl text-xs" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+              <div className="font-semibold mb-1" style={{ color: '#0F172A' }}>{resolveModal.credit_note_no}</div>
+              <div style={{ color: '#64748B' }}>Credit: <span style={{ color: '#16A34A' }}>{fmt(resolveModal.credit_amount)}</span></div>
             </div>
             <FormField label="Resolution" required>
               <select className="inp" value={resolveForm.resolution}
