@@ -106,6 +106,29 @@ export const api = {
     },
     deleteImage: (id: number, index: number) =>
       request<any>(`/inventories/${id}/images/${index}`, { method: 'DELETE' }),
+    export: async (params?: Record<string, string>): Promise<void> => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      const res = await fetch(`${BASE_URL}/inventories/export${qs}`, {
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Export failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
   },
 
   vendor: {
@@ -184,6 +207,8 @@ export const api = {
       request<any>(`/rentals/${id}/cancel`, { method: 'POST', body: JSON.stringify(data || {}) }),
     partialCancel: (data: { rental_ids: number[]; end_date: string; notes?: string }) =>
       request<any>('/rentals/partial-cancel', { method: 'POST', body: JSON.stringify(data) }),
+    bulkReturn: (data: { returns: { asset_code: string; return_date: string; notes?: string }[] }) =>
+      request<any>('/rentals/bulk-return', { method: 'POST', body: JSON.stringify(data) }),
     sendInvoice: (id: number, extra?: {
       subject?: string; body?: string;
       return_date?: string; deduction_amount?: number; deduction_reason?: string;
@@ -214,6 +239,8 @@ export const api = {
         request<any>(`/rentals/${rentalId}/schedule-pickup`, { method: 'POST', body: JSON.stringify(data) }),
       scheduleDelivery: (rentalId: number, data: any) =>
         request<any>(`/rentals/${rentalId}/schedule-delivery`, { method: 'POST', body: JSON.stringify(data) }),
+      scheduleType: (rentalId: number, data: any) =>
+        request<any>(`/rentals/${rentalId}/schedule-type`, { method: 'POST', body: JSON.stringify(data) }),
     },
     // Bulk schedules
     bulkSchedules: {
@@ -307,6 +334,25 @@ export const api = {
       const qs = params ? '?' + new URLSearchParams(params).toString() : '';
       return request<any>(`/client/exchanges${qs}`);
     },
+  },
+
+  invoiceRecords: {
+    assign: (data: { type: 'estimate' | 'invoice' | 'event_invoice'; rental_id?: number; bulk_id?: string }) =>
+      request<any>('/invoice-records/assign', { method: 'POST', body: JSON.stringify(data) }),
+  },
+
+  eventInvoices: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/event-invoices${qs}`);
+    },
+    get: (id: number) => request<any>(`/event-invoices/${id}`),
+    create: (data: any) =>
+      request<any>('/event-invoices', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: any) =>
+      request<any>(`/event-invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id: number) =>
+      request<any>(`/event-invoices/${id}`, { method: 'DELETE' }),
   },
 
   dashboard: {

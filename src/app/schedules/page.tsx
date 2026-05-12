@@ -5,10 +5,11 @@ import Link from 'next/link';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, FormField, PageHeader, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import {
   Truck, MapPin, Calendar, CheckCircle, Clock, XCircle,
-  FileText, User, Layers, Monitor, Users, Phone, Mail,
-  Building2, Hash, ChevronRight,
+  FileText, User, Layers, Monitor, Phone, Mail,
+  Hash, Contact,
 } from 'lucide-react';
 
 const fmtDate = (d?: string) =>
@@ -24,9 +25,35 @@ const STATUS_META: Record<string, { color: string; bg: string; border: string; i
 };
 
 export default function SchedulesPage() {
+  const { user } = useAuth();
+  const isStaff  = user?.role === 'staff';
+
   const [schedules, setSchedules] = useState<any[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [typeTab,   setTypeTab]   = useState<'all' | 'pickup' | 'delivery'>('all');
+  type ScheduleType = 'pickup' | 'delivery' | 'replacement_delivery' | 'replacement_receive' | 'event_delivery' | 'event_return';
+
+  // Staff sees only their 4 action types; admin sees all 6
+  const STAFF_TYPES = ['delivery', 'replacement_delivery', 'replacement_receive', 'pickup'] as const;
+  const ADMIN_TYPES = ['pickup', 'delivery', 'replacement_delivery', 'replacement_receive', 'event_delivery', 'event_return'] as const;
+
+  const TYPE_LABELS: Record<string, string> = {
+    all: 'All',
+    pickup:               'Return',
+    delivery:             'New Delivery',
+    replacement_delivery: 'Replacement Delivery',
+    replacement_receive:  'Replacement Receive',
+    event_delivery:       'Event Delivery',
+    event_return:         'Event Return',
+  };
+  const TYPE_COLOR: Record<string, string> = {
+    pickup:               '#F59E0B',
+    delivery:             '#3B82F6',
+    replacement_delivery: '#8B5CF6',
+    replacement_receive:  '#0D9488',
+    event_delivery:       '#6366F1',
+    event_return:         '#F43F5E',
+  };
+  const [typeTab,   setTypeTab]   = useState<'all' | ScheduleType>('all');
   const [statusTab, setStatusTab] = useState<'all' | 'scheduled' | 'completed' | 'cancelled'>('all');
   const [page,      setPage]      = useState(1);
   const [lastPage,  setLastPage]  = useState(1);
@@ -43,11 +70,14 @@ export default function SchedulesPage() {
   };
 
   const load = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     try {
       const params: Record<string, string> = { per_page: '20', page: String(page) };
       if (typeTab   !== 'all') params.type   = typeTab;
       if (statusTab !== 'all') params.status = statusTab;
+      // Staff: only see schedules assigned to them
+      if (isStaff) params.assigned_to = String(user.id);
       const res = await api.schedules.list(params);
       setSchedules(res.data?.data || res.data || []);
       setLastPage(res.data?.last_page || 1);
@@ -55,7 +85,7 @@ export default function SchedulesPage() {
     } catch (e: any) {
       showToast(e.message || 'Failed to load schedules', 'error');
     } finally { setLoading(false); }
-  }, [typeTab, statusTab, page]);
+  }, [typeTab, statusTab, page, isStaff, user]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [typeTab, statusTab]);
@@ -82,24 +112,44 @@ export default function SchedulesPage() {
     } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
   }
 
-  const pending    = schedules.filter(s => s.status === 'scheduled').length;
-  const pickups    = schedules.filter(s => s.type === 'pickup').length;
-  const deliveries = schedules.filter(s => s.type === 'delivery').length;
+  const pending      = schedules.filter(s => s.status === 'scheduled').length;
+  const deliveries   = schedules.filter(s => s.type === 'delivery').length;
+  const replDeliv    = schedules.filter(s => s.type === 'replacement_delivery').length;
+  const replReceive  = schedules.filter(s => s.type === 'replacement_receive').length;
+  const returns      = schedules.filter(s => s.type === 'pickup').length;
+  const events       = schedules.filter(s => s.type === 'event_delivery' || s.type === 'event_return').length;
 
   return (
     <DashboardLayout>
-      <PageHeader title="Schedules" subtitle={`${total} total schedule${total !== 1 ? 's' : ''}`} />
+      <PageHeader
+        title={isStaff ? 'My Schedules' : 'Schedules'}
+        subtitle={isStaff ? `${total} schedule${total !== 1 ? 's' : ''} assigned to you` : `${total} total schedule${total !== 1 ? 's' : ''}`}
+      />
 
       {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        {[
-          { label: 'Total',      value: total,      color: '#3B82F6' },
-          { label: 'Pending',    value: pending,    color: '#F59E0B' },
-          { label: 'Pickups',    value: pickups,    color: '#F97316' },
-          { label: 'Deliveries', value: deliveries, color: '#3B82F6' },
+      <div className={`grid gap-3 mb-5 ${isStaff ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-6'}`}>
+        {isStaff ? [
+          { label: 'Total',                value: total,       color: '#3B82F6' },
+          { label: 'Pending',              value: pending,     color: '#F59E0B' },
+          { label: 'New Deliveries',        value: deliveries,  color: '#3B82F6' },
+          { label: 'Repl. Deliveries',     value: replDeliv,   color: '#8B5CF6' },
+          { label: 'Repl. Receives',       value: replReceive, color: '#0D9488' },
+          { label: 'Returns',              value: returns,     color: '#F59E0B' },
         ].map(s => (
           <div key={s.label} className="glass-card px-4 py-3">
-            <div className="text-2xl font-bold" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#0F172A' }}>{s.value}</div>
+            <div className="text-2xl font-bold" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: s.color }}>{s.value}</div>
+            <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>{s.label}</div>
+          </div>
+        )) : [
+          { label: 'Total',        value: total,       color: '#3B82F6' },
+          { label: 'Pending',      value: pending,     color: '#F59E0B' },
+          { label: 'New Delivery', value: deliveries,  color: '#3B82F6' },
+          { label: 'Repl. Deliv', value: replDeliv,   color: '#8B5CF6' },
+          { label: 'Repl. Recv',  value: replReceive, color: '#0D9488' },
+          { label: 'Returns',      value: returns,     color: '#F59E0B' },
+        ].map(s => (
+          <div key={s.label} className="glass-card px-4 py-3">
+            <div className="text-2xl font-bold" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: s.color }}>{s.value}</div>
             <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>{s.label}</div>
           </div>
         ))}
@@ -107,17 +157,17 @@ export default function SchedulesPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-5">
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#F1F5F9' }}>
-          {(['all', 'pickup', 'delivery'] as const).map(t => (
-            <button key={t} onClick={() => setTypeTab(t)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all"
+        <div className="flex flex-wrap gap-1 p-1 rounded-xl" style={{ background: '#F1F5F9' }}>
+          {(['all', ...(isStaff ? STAFF_TYPES : ADMIN_TYPES)] as const).map(t => (
+            <button key={t} onClick={() => setTypeTab(t as 'all' | ScheduleType)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{
                 background: typeTab === t ? '#FFFFFF' : 'transparent',
-                color:      typeTab === t ? '#2563EB' : '#64748B',
-                border:     typeTab === t ? '1px solid #BFDBFE' : '1px solid transparent',
+                color:      typeTab === t ? (t === 'all' ? '#2563EB' : TYPE_COLOR[t]) : '#64748B',
+                border:     typeTab === t ? `1px solid ${t === 'all' ? '#BFDBFE' : `${TYPE_COLOR[t]}40`}` : '1px solid transparent',
                 boxShadow:  typeTab === t ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
               }}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+              {TYPE_LABELS[t]}
             </button>
           ))}
         </div>
@@ -149,9 +199,8 @@ export default function SchedulesPage() {
       ) : (
         <div className="space-y-4">
           {schedules.map(s => {
-            const isPickup   = s.type === 'pickup';
-            const typeColor  = isPickup ? '#F97316' : '#3B82F6';
-            const typeBg     = isPickup ? 'rgba(249,115,22,0.08)' : 'rgba(59,130,246,0.08)';
+            const typeColor  = TYPE_COLOR[s.type] ?? '#3B82F6';
+            const typeBg     = `${typeColor}14`;
             const meta       = STATUS_META[s.status] ?? STATUS_META.scheduled;
             const StatusIcon = meta.icon;
             const inv        = s.rental?.inventory;
@@ -169,7 +218,7 @@ export default function SchedulesPage() {
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-bold"
                       style={{ background: `${typeColor}18`, color: typeColor, border: `1px solid ${typeColor}30` }}>
                       <Truck size={13} />
-                      <span className="capitalize">{s.type}</span>
+                      <span>{TYPE_LABELS[s.type] ?? s.type}</span>
                     </div>
                     {/* Status */}
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
@@ -226,9 +275,24 @@ export default function SchedulesPage() {
                     </div>
                     {s.contact_name && (
                       <div className="flex items-center gap-2 text-xs">
-                        <User size={12} style={{ color: '#475569' }} />
+                        <Contact size={12} style={{ color: '#475569' }} />
+                        <span style={{ color: '#64748B' }}>IT:</span>
                         <span style={{ color: '#94A3B8' }}>{s.contact_name}</span>
-                        {s.contact_phone && <span style={{ color: '#64748B' }}>· {s.contact_phone}</span>}
+                        {s.contact_phone && <span style={{ color: '#94A3B8' }}>· {s.contact_phone}</span>}
+                      </div>
+                    )}
+                    {s.employee_name && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <User size={12} style={{ color: '#475569' }} />
+                        <span style={{ color: '#64748B' }}>Emp:</span>
+                        <span style={{ color: '#94A3B8' }}>{s.employee_name}</span>
+                        {s.employee_number && <span style={{ color: '#94A3B8' }}>({s.employee_number})</span>}
+                      </div>
+                    )}
+                    {s.employee_address && (
+                      <div className="flex items-start gap-2 text-xs">
+                        <MapPin size={12} style={{ color: '#475569', marginTop: 1, flexShrink: 0 }} />
+                        <span style={{ color: '#64748B' }}>{s.employee_address}</span>
                       </div>
                     )}
                     {s.notes && (

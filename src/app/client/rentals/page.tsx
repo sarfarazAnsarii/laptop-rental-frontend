@@ -20,7 +20,7 @@ export default function ClientRentalsPage() {
   const [toast,    setToast]    = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   // Schedule pickup
-  const EMPTY_SCHED = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' };
+  const EMPTY_SCHED = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '', employee_name: '', employee_number: '', employee_address: '' };
   const [pickupModal,   setPickupModal]   = useState<{ rentalId?: number; bulkId?: string } | null>(null);
   const [pickupForm,    setPickupForm]    = useState(EMPTY_SCHED);
   const [pickupSaving,  setPickupSaving]  = useState(false);
@@ -313,6 +313,26 @@ export default function ClientRentalsPage() {
               <textarea className="inp resize-none" rows={2} value={pickupForm.notes}
                 onChange={e => setPickupForm(p => ({ ...p, notes: e.target.value }))}
                 placeholder="Please call before coming..." />
+            </FormField>
+          </div>
+          <div className="sm:col-span-2 pt-1">
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Employee Details</div>
+          </div>
+          <FormField label="Employee Name">
+            <input className="inp" value={pickupForm.employee_name}
+              onChange={e => setPickupForm(p => ({ ...p, employee_name: e.target.value }))}
+              placeholder="Employee full name" />
+          </FormField>
+          <FormField label="Employee Contact Number">
+            <input className="inp" value={pickupForm.employee_number}
+              onChange={e => setPickupForm(p => ({ ...p, employee_number: e.target.value }))}
+              placeholder="9876543210" />
+          </FormField>
+          <div className="sm:col-span-2">
+            <FormField label="Employee Address">
+              <textarea className="inp resize-none" rows={2} value={pickupForm.employee_address}
+                onChange={e => setPickupForm(p => ({ ...p, employee_address: e.target.value }))}
+                placeholder="Employee location / address" />
             </FormField>
           </div>
         </div>

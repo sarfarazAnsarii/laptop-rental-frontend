@@ -53,11 +53,21 @@ interface UploadRow {
   delivery_date: string;
   asset_code: string;
   monthly_rental: string;
-  quantity: string;
   gst_percent: string;
   notes: string;
   clientObj?: any;
   invObj?: any;
+  errors: string[];
+}
+
+interface ReturnUploadRow {
+  rowNum: number;
+  client_email: string;
+  return_date: string;
+  asset_code: string;
+  monthly_rental: string;
+  gst_percent: string;
+  notes: string;
   errors: string[];
 }
 
@@ -82,6 +92,13 @@ export default function RentalsPage() {
   const [uploading,   setUploading]   = useState(false);
   const [importing,   setImporting]   = useState(false);
   const [importDone,  setImportDone]  = useState<{ ok: number; fail: string[] } | null>(null);
+
+  // Bulk return upload
+  const [showReturnUpload,   setShowReturnUpload]   = useState(false);
+  const [returnRows,         setReturnRows]         = useState<ReturnUploadRow[]>([]);
+  const [returnUploading,    setReturnUploading]    = useState(false);
+  const [returnImporting,    setReturnImporting]    = useState(false);
+  const [returnDone,         setReturnDone]         = useState<{ ok: number; fail: string[] } | null>(null);
   const [invoiceRental, setInvoiceRental] = useState<Rental | null>(null);
   const [bulkInvoiceGroup, setBulkInvoiceGroup] = useState<Rental[] | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState(false);
@@ -182,7 +199,7 @@ export default function RentalsPage() {
   }
 
   // Bulk rental
-  const EMPTY_LAPTOP = { inventory_id: '', monthly_rental: '', quantity: '1' };
+  const EMPTY_LAPTOP = { inventory_id: '', monthly_rental: '' };
   const [showBulk, setShowBulk] = useState(false);
   const [bulkForm, setBulkForm] = useState({ client_id: '', delivery_date: '', gst_percent: '18', notes: '' });
   const [laptops, setLaptops] = useState([{ ...EMPTY_LAPTOP }]);
@@ -260,7 +277,6 @@ export default function RentalsPage() {
           .map(l => ({
             inventory_id:   Number(l.inventory_id),
             monthly_rental: Number(l.monthly_rental),
-            quantity:       Number(l.quantity) || 1,
           })),
       });
       showToast(`${laptops.filter(l => l.inventory_id).length} rental(s) created`);
@@ -377,9 +393,9 @@ export default function RentalsPage() {
   // ── Bulk upload helpers ────────────────────────────────────────────────
   function downloadTemplate() {
     const csv = [
-      'client_email,delivery_date,asset_code,monthly_rental,quantity,gst_percent,notes',
-      'client@company.com,2025-01-15,LR-001,5000,1,18,Optional notes',
-      'client@company.com,2025-01-15,LR-002,6000,1,18,',
+      'client_email,delivery_date,asset_code,monthly_rental,gst_percent,notes',
+      'client@company.com,2025-01-15,LR-001,5000,18,Optional notes',
+      'client@company.com,2025-01-15,LR-002,6000,18,',
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -419,7 +435,6 @@ export default function RentalsPage() {
           delivery_date:  get('delivery_date'),
           asset_code:     get('asset_code'),
           monthly_rental: get('monthly_rental'),
-          quantity:       get('quantity') || '1',
           gst_percent:    get('gst_percent') || '18',
           notes:          get('notes'),
           errors: [],
@@ -489,7 +504,6 @@ export default function RentalsPage() {
             laptops: rows.map(r => ({
               inventory_id:   r.invObj.id,
               monthly_rental: Number(r.monthly_rental),
-              quantity:       Number(r.quantity) || 1,
             })),
           });
           created += rows.length;
@@ -503,6 +517,94 @@ export default function RentalsPage() {
       setImporting(false);
     }
   }
+  // ── Bulk return upload helpers ───────────────────────────────────────────
+  function downloadReturnTemplate() {
+    const csv = [
+      'client_email,return_date,asset_code,monthly_rental,gst_percent,notes',
+      'client@company.com,2025-01-15,LR-001,5000,18,Optional notes',
+      'client@company.com,2025-01-15,LR-002,6000,18,',
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'bulk_return_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleReturnFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReturnUploading(true); setReturnDone(null);
+    try {
+      const XLSX = await import('xlsx');
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf, { cellDates: true });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const raw  = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1 }) as any[][];
+      if (!raw.length) throw new Error('File is empty');
+
+      const headers = (raw[0] as any[]).map((h: any) =>
+        String(h ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_'));
+      const dataRows = raw.slice(1).filter((r: any[]) =>
+        r.some(c => c !== undefined && c !== null && String(c).trim() !== ''));
+
+      const parsed: ReturnUploadRow[] = dataRows.map((r: any[], idx: number) => {
+        const get = (key: string): string => {
+          const i = headers.indexOf(key);
+          if (i < 0) return '';
+          const v = r[i];
+          if (v instanceof Date) return v.toISOString().slice(0, 10);
+          return String(v ?? '').trim();
+        };
+        return {
+          rowNum:         idx + 2,
+          client_email:   get('client_email'),
+          return_date:    get('return_date'),
+          asset_code:     get('asset_code'),
+          monthly_rental: get('monthly_rental'),
+          gst_percent:    get('gst_percent') || '18',
+          notes:          get('notes'),
+          errors: [],
+        };
+      });
+
+      parsed.forEach(row => {
+        if (!row.asset_code)  row.errors.push('asset_code required');
+        if (!row.return_date || !/^\d{4}-\d{2}-\d{2}$/.test(row.return_date))
+          row.errors.push('return_date must be YYYY-MM-DD');
+      });
+
+      setReturnRows(parsed);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to parse file', 'error');
+    } finally {
+      setReturnUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function doReturn() {
+    const valid = returnRows.filter(r => r.errors.length === 0);
+    if (!valid.length) return;
+    setReturnImporting(true);
+    try {
+      const res = await api.rentals.bulkReturn({
+        returns: valid.map(r => ({
+          asset_code:  r.asset_code,
+          return_date: r.return_date,
+          notes:       r.notes || undefined,
+        })),
+      });
+      const d = res.data;
+      const fail: string[] = (d.failed || []).map((f: any) => `${f.asset_code}: ${f.reason}`);
+      setReturnDone({ ok: d.completed_count ?? 0, fail });
+      if ((d.completed_count ?? 0) > 0) load();
+    } catch (e: any) {
+      showToast(e.message || 'Bulk return failed', 'error');
+    } finally { setReturnImporting(false); }
+  }
+  // ── end bulk return helpers ───────────────────────────────────────────
+
   // ── end bulk upload helpers ────────────────────────────────────────────
 
   // Group rentals by bulk_id (string or null from API)
@@ -528,6 +630,10 @@ export default function RentalsPage() {
         subtitle={`${total} rentals`}
         action={isAdmin ? (
           <div className="flex gap-2">
+            <Button variant="ghost" icon={<RotateCcw size={15} />} onClick={() => { setReturnRows([]); setReturnDone(null); setShowReturnUpload(true); }}
+              style={{ color: '#F43F5E' }}>
+              <span className="hidden sm:inline">Bulk Return</span>
+            </Button>
             <Button variant="ghost" icon={<UploadCloud size={15} />} onClick={() => { setUploadRows([]); setImportDone(null); setShowUpload(true); }}>
               <span className="hidden sm:inline">Upload CSV</span>
             </Button>
@@ -1181,8 +1287,8 @@ export default function RentalsPage() {
             </div>
 
             {/* Desktop column headers — hidden on mobile */}
-            <div className="hidden sm:grid gap-2 px-3 mb-1" style={{ gridTemplateColumns: '1fr 110px 70px 100px 32px' }}>
-              {['Laptop', 'Monthly (₹)', 'Qty', 'Subtotal', ''].map(h => (
+            <div className="hidden sm:grid gap-2 px-3 mb-1" style={{ gridTemplateColumns: '1fr 120px 120px 32px' }}>
+              {['Laptop', 'Monthly (₹)', 'Subtotal', ''].map(h => (
                 <div key={h} className="text-xs font-semibold" style={{ color: '#475569' }}>{h}</div>
               ))}
             </div>
@@ -1190,8 +1296,7 @@ export default function RentalsPage() {
             <div className="space-y-2">
               {laptops.map((row, idx) => {
                 const monthly = Number(row.monthly_rental) || 0;
-                const qty = Number(row.quantity) || 1;
-                const subtotal = monthly * qty;
+                const subtotal = monthly;
                 const selectedInv = inventories.find((i: any) => String(i.id) === String(row.inventory_id));
                 return (
                   <div key={idx} className="rounded-xl overflow-hidden"
@@ -1235,20 +1340,14 @@ export default function RentalsPage() {
                         )}
                       </div>
 
-                      {/* Monthly + Qty + Subtotal in a row */}
-                      <div className="grid grid-cols-3 gap-2">
+                      {/* Monthly + Subtotal in a row */}
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
                           <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Monthly (₹)</div>
                           <input className="inp w-full" type="number" min="0"
                             value={row.monthly_rental}
                             onChange={e => setLaptopField(idx, 'monthly_rental', e.target.value)}
                             placeholder="1100" />
-                        </div>
-                        <div>
-                          <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Qty</div>
-                          <input className="inp w-full" type="number" min="1"
-                            value={row.quantity}
-                            onChange={e => setLaptopField(idx, 'quantity', e.target.value)} />
                         </div>
                         <div>
                           <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Subtotal</div>
@@ -1262,7 +1361,7 @@ export default function RentalsPage() {
 
                     {/* Desktop layout — single row */}
                     <div className="hidden sm:grid gap-2 items-center p-3"
-                      style={{ gridTemplateColumns: '1fr 110px 70px 100px 32px' }}>
+                      style={{ gridTemplateColumns: '1fr 120px 120px 32px' }}>
                       <div>
                         <select className="inp" value={row.inventory_id}
                           onChange={e => setLaptopField(idx, 'inventory_id', e.target.value)}>
@@ -1278,9 +1377,6 @@ export default function RentalsPage() {
                         value={row.monthly_rental}
                         onChange={e => setLaptopField(idx, 'monthly_rental', e.target.value)}
                         placeholder="1100" />
-                      <input className="inp" type="number" min="1"
-                        value={row.quantity}
-                        onChange={e => setLaptopField(idx, 'quantity', e.target.value)} />
                       <div className="inp flex items-center text-sm font-bold"
                         style={{ color: '#10B981', background: 'rgba(16,185,129,0.06)' }}>
                         {subtotal > 0 ? '₹' + subtotal.toLocaleString('en-IN') : '—'}
@@ -1303,7 +1399,7 @@ export default function RentalsPage() {
           {/* Billing summary */}
           {(() => {
             const gst = Number(bulkForm.gst_percent) || 0;
-            const subtotals = laptops.map(l => (Number(l.monthly_rental) || 0) * (Number(l.quantity) || 1));
+            const subtotals = laptops.map(l => (Number(l.monthly_rental) || 0));
             const total = subtotals.reduce((a, b) => a + b, 0);
             const gstAmt = +(total * gst / 100).toFixed(2);
             const grand = +(total + gstAmt).toFixed(2);
@@ -1896,6 +1992,183 @@ export default function RentalsPage() {
           </div>
         )}
       </Modal>
+      {/* ── Bulk Return Upload Modal ─────────────────────────── */}
+      <Modal open={showReturnUpload} onClose={() => setShowReturnUpload(false)} title="Bulk Return Laptops" width="max-w-4xl">
+        <div className="space-y-5">
+
+          {/* Instructions + template */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-xl"
+            style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.18)' }}>
+            <div className="flex-1 text-xs" style={{ color: '#94A3B8' }}>
+              Upload a <strong style={{ color: '#F1F5F9' }}>CSV or Excel</strong> file — one row per laptop to return.
+              Each row completes the active rental for that asset code.
+            </div>
+            <button onClick={downloadReturnTemplate}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold flex-shrink-0 transition-all hover:bg-rose-500/20"
+              style={{ background: 'rgba(244,63,94,0.12)', color: '#FB7185', border: '1px solid rgba(244,63,94,0.25)' }}>
+              <FileDown size={14} /> Download Template
+            </button>
+          </div>
+
+          {/* Column reference */}
+          <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid rgba(30,48,88,0.6)' }}>
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ background: 'rgba(30,48,88,0.35)', borderBottom: '1px solid rgba(30,48,88,0.6)' }}>
+                  {['Column', 'Required', 'Example', 'Notes'].map(h => (
+                    <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider" style={{ color: '#475569', fontSize: 10 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['client_email',   'No',  'client@company.com', 'For reference only'],
+                  ['return_date',    'Yes', '2025-01-15',         'YYYY-MM-DD — date the laptop was returned'],
+                  ['asset_code',     'Yes', 'LR-001',             'Must have an active rental'],
+                  ['monthly_rental', 'No',  '5000',               'For reference only'],
+                  ['gst_percent',    'No',  '18',                 'For reference only'],
+                  ['notes',          'No',  'Returned in good condition', 'Optional notes'],
+                ].map(([col, req, ex, note]) => (
+                  <tr key={col} style={{ borderBottom: '1px solid rgba(30,48,88,0.3)' }}>
+                    <td className="px-3 py-2 font-mono font-semibold" style={{ color: '#FB7185' }}>{col}</td>
+                    <td className="px-3 py-2">
+                      <span className={`badge ${req === 'Yes' ? 'badge-active' : 'badge-completed'}`}>{req}</span>
+                    </td>
+                    <td className="px-3 py-2 font-mono" style={{ color: '#94A3B8' }}>{ex}</td>
+                    <td className="px-3 py-2" style={{ color: '#64748B' }}>{note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* File drop zone */}
+          <label className="flex flex-col items-center justify-center gap-3 p-8 rounded-xl cursor-pointer transition-all hover:border-rose-500/50"
+            style={{ border: '2px dashed rgba(30,48,88,0.7)', background: 'rgba(11,22,40,0.4)' }}>
+            <UploadCloud size={32} style={{ color: returnUploading ? '#F43F5E' : '#334155' }}
+              className={returnUploading ? 'animate-pulse' : ''} />
+            <div className="text-center">
+              <div className="text-sm font-medium" style={{ color: '#94A3B8' }}>
+                {returnUploading ? 'Parsing file…' : 'Click to choose file, or drag & drop'}
+              </div>
+              <div className="text-xs mt-1" style={{ color: '#475569' }}>CSV, XLS, XLSX supported</div>
+            </div>
+            <input type="file" accept=".csv,.xls,.xlsx" className="hidden" disabled={returnUploading} onChange={handleReturnFile} />
+          </label>
+
+          {/* Preview table */}
+          {returnRows.length > 0 && !returnDone && (() => {
+            const valid   = returnRows.filter(r => r.errors.length === 0);
+            const invalid = returnRows.filter(r => r.errors.length > 0);
+            return (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-3 items-center">
+                  <span className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>{returnRows.length} rows parsed</span>
+                  {valid.length   > 0 && <span className="badge badge-active">{valid.length} ready</span>}
+                  {invalid.length > 0 && <span className="badge badge-open">{invalid.length} with errors</span>}
+                </div>
+
+                <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid rgba(30,48,88,0.6)', maxHeight: 320, overflowY: 'auto' }}>
+                  <table className="w-full text-xs">
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                      <tr style={{ background: '#060D1C', borderBottom: '1px solid rgba(30,48,88,0.6)' }}>
+                        {['Row', 'Asset Code', 'Return Date', 'Client Email', '₹/mo', 'Status'].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: '#3A5578', fontSize: 10 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {returnRows.map(row => {
+                        const hasError = row.errors.length > 0;
+                        return (
+                          <tr key={row.rowNum} style={{ borderBottom: '1px solid rgba(30,48,88,0.3)', background: hasError ? 'rgba(244,63,94,0.05)' : undefined }}>
+                            <td className="px-3 py-2 font-mono" style={{ color: '#475569' }}>{row.rowNum}</td>
+                            <td className="px-3 py-2 font-mono font-semibold" style={{ color: row.asset_code ? '#FB7185' : '#334155' }}>
+                              {row.asset_code || '—'}
+                            </td>
+                            <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ color: '#94A3B8' }}>{row.return_date || '—'}</td>
+                            <td className="px-3 py-2" style={{ color: '#64748B' }}>{row.client_email || '—'}</td>
+                            <td className="px-3 py-2 font-mono" style={{ color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
+                              {row.monthly_rental ? `₹${Number(row.monthly_rental).toLocaleString('en-IN')}` : '—'}
+                            </td>
+                            <td className="px-3 py-2">
+                              {hasError ? (
+                                <div className="space-y-1">
+                                  {row.errors.map((err, i) => (
+                                    <div key={i} className="flex items-start gap-1" style={{ color: '#FB7185' }}>
+                                      <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
+                                      <span className="text-[10px] leading-tight">{err}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="badge badge-active">Ready</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button onClick={() => setReturnRows([])}
+                    className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                    style={{ color: '#475569', background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.6)' }}>
+                    Clear
+                  </button>
+                  <Button
+                    icon={<CheckCircle size={14} />}
+                    loading={returnImporting}
+                    disabled={valid.length === 0}
+                    style={{ background: valid.length > 0 ? '#F43F5E' : undefined }}
+                    onClick={doReturn}>
+                    Return {valid.length} Laptop{valid.length !== 1 ? 's' : ''}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Return result */}
+          {returnDone && (
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                {returnDone.ok > 0 && (
+                  <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                    <CheckCircle size={20} style={{ color: '#10B981' }} />
+                    <div>
+                      <div className="font-semibold text-sm" style={{ color: '#10B981' }}>{returnDone.ok} rental{returnDone.ok !== 1 ? 's' : ''} completed</div>
+                      <div className="text-xs" style={{ color: '#6EE7B7' }}>Laptops are now available</div>
+                    </div>
+                  </div>
+                )}
+                {returnDone.fail.length > 0 && (
+                  <div className="flex-1 flex items-start gap-3 px-4 py-3 rounded-xl"
+                    style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)' }}>
+                    <XCircle size={20} style={{ color: '#F43F5E' }} className="mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="font-semibold text-sm" style={{ color: '#F43F5E' }}>{returnDone.fail.length} failed</div>
+                      <div className="space-y-0.5 mt-1">
+                        {returnDone.fail.map((msg, i) => (
+                          <div key={i} className="text-xs" style={{ color: '#FB7185' }}>{msg}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="ghost" onClick={() => { setReturnDone(null); setReturnRows([]); }}>Upload Another</Button>
+                <Button onClick={() => setShowReturnUpload(false)}>Done</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
       {/* ── Bulk Upload Modal ─────────────────────────────────── */}
       <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Bulk Upload Rentals" width="max-w-4xl">
         <div className="space-y-5">
@@ -1930,7 +2203,6 @@ export default function RentalsPage() {
                   ['delivery_date',  'Yes', '2025-01-15',         'YYYY-MM-DD format'],
                   ['asset_code',     'Yes', 'LR-001',             'Must be available in inventory'],
                   ['monthly_rental', 'Yes', '5000',               'Number only, no ₹ symbol'],
-                  ['quantity',       'No',  '1',                  'Defaults to 1'],
                   ['gst_percent',    'No',  '18',                 'Defaults to 18'],
                   ['notes',          'No',  'Project A',          'Optional notes for the rental'],
                 ].map(([col, req, ex, note]) => (
@@ -1985,7 +2257,7 @@ export default function RentalsPage() {
                   <table className="w-full text-xs">
                     <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                       <tr style={{ background: '#060D1C', borderBottom: '1px solid rgba(30,48,88,0.6)' }}>
-                        {['Row', 'Client', 'Delivery', 'Asset', '₹/mo', 'Qty', 'Status'].map(h => (
+                        {['Row', 'Client', 'Delivery', 'Asset', '₹/mo', 'Status'].map(h => (
                           <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: '#3A5578', fontSize: 10 }}>{h}</th>
                         ))}
                       </tr>
@@ -2014,7 +2286,6 @@ export default function RentalsPage() {
                             <td className="px-3 py-2 font-mono" style={{ color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
                               {row.monthly_rental ? `₹${Number(row.monthly_rental).toLocaleString('en-IN')}` : '—'}
                             </td>
-                            <td className="px-3 py-2 font-mono text-center" style={{ color: '#94A3B8' }}>{row.quantity}</td>
                             <td className="px-3 py-2">
                               {hasError ? (
                                 <div className="space-y-1">

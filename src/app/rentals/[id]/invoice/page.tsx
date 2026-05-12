@@ -1,21 +1,20 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Printer, ArrowLeft } from 'lucide-react';
+import { Printer, ArrowLeft, FileText, Receipt } from 'lucide-react';
 import '../../../invoice-print.css';
 
-/* ── Company details — update these to match your business ── */
 const COMPANY = {
-  name:     'Shine IT Service',
-  tagline:  'Laptop Rental Service',
-  address:  'Kandapile Building, Plot No-299, Survey No. 386,\nOpp Kandapile Building, Panvel, Navi Mumbai, Raigad-410206',
-  phone:    '+91 9833887134 | +91 9920073301',
-  email:    'accounts@contact.laptoprentalservice.com',
-  gst:      '27BLJPA1270R1ZT',
-  hsn:      '997315',
-  website:  'www.laptoprentalservice.com',
+  name:    'Shine IT Service',
+  tagline: 'Laptop Rental Service',
+  address: 'Kandapile Building, Plot No-299, Survey No. 386,\nOpp Kandapile Building, Panvel, Navi Mumbai, Raigad-410206',
+  phone:   '+91 9833887134 | +91 9920073301',
+  email:   'accounts@contact.laptoprentalservice.com',
+  gst:     '27BLJPA1270R1ZT',
+  hsn:     '997315',
+  website: 'www.laptoprentalservice.com',
 };
 
 const TERMS = [
@@ -25,17 +24,13 @@ const TERMS = [
 
 const fmtDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
-
 const fmtAmt = (n: any) =>
   Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function billingEnd(startDate: string): string {
   const d = new Date(startDate);
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  const y = end.getFullYear();
-  const mo = String(end.getMonth() + 1).padStart(2, '0');
-  const day = String(end.getDate()).padStart(2, '0');
-  return `${y}-${mo}-${day}`;
+  return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
 }
 function billingDays(startDate: string): number {
   const start = new Date(startDate);
@@ -43,43 +38,64 @@ function billingDays(startDate: string): number {
   return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
 }
 
+type Mode = 'estimate' | 'invoice';
+
 export default function InvoicePage() {
-  const params = useParams();
-  const id = Number(params.id);
-  const [rental, setRental] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const params        = useParams();
+  const searchParams  = useSearchParams();
+  const router        = useRouter();
+  const id            = Number(params.id);
+  const mode: Mode    = (searchParams.get('mode') as Mode) || 'estimate';
+
+  const [rental,      setRental]      = useState<any>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [docNumber,   setDocNumber]   = useState<string>('');
+  const [numberLoading, setNumberLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await api.rentals.get(id);
       setRental(res.data);
-    } catch { /* redirect handled by parent */ }
-    finally { setLoading(false); }
-  }, [id]);
+    } catch { router.push('/rentals'); }
+    finally   { setLoading(false); }
+  }, [id, router]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Fetch / create invoice number whenever mode or rental changes
+  useEffect(() => {
+    if (!rental) return;
+    setNumberLoading(true);
+    api.invoiceRecords.assign({ type: mode, rental_id: rental.id })
+      .then(res => setDocNumber(res.data?.formatted_number ?? ''))
+      .catch(() => setDocNumber(''))
+      .finally(() => setNumberLoading(false));
+  }, [rental, mode]);
+
+  function switchMode(m: Mode) {
+    router.replace(`/rentals/${id}/invoice?mode=${m}`);
+  }
 
   if (loading) return (
     <div style={{ padding: 40, textAlign: 'center', fontFamily: 'Arial, sans-serif', color: '#666' }}>
       Loading invoice...
     </div>
   );
+  if (!rental) return null;
 
-  if (!rental) return (
-    <div style={{ padding: 40, textAlign: 'center', fontFamily: 'Arial, sans-serif', color: '#666' }}>
-      Rental not found.
-    </div>
-  );
+  // ── Billing calculations (pro-rated basis) ──────────────────────────────
+  const monthly  = Number(rental.monthly_rental || 0);
+  const qty      = Number(rental.quantity        || 1);
+  const gstPct   = Number(rental.gst_percent     || 18);
+  const halfPct  = gstPct / 2;
 
-  const monthly    = Number(rental.monthly_rental  || 0);
-  const qty        = Number(rental.quantity         || 1);
-  const gstPct     = Number(rental.gst_percent      || 18);
-  const total      = Number(rental.total            || (monthly * qty));
-  const gstAmt     = Number(rental.gst_amount       || (total * gstPct / 100));
-  const grandTotal = Number(rental.grand_total      || (total + gstAmt));
-  const sgst       = +(gstAmt / 2).toFixed(2);
-  const cgst       = +(gstAmt / 2).toFixed(2);
-  const halfPct    = gstPct / 2;
+  // The invoice amount for this billing period is pro_rental, not the monthly base
+  const proAmt   = Number(rental.pro_rental ?? monthly);
+  const billedAmt = proAmt;  // amount for this document
+  const sgst     = +(billedAmt * halfPct / 100).toFixed(2);
+  const cgst     = +(billedAmt * halfPct / 100).toFixed(2);
+  const gstAmt   = sgst + cgst;
+  const grandTotal = billedAmt + gstAmt;
 
   const inv    = rental.inventory;
   const client = rental.client;
@@ -93,76 +109,85 @@ export default function InvoicePage() {
   const specs   = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd]
     .filter(Boolean).join('-');
 
+  const isInvoice    = mode === 'invoice';
+  const title        = isInvoice ? 'TAX INVOICE' : 'ESTIMATION';
+  const numLabel     = isInvoice ? 'Invoice No' : 'Est No';
+  const docNo        = numberLoading ? '…' : (docNumber || rental.rental_no);
+  const docDate      = fmtDate(rental.delivery_date || rental.created_at);
+
   return (
     <>
-      {/* Toolbar — hidden when printing */}
+      {/* Toolbar */}
       <div className="no-print" style={{
         background: '#0B1628', padding: '10px 24px',
-        display: 'flex', alignItems: 'center', gap: 12,
+        display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <button
-          onClick={() => window.history.back()}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', color: '#94A3B8', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}>
+        <button onClick={() => window.history.back()}
+          style={{ display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.08)',color:'#94A3B8',border:'none',borderRadius:8,padding:'7px 14px',fontSize:13,cursor:'pointer' }}>
           <ArrowLeft size={14} /> Back
         </button>
-        <span style={{ color: '#64748B', fontSize: 13 }}>{rental.rental_no} — Invoice</span>
-        <button
-          onClick={() => window.print()}
-          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, background: '#3B82F6', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+        <span style={{ color: '#64748B', fontSize: 13 }}>{rental.rental_no}</span>
+
+        {/* Mode toggle */}
+        <div style={{ display:'flex',gap:4,padding:'3px',background:'rgba(255,255,255,0.06)',borderRadius:10,marginLeft:8 }}>
+          <button onClick={() => switchMode('estimate')}
+            style={{ display:'flex',alignItems:'center',gap:5,padding:'5px 12px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',
+              background: !isInvoice ? '#3B82F6' : 'transparent',
+              color:      !isInvoice ? 'white'  : '#64748B' }}>
+            <FileText size={12} /> Estimation
+          </button>
+          <button onClick={() => switchMode('invoice')}
+            style={{ display:'flex',alignItems:'center',gap:5,padding:'5px 12px',borderRadius:7,border:'none',fontSize:12,fontWeight:600,cursor:'pointer',
+              background: isInvoice ? '#10B981' : 'transparent',
+              color:      isInvoice ? 'white'   : '#64748B' }}>
+            <Receipt size={12} /> Tax Invoice
+          </button>
+        </div>
+
+        <button onClick={() => window.print()}
+          style={{ marginLeft:'auto',display:'flex',alignItems:'center',gap:6,background:'#3B82F6',color:'white',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:700,cursor:'pointer' }}>
           <Printer size={15} /> Print / Save as PDF
         </button>
       </div>
 
       {/* Invoice page */}
-      <div className="page" style={{
-        background: 'white', maxWidth: 900, margin: '24px auto',
-        padding: '32px 36px', boxShadow: '0 4px 24px rgba(0,0,0,0.1)',
-      }}>
+      <div className="page" style={{ background:'white',maxWidth:900,margin:'24px auto',padding:'32px 36px',boxShadow:'0 4px 24px rgba(0,0,0,0.1)' }}>
 
-        {/* ── Header ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: 10,
-              background: 'linear-gradient(135deg, #1e3a5f, #3B82F6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontWeight: 900, fontSize: 14, letterSpacing: -0.5,
-            }}>LR</div>
-            <div>
-              <div style={{ fontWeight: 900, fontSize: 20, color: '#1e3a5f', lineHeight: 1.1 }}>
-                Laptop<span style={{ color: '#3B82F6' }}>Rental</span>
-              </div>
+        {/* Header */}
+        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20 }}>
+          <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+            <div style={{ width:48,height:48,borderRadius:10,background:'linear-gradient(135deg,#1e3a5f,#3B82F6)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:900,fontSize:14 }}>LR</div>
+            <div style={{ fontWeight:900,fontSize:20,color:'#1e3a5f',lineHeight:1.1 }}>
+              Laptop<span style={{ color:'#3B82F6' }}>Rental</span>
             </div>
           </div>
-
-          {/* Title */}
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: 1 }}>Estimation</div>
+          <div style={{ textAlign:'center',flex:1 }}>
+            <div style={{ fontSize:26,fontWeight:900,letterSpacing:1 }}>{title}</div>
+            {isInvoice && (
+              <div style={{ fontSize:11,color:'#555',marginTop:2 }}>Original for Recipient</div>
+            )}
           </div>
-
-          {/* Est No + Date */}
-          <div style={{ textAlign: 'right', fontSize: 12 }}>
-            <div>Est No:- {rental.rental_no}</div>
-            <div>Date: {fmtDate(rental.delivery_date || rental.created_at)}</div>
+          <div style={{ textAlign:'right',fontSize:12 }}>
+            <div>{numLabel}:- {docNo}</div>
+            <div>Date: {docDate}</div>
           </div>
         </div>
 
-        {/* ── To / From ── */}
-        <table style={{ marginBottom: 20 }}>
+        {/* To / From */}
+        <table style={{ marginBottom:20 }}>
           <tbody>
             <tr>
-              <td style={{ width: '50%', verticalAlign: 'top', padding: 12 }}>
-                <div className="bold" style={{ marginBottom: 4 }}>To,</div>
-                <div className="bold" style={{ fontSize: 13 }}>{client?.company || client?.name || '—'}</div>
+              <td style={{ width:'50%',verticalAlign:'top',padding:12 }}>
+                <div className="bold" style={{ marginBottom:4 }}>To,</div>
+                <div className="bold" style={{ fontSize:13 }}>{client?.company || client?.name || '—'}</div>
                 {client?.company && client?.name && <div>{client.name}</div>}
                 {client?.phone   && <div>Contact Number- {client.phone}</div>}
                 {client?.email   && <div>Email: {client.email}</div>}
               </td>
-              <td style={{ width: '50%', verticalAlign: 'top', padding: 12 }}>
-                <div className="bold" style={{ marginBottom: 4 }}>From,</div>
-                <div className="bold" style={{ fontSize: 13 }}>{COMPANY.name}</div>
+              <td style={{ width:'50%',verticalAlign:'top',padding:12 }}>
+                <div className="bold" style={{ marginBottom:4 }}>From,</div>
+                <div className="bold" style={{ fontSize:13 }}>{COMPANY.name}</div>
                 {COMPANY.address.split('\n').map((line, i) => <div key={i}>{line}</div>)}
                 <div>Contact Number- {COMPANY.phone}</div>
                 <div>Email ID: {COMPANY.email}</div>
@@ -173,16 +198,16 @@ export default function InvoicePage() {
           </tbody>
         </table>
 
-        {/* ── Product Table ── */}
-        <table style={{ marginBottom: 4 }}>
+        {/* Product Table */}
+        <table style={{ marginBottom:4 }}>
           <thead>
             <tr>
-              <th rowSpan={2} style={{ textAlign: 'left', width: '34%' }}>Product</th>
-              <th rowSpan={2} style={{ width: 42 }}>Qty</th>
+              <th rowSpan={2} style={{ textAlign:'left',width:'34%' }}>Product</th>
+              <th rowSpan={2} style={{ width:42 }}>Qty</th>
               <th colSpan={3}>Duration</th>
-              <th rowSpan={2} style={{ width: '13%' }}>Monthly Rental</th>
-              <th rowSpan={2} style={{ width: '13%' }}>Prorated Rental</th>
-              <th rowSpan={2} style={{ width: '13%' }}>Total</th>
+              <th rowSpan={2} style={{ width:'13%' }}>Monthly Rental</th>
+              <th rowSpan={2} style={{ width:'13%' }}>Prorated Rental</th>
+              <th rowSpan={2} style={{ width:'13%' }}>Total</th>
             </tr>
             <tr>
               <th>Start Date</th>
@@ -192,38 +217,36 @@ export default function InvoicePage() {
           </thead>
           <tbody>
             <tr>
-              <td colSpan={8} style={{ background: '#d9e1f2', fontWeight: 700 }}>Laptop</td>
+              <td colSpan={8} style={{ background:'#d9e1f2',fontWeight:700 }}>Laptop</td>
             </tr>
             <tr>
               <td>
                 <div className="bold">{product}</div>
-                {specs && <div style={{ fontSize: 11, color: '#555' }}>{specs}</div>}
-                {inv?.asset_code && <div style={{ fontSize: 10, color: '#888' }}>Code: {inv.asset_code}</div>}
+                {specs     && <div style={{ fontSize:11,color:'#555' }}>{specs}</div>}
+                {inv?.asset_code && <div style={{ fontSize:10,color:'#888' }}>Code: {inv.asset_code}</div>}
               </td>
               <td className="center">{qty}</td>
               <td className="center">{fmtDate(start)}</td>
               <td className="center">{fmtDate(endDate)}</td>
               <td className="center">{daysActive}</td>
               <td className="right">{fmtAmt(monthly)}</td>
-              <td className="right">{fmtAmt(rental.pro_rental ?? monthly)}</td>
-              <td className="right">{fmtAmt(total)}</td>
+              <td className="right">{fmtAmt(proAmt)}</td>
+              <td className="right">{fmtAmt(billedAmt)}</td>
             </tr>
             {rental.notes && (
               <tr>
-                <td colSpan={8} style={{ fontSize: 11, color: '#555', fontStyle: 'italic', background: '#fafafa' }}>
+                <td colSpan={8} style={{ fontSize:11,color:'#555',fontStyle:'italic',background:'#fafafa' }}>
                   Note: {rental.notes}
                 </td>
               </tr>
             )}
-            <tr>
-              <td colSpan={8} className="no-border" style={{ height: 8 }} />
-            </tr>
+            <tr><td colSpan={8} className="no-border" style={{ height:8 }} /></tr>
           </tbody>
           <tfoot>
             <tr>
               <td colSpan={6} className="no-border" />
               <td className="right bold">Gross Total</td>
-              <td className="right bold">{fmtAmt(total)}</td>
+              <td className="right bold">{fmtAmt(billedAmt)}</td>
             </tr>
             <tr>
               <td colSpan={6} className="no-border" />
@@ -237,47 +260,46 @@ export default function InvoicePage() {
             </tr>
             <tr className="total-row">
               <td colSpan={6} className="no-border" />
-              <td className="right bold" style={{ border: '1px solid #bbb' }}>Grand Total</td>
-              <td className="right bold" style={{ border: '1px solid #bbb' }}>{fmtAmt(grandTotal)}</td>
+              <td className="right bold" style={{ border:'1px solid #bbb' }}>Grand Total</td>
+              <td className="right bold" style={{ border:'1px solid #bbb' }}>{fmtAmt(grandTotal)}</td>
             </tr>
           </tfoot>
         </table>
 
-        {/* ── Terms & Conditions ── */}
-        <div style={{ marginTop: 20, marginBottom: 24 }}>
-          <div className="bold" style={{ marginBottom: 6, fontSize: 12 }}>Terms and Conditions</div>
+        {/* Terms */}
+        <div style={{ marginTop:20,marginBottom:24 }}>
+          <div className="bold" style={{ marginBottom:6,fontSize:12 }}>Terms and Conditions</div>
           {TERMS.map((t, i) => (
-            <p key={i} style={{ fontSize: 11, color: '#333', marginBottom: 6, lineHeight: 1.6 }}>{t}</p>
+            <p key={i} style={{ fontSize:11,color:'#333',marginBottom:6,lineHeight:1.6 }}>{t}</p>
           ))}
         </div>
 
-        {/* ── Signatures ── */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 48 }}>
+        {/* Signatures */}
+        <div style={{ display:'flex',justifyContent:'space-between',marginTop:48 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 2 }}>For {COMPANY.name}</div>
-            <div style={{ height: 40 }} />
-            <div style={{ borderTop: '1px solid #333', paddingTop: 4, width: 180 }}>
-              <div style={{ fontSize: 11 }}>Authorized Signatory</div>
-              <div style={{ fontSize: 11 }}>For {COMPANY.name}</div>
+            <div style={{ fontSize:11,fontWeight:700,marginBottom:2 }}>For {COMPANY.name}</div>
+            <div style={{ height:40 }} />
+            <div style={{ borderTop:'1px solid #333',paddingTop:4,width:180 }}>
+              <div style={{ fontSize:11 }}>Authorized Signatory</div>
+              <div style={{ fontSize:11 }}>For {COMPANY.name}</div>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ height: 60 }} />
-            <div style={{ borderTop: '1px solid #333', paddingTop: 4, width: 220 }}>
-              <div style={{ fontSize: 11 }}>Authorized Signatory &amp; Stamp</div>
-              <div style={{ fontSize: 11 }}>For {client?.company || client?.name || '—'}</div>
+          <div style={{ textAlign:'right' }}>
+            <div style={{ height:60 }} />
+            <div style={{ borderTop:'1px solid #333',paddingTop:4,width:220 }}>
+              <div style={{ fontSize:11 }}>Authorized Signatory &amp; Stamp</div>
+              <div style={{ fontSize:11 }}>For {client?.company || client?.name || '—'}</div>
             </div>
           </div>
         </div>
 
-        {/* ── Footer ── */}
-        <div style={{ borderTop: '2px dashed #aaa', paddingTop: 12, textAlign: 'center', marginTop: 32 }}>
-          <div style={{ fontSize: 12, fontWeight: 700 }}>{COMPANY.name} ({COMPANY.tagline})</div>
-          <div style={{ fontSize: 11, color: '#555' }}>Mumbai | Thane | Navi Mumbai</div>
-          <div style={{ fontSize: 11, color: '#555' }}>Contact Number: {COMPANY.phone}</div>
-          <div style={{ fontSize: 11, color: '#3B82F6', textDecoration: 'underline' }}>{COMPANY.website}</div>
+        {/* Footer */}
+        <div style={{ borderTop:'2px dashed #aaa',paddingTop:12,textAlign:'center',marginTop:32 }}>
+          <div style={{ fontSize:12,fontWeight:700 }}>{COMPANY.name} ({COMPANY.tagline})</div>
+          <div style={{ fontSize:11,color:'#555' }}>Mumbai | Thane | Navi Mumbai</div>
+          <div style={{ fontSize:11,color:'#555' }}>Contact Number: {COMPANY.phone}</div>
+          <div style={{ fontSize:11,color:'#3B82F6',textDecoration:'underline' }}>{COMPANY.website}</div>
         </div>
-
       </div>
     </>
   );

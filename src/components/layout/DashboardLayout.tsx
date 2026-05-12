@@ -21,6 +21,7 @@ const MOBILE_ADMIN = [
 ];
 const MOBILE_STAFF = [
   { href: '/inventory', label: 'Inventory', icon: Monitor },
+  { href: '/schedules', label: 'Schedules', icon: CalendarClock },
   { href: '/issues',    label: 'Issues',    icon: Wrench },
 ];
 const MOBILE_CLIENT = [
@@ -49,11 +50,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!user) { router.push('/auth/login'); return; }
     if (user.role === 'vendor') { router.push('/auth/login'); return; }
 
-    // ── Staff: only inventory (list + detail) and issues ──
+    // ── Staff: inventory, schedules, issues, profile ──
     if (user.role === 'staff') {
       const ok =
         pathname === '/inventory' ||
         pathname.startsWith('/inventory/') ||
+        pathname === '/schedules' ||
+        pathname.startsWith('/schedules/') ||
         pathname === '/issues' ||
         pathname.startsWith('/issues/') ||
         pathname === '/profile';

@@ -8,7 +8,8 @@ import { Inventory } from '@/types';
 import {
   Monitor, Plus, Search, Edit, Trash2, Eye, Upload,
   FileSpreadsheet, AlertCircle, CheckCircle2, ImagePlus,
-  X, ChevronRight, List, Grid3X3, Filter, LayoutGrid,
+  X, ChevronRight, Filter, LayoutGrid, List, Download,
+  Truck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -18,9 +19,8 @@ const TYPE_OPTS   = ['', 'office', 'vendor', 'sold'];
 
 const EMPTY_FORM = {
   brand: '', model_no: '', serial_number: '', cpu: '', generation: '', ram: '', ssd: '',
-  purchase_date: '', purchaser: '', status: 'available',
-  graphics: '', type: 'office', notes: '', vendor_name: '', vendor_location: '',
-  employee_name: '', employee_mobile: '', employee_address: '',
+  graphics: '', screen_size: '', purchase_date: '', purchaser: '', status: 'available',
+  type: 'office', notes: '', vendor_name: '', vendor_location: '',
 };
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -58,6 +58,21 @@ export default function InventoryPage() {
   const [importFile,   setImportFile]   = useState<File | null>(null);
   const [importing,    setImporting]    = useState(false);
   const [importResult, setImportResult] = useState<{ success: boolean; message: string; failures?: any[] } | null>(null);
+  const [exporting,    setExporting]    = useState(false);
+
+  // Schedule state (staff actions)
+  const EMPTY_SF = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', employee_name: '', employee_number: '', employee_address: '', notes: '', assigned_to: '' };
+  const SCHED_META: Record<string, { label: string; color: string; bg: string; border: string; dateLabel: string }> = {
+    delivery:             { label: 'New Delivery',         color: '#3B82F6', bg: 'rgba(59,130,246,0.07)',  border: 'rgba(59,130,246,0.2)',  dateLabel: 'Delivery Date & Time'    },
+    replacement_delivery: { label: 'Replacement Delivery', color: '#8B5CF6', bg: 'rgba(139,92,246,0.07)', border: 'rgba(139,92,246,0.2)',  dateLabel: 'Replacement Date & Time' },
+    replacement_receive:  { label: 'Replacement Receive',  color: '#0D9488', bg: 'rgba(13,148,136,0.07)', border: 'rgba(13,148,136,0.2)',  dateLabel: 'Replacement Date & Time' },
+    pickup:               { label: 'Return',               color: '#F59E0B', bg: 'rgba(245,158,11,0.07)',  border: 'rgba(245,158,11,0.2)',  dateLabel: 'Return Date & Time'      },
+  };
+  const [schedModal,   setSchedModal]   = useState<string | null>(null);
+  const [schedItem,    setSchedItem]    = useState<Inventory | null>(null);
+  const [schedForm,    setSchedForm]    = useState({ ...EMPTY_SF });
+  const [staffUsers,   setStaffUsers]   = useState<any[]>([]);
+  const [schedSaving,  setSchedSaving]  = useState(false);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -92,6 +107,60 @@ export default function InventoryPage() {
       .then((r: any) => setVendors(r.data?.data || r.data || [])).catch(() => {});
   }, []);
 
+  // Load staff + admin users for schedule assignment
+  useEffect(() => {
+    if (!isStaff) return;
+    api.users.list({ role: 'staff', per_page: '100' })
+      .then(res => {
+        const staff = res.data?.data || res.data || [];
+        api.users.list({ role: 'admin', per_page: '100' })
+          .then(res2 => setStaffUsers([...staff, ...(res2.data?.data || res2.data || [])]))
+          .catch(() => setStaffUsers(staff));
+      }).catch(() => {});
+  }, [isStaff]);
+
+  function openSchedModal(type: string, item: Inventory) {
+    setSchedItem(item);
+    setSchedModal(type);
+    setSchedForm({ ...EMPTY_SF });
+  }
+
+  const sf = (k: string, v: string) => setSchedForm(p => ({ ...p, [k]: v }));
+
+  async function handleScheduleSubmit() {
+    if (!schedModal || !schedItem) return;
+    const rentalId = (schedItem as any).active_rental?.id;
+    if (!rentalId) { showToast('No active rental found for this laptop', 'error'); return; }
+    setSchedSaving(true);
+    try {
+      const payload: any = {
+        address:          schedForm.address,
+        scheduled_at:     schedForm.scheduled_at,
+        contact_name:     schedForm.contact_name     || undefined,
+        contact_phone:    schedForm.contact_phone    || undefined,
+        employee_name:    schedForm.employee_name    || undefined,
+        employee_number:  schedForm.employee_number  || undefined,
+        employee_address: schedForm.employee_address || undefined,
+        notes:            schedForm.notes            || undefined,
+      };
+      if (schedModal !== 'pickup' && schedForm.assigned_to)
+        payload.assigned_to = Number(schedForm.assigned_to);
+
+      if (schedModal === 'pickup') {
+        await api.rentals.schedules.schedulePickup(rentalId, payload);
+      } else if (schedModal === 'delivery') {
+        await api.rentals.schedules.scheduleDelivery(rentalId, payload);
+      } else {
+        await api.rentals.schedules.scheduleType(rentalId, { ...payload, type: schedModal });
+      }
+      showToast(`${SCHED_META[schedModal].label} scheduled`);
+      setSchedModal(null);
+      setSchedItem(null);
+    } catch (e: any) {
+      showToast(e.message || 'Failed to schedule', 'error');
+    } finally { setSchedSaving(false); }
+  }
+
   const IMG_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://api.laptoprentalservice.com').replace(/\/api\/?$/, '') + '/';
 
   function openAdd() { setForm({ ...EMPTY_FORM }); setEditItem(null); setEditImages([]); setImageFiles([]); setShowModal(true); }
@@ -99,10 +168,10 @@ export default function InventoryPage() {
     setForm({
       brand: item.brand||'', model_no: item.model_no||'', serial_number: (item as any).serial_number||'',
       cpu: item.cpu||'', generation: (item as any).generation||'', ram: item.ram||'',
-      ssd: item.ssd||'', purchase_date: item.purchase_date||'', purchaser: (item as any).purchaser||'',
-      status: item.status||'available', graphics: item.graphics||'', type: item.type||'office',
+      ssd: item.ssd||'', graphics: item.graphics||'', screen_size: (item as any).screen_size||'',
+      purchase_date: item.purchase_date||'', purchaser: (item as any).purchaser||'',
+      status: item.status||'available', type: item.type||'office',
       notes: item.notes||'', vendor_name: item.vendor_name||'', vendor_location: item.vendor_location||'',
-      employee_name: item.employee_name||'', employee_mobile: item.employee_mobile||'', employee_address: item.employee_address||'',
     });
     setEditItem(item); setEditImages(item.images||[]); setImageFiles([]); setShowModal(true);
   }
@@ -144,6 +213,23 @@ export default function InventoryPage() {
     if (!editItem) return;
     try { const res = await api.inventory.deleteImage(editItem.id, idx); setEditImages(res.images||[]); showToast('Image removed'); }
     catch (e: any) { showToast(e.message || 'Delete failed', 'error'); }
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const p: Record<string, string> = {};
+      if (serialSearch) p.serial_number = serialSearch;
+      if (search)       p.search        = search;
+      if (status)       p.status        = status;
+      if (type)         p.type          = type;
+      await api.inventory.export(Object.keys(p).length ? p : undefined);
+      showToast('Export downloaded successfully');
+    } catch (e: any) {
+      showToast(e.message || 'Export failed', 'error');
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function handleImport() {
@@ -196,6 +282,10 @@ export default function InventoryPage() {
         breadcrumbs={[{ label: 'Dashboard', href: '/dashboard' }, { label: 'Inventory' }]}
         action={!isStaff ? (
           <>
+            <Button variant="secondary" size="sm" icon={<Download size={14} />}
+              loading={exporting} onClick={handleExport}>
+              Export
+            </Button>
             <Button variant="secondary" size="sm" icon={<Upload size={14} />}
               onClick={() => { setShowImport(true); setImportFile(null); setImportResult(null); }}>
               Import
@@ -261,33 +351,64 @@ export default function InventoryPage() {
                   </span>
                 </div>
                 <div className="divide-y" style={{ borderColor: '#F1F5F9' }}>
-                  {items.map(item => (
-                    <Link key={item.id} href={`/inventory/${item.id}`}
-                      className="flex items-center gap-4 px-4 py-4 hover:bg-slate-50 transition-colors"
-                      style={{ textDecoration: 'none' }}>
-                      {item.images?.[0] ? (
-                        <img src={IMG_BASE+item.images[0]} alt={item.brand}
-                          className="w-14 h-11 object-cover rounded-xl flex-shrink-0 border" style={{ borderColor: '#E2E8F0' }} />
-                      ) : (
-                        <div className="w-14 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ background: '#F1F5F9', border: '1px solid #E2E8F0' }}>
-                          <Monitor size={16} style={{ color: '#94A3B8' }} />
+                  {items.map(item => {
+                    const hasRental = !!(item as any).active_rental;
+                    const BTNS = [                     
+                      { type: 'pickup',               label: 'Return',               color: '#F59E0B', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)'  },
+                    ];
+                    return (
+                      <div key={item.id} className="px-4 py-4">
+                        {/* Laptop info row */}
+                        <div className="flex items-center gap-4 mb-3">
+                          {item.images?.[0] ? (
+                            <img src={IMG_BASE+item.images[0]} alt={item.brand}
+                              className="w-14 h-11 object-cover rounded-xl flex-shrink-0 border" style={{ borderColor: '#E2E8F0' }} />
+                          ) : (
+                            <div className="w-14 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                              style={{ background: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+                              <Monitor size={16} style={{ color: '#94A3B8' }} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <code className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: '#EFF6FF', color: '#2563EB' }}>{item.asset_code}</code>
+                              <span className={`badge badge-${item.status}`}>{item.status}</span>
+                            </div>
+                            <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{item.brand} {item.model_no}</div>
+                            <div className="text-xs" style={{ color: '#64748B' }}>
+                              {item.cpu}{(item as any).generation ? ` · ${(item as any).generation} Gen` : ''} · {item.ram} · {item.ssd}
+                            </div>
+                            {item.serial_number && <div className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>S/N: {item.serial_number}</div>}
+                            {hasRental && (
+                              <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>
+                                Client: {(item as any).active_rental.client?.company || (item as any).active_rental.client?.name || '—'}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <code className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: '#EFF6FF', color: '#2563EB' }}>{item.asset_code}</code>
-                          <span className={`badge badge-${item.status}`}>{item.status}</span>
-                        </div>
-                        <div className="text-sm font-semibold" style={{ color: '#0F172A' }}>{item.brand} {item.model_no}</div>
-                        <div className="text-xs" style={{ color: '#64748B' }}>
-                          {item.cpu}{(item as any).generation ? ` · ${(item as any).generation} Gen` : ''} · {item.ram} · {item.ssd}
-                        </div>
-                        {item.serial_number && <div className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>S/N: {item.serial_number}</div>}
+
+                        {/* Action buttons */}
+                        {hasRental ? (
+                          <div className="flex flex-wrap gap-2">
+                            {BTNS.map(btn => (
+                              <button key={btn.type}
+                                onClick={() => openSchedModal(btn.type, item)}
+                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+                                style={{ background: btn.bg, color: btn.color, border: `1px solid ${btn.border}` }}>
+                                <Truck size={11} />
+                                {btn.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs px-3 py-1.5 rounded-lg inline-block"
+                            style={{ background: '#F1F5F9', color: '#94A3B8', border: '1px solid #E2E8F0' }}>
+                            No active rental — schedule actions unavailable
+                          </div>
+                        )}
                       </div>
-                      <ChevronRight size={15} style={{ color: '#CBD5E1', flexShrink: 0 }} />
-                    </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )
@@ -472,7 +593,7 @@ export default function InventoryPage() {
                           { label: 'Specs' },
                           { label: 'Monthly', right: true },
                           { label: 'Type', center: true },
-                          { label: 'Vendor / Employee' },
+                          { label: 'Vendor' },
                           { label: 'Status', center: true },
                           { label: 'Client' },
                           { label: '', center: true, w: 80 },
@@ -573,18 +694,18 @@ export default function InventoryPage() {
                               <span className={`badge badge-${item.type}`}>{item.type}</span>
                             </td>
 
-                            {/* Vendor / Employee */}
+                            {/* Vendor */}
                             <td style={{ padding: '10px 14px', maxWidth: 140 }}>
                               {item.vendor_name ? (
-                                <div className="text-xs font-medium truncate" style={{ color: '#334155' }}>{item.vendor_name}</div>
-                              ) : null}
-                              {item.employee_name ? (
-                                <div className="text-xs truncate mt-0.5" style={{ color: '#64748B' }}>
-                                  {item.employee_name}
-                                </div>
-                              ) : !item.vendor_name ? (
+                                <>
+                                  <div className="text-xs font-medium truncate" style={{ color: '#334155' }}>{item.vendor_name}</div>
+                                  {item.vendor_location && (
+                                    <div className="text-xs truncate mt-0.5" style={{ color: '#94A3B8' }}>{item.vendor_location}</div>
+                                  )}
+                                </>
+                              ) : (
                                 <span style={{ color: '#E2E8F0', fontSize: 12 }}>—</span>
-                              ) : null}
+                              )}
                             </td>
 
                             {/* Status */}
@@ -724,6 +845,7 @@ export default function InventoryPage() {
       {/* ── Add / Edit Modal ── */}
       <Modal open={showModal} onClose={() => setShowModal(false)}
         title={editItem ? `Edit — ${editItem.asset_code}` : 'Add New Laptop'} width="max-w-2xl">
+        {/* Core specs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Brand" required><input className="inp" value={form.brand} onChange={e=>f('brand',e.target.value)} placeholder="Dell, HP, Lenovo…" /></FormField>
           <FormField label="Model No" required><input className="inp" value={form.model_no} onChange={e=>f('model_no',e.target.value)} placeholder="Latitude E5470" /></FormField>
@@ -731,7 +853,9 @@ export default function InventoryPage() {
           <FormField label="CPU" required><input className="inp" value={form.cpu} onChange={e=>f('cpu',e.target.value)} placeholder="i5, i7…" /></FormField>
           <FormField label="Generation"><input className="inp" value={form.generation} onChange={e=>f('generation',e.target.value)} placeholder="6th, 8th, 12th…" /></FormField>
           <FormField label="RAM" required><input className="inp" value={form.ram} onChange={e=>f('ram',e.target.value)} placeholder="8GB, 16GB…" /></FormField>
-          <FormField label="Storage" required><input className="inp" value={form.ssd} onChange={e=>f('ssd',e.target.value)} placeholder="256 SSD, 512 NVMe…" /></FormField>
+          <FormField label="Storage (HDD/SSD)" required><input className="inp" value={form.ssd} onChange={e=>f('ssd',e.target.value)} placeholder="256 SSD, 512 NVMe…" /></FormField>
+          <FormField label="Graphics"><input className="inp" value={form.graphics} onChange={e=>f('graphics',e.target.value)} placeholder="Integrated, NVIDIA GTX 1650…" /></FormField>
+          <FormField label="Screen Size"><input className="inp" value={form.screen_size} onChange={e=>f('screen_size',e.target.value)} placeholder='14", 15.6", 13.3"…' /></FormField>
           <FormField label="Purchase Date"><input className="inp" type="date" value={form.purchase_date} onChange={e=>f('purchase_date',e.target.value)} /></FormField>
           <FormField label="Purchaser">
             <select className="inp" value={form.purchaser} onChange={e=>f('purchaser',e.target.value)}>
@@ -748,12 +872,12 @@ export default function InventoryPage() {
           )}
         </div>
 
+        {/* Vendor info */}
         <div className="mt-5 pt-4 border-t" style={{ borderColor: '#E2E8F0' }}>
-          <div className="section-title">Employee Assignment</div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FormField label="Name"><input className="inp" value={form.employee_name} onChange={e=>f('employee_name',e.target.value)} placeholder="John Doe" /></FormField>
-            <FormField label="Mobile"><input className="inp" value={form.employee_mobile} onChange={e=>f('employee_mobile',e.target.value)} placeholder="9876543210" /></FormField>
-            <FormField label="Address"><input className="inp" value={form.employee_address} onChange={e=>f('employee_address',e.target.value)} placeholder="12 MG Road…" /></FormField>
+          <div className="section-title">Vendor Info</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField label="Vendor Name"><input className="inp" value={form.vendor_name} onChange={e=>f('vendor_name',e.target.value)} placeholder="Ravi Enterprises" /></FormField>
+            <FormField label="Location"><input className="inp" value={form.vendor_location} onChange={e=>f('vendor_location',e.target.value)} placeholder="Delhi, Mumbai…" /></FormField>
           </div>
         </div>
 
@@ -804,7 +928,7 @@ export default function InventoryPage() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold" style={{ color: '#1D4ED8' }}>Accepted: .csv, .xlsx, .xls</span>
               <button onClick={() => {
-                const csv = ['Asset No,Brand,Model Number,Serial Number,CPU,Generation,Ram,HDD,Purchase Date,Purchaser,Price,Status,Vendor Name,Location,Graphics,Notes,Employee Name,Employee Mobile,Employee Address','1001,Dell,LATITUDE-E5470,F7088H2,i5,6th,8GB,256 SSD,15-Jan-23,Ravi Delhi,1100,office,Ravi Enterprises,Delhi,,,John Doe,9876543210,12 MG Road Bangalore'].join('\n');
+                const csv = ['Asset No,Brand,Model Number,Serial Number,CPU,Generation,Ram,HDD,Graphics,Screen Size,Purchase Date,Purchaser,Purchasing Price,Vendor Name,Location,Notes','1001,Dell,LATITUDE-E5470,F7088H2,i5,6th,8GB,256 SSD,Integrated,15.6",15-Jan-23,Ravi Delhi,1100,Ravi Enterprises,Delhi,Good condition'].join('\n');
                 const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href=url; a.download='inventory_sample.csv'; a.click(); URL.revokeObjectURL(url);
               }} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors"
@@ -813,7 +937,10 @@ export default function InventoryPage() {
               </button>
             </div>
             <p className="text-xs" style={{ color: '#2563EB' }}>
-              Required: Brand, Model, Serial, CPU, Generation, RAM, Storage, Purchase Date, Purchaser
+              Required: Brand, Model Number, Serial Number, CPU, Generation, Ram, HDD, Purchase Date, Purchaser
+            </p>
+            <p className="text-xs mt-1" style={{ color: '#3B82F6' }}>
+              Optional: Asset No, Graphics, Screen Size, Purchasing Price, Vendor Name, Location, Notes
             </p>
           </div>
 
@@ -851,6 +978,110 @@ export default function InventoryPage() {
           <Button variant="ghost" onClick={() => setShowImport(false)}>Close</Button>
           <Button icon={<Upload size={14} />} onClick={handleImport} loading={importing} disabled={!importFile}>Import</Button>
         </div>
+      </Modal>
+
+      {/* ── Staff Schedule Modal ── */}
+      <Modal open={!!schedModal} onClose={() => { setSchedModal(null); setSchedItem(null); }}
+        title={schedModal ? SCHED_META[schedModal].label : ''} width="max-w-lg">
+        {schedModal && schedItem && (
+          <>
+            {/* Laptop + client context */}
+            <div className="mb-4 px-3 py-2.5 rounded-xl"
+              style={{ background: `${SCHED_META[schedModal].bg}`, border: `1px solid ${SCHED_META[schedModal].border}` }}>
+              <div className="flex items-center gap-2 mb-0.5">
+                <code className="text-xs font-bold" style={{ color: SCHED_META[schedModal].color }}>{schedItem.asset_code}</code>
+                <span className="text-xs font-semibold" style={{ color: '#334155' }}>{schedItem.brand} {schedItem.model_no}</span>
+              </div>
+              {(schedItem as any).active_rental?.client && (
+                <div className="text-xs" style={{ color: '#64748B' }}>
+                  Client: {(schedItem as any).active_rental.client.company || (schedItem as any).active_rental.client.name}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Date */}
+              <div className="sm:col-span-2">
+                <FormField label={SCHED_META[schedModal].dateLabel} required>
+                  <input className="inp" type="datetime-local" value={schedForm.scheduled_at} onChange={e => sf('scheduled_at', e.target.value)} />
+                </FormField>
+              </div>
+
+              {/* Assign to staff (not for pickup/return) */}
+              {schedModal !== 'pickup' && (
+                <div className="sm:col-span-2">
+                  <FormField label="Assign To (Staff)" required>
+                    <select className="inp" value={schedForm.assigned_to} onChange={e => sf('assigned_to', e.target.value)}>
+                      <option value="">— Select staff member —</option>
+                      {staffUsers.map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+                  </FormField>
+                </div>
+              )}
+
+              {/* IT Contact */}
+              <FormField label="IT Name" required>
+                <input className="inp" value={schedForm.contact_name} onChange={e => sf('contact_name', e.target.value)} placeholder="IT contact person name" />
+              </FormField>
+              <FormField label="IT Contact Number" required>
+                <input className="inp" value={schedForm.contact_phone} onChange={e => sf('contact_phone', e.target.value)} placeholder="9876543210" />
+              </FormField>
+
+              {/* Location */}
+              <div className="sm:col-span-2">
+                <FormField label="Location" required>
+                  <input className="inp" value={schedForm.address} onChange={e => sf('address', e.target.value)} placeholder="Building, Street, Area, City - Pincode" />
+                </FormField>
+              </div>
+            </div>
+
+            {/* Optional employee section */}
+            <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(30,48,88,0.5)' }}>
+              <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>
+                Employee Details <span className="font-normal normal-case tracking-normal" style={{ color: '#64748B' }}>(Optional)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Employee Name">
+                  <input className="inp" value={schedForm.employee_name} onChange={e => sf('employee_name', e.target.value)} placeholder="Employee full name" />
+                </FormField>
+                <FormField label="Employee Number">
+                  <input className="inp" value={schedForm.employee_number} onChange={e => sf('employee_number', e.target.value)} placeholder="Employee ID / number" />
+                </FormField>
+                <div className="sm:col-span-2">
+                  <FormField label="Employee Address">
+                    <textarea className="inp resize-none" rows={2} value={schedForm.employee_address} onChange={e => sf('employee_address', e.target.value)} placeholder="Employee's work address" />
+                  </FormField>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="mt-4">
+              <FormField label="Notes">
+                <textarea className="inp resize-none" rows={2} value={schedForm.notes} onChange={e => sf('notes', e.target.value)} placeholder="Any additional instructions..." />
+              </FormField>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="ghost" onClick={() => { setSchedModal(null); setSchedItem(null); }}>Cancel</Button>
+              <Button
+                loading={schedSaving}
+                disabled={
+                  !schedForm.scheduled_at ||
+                  !schedForm.contact_name ||
+                  !schedForm.contact_phone ||
+                  !schedForm.address ||
+                  (schedModal !== 'pickup' && !schedForm.assigned_to)
+                }
+                onClick={handleScheduleSubmit}
+                style={{ background: SCHED_META[schedModal].color }}>
+                Confirm {SCHED_META[schedModal].label}
+              </Button>
+            </div>
+          </>
+        )}
       </Modal>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

@@ -74,9 +74,19 @@ export default function RentalDetailPage() {
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
 
   // Schedules
+  type ScheduleType = 'pickup' | 'delivery' | 'replacement_delivery' | 'replacement_receive' | 'event_delivery' | 'event_return';
+  const TYPE_META: Record<ScheduleType, { label: string; color: string; bg: string; border: string; dateLabel: string }> = {
+    pickup:               { label: 'Return',               color: '#F59E0B', bg: 'rgba(245,158,11,0.07)',  border: 'rgba(245,158,11,0.2)',  dateLabel: 'Return Date & Time'              },
+    delivery:             { label: 'New Delivery',         color: '#3B82F6', bg: 'rgba(59,130,246,0.07)',  border: 'rgba(59,130,246,0.2)',  dateLabel: 'Delivery Date & Time'            },
+    replacement_delivery: { label: 'Replacement Delivery', color: '#8B5CF6', bg: 'rgba(139,92,246,0.07)', border: 'rgba(139,92,246,0.2)',  dateLabel: 'Replacement Date & Time'         },
+    replacement_receive:  { label: 'Replacement Receive',  color: '#0D9488', bg: 'rgba(13,148,136,0.07)', border: 'rgba(13,148,136,0.2)',  dateLabel: 'Replacement Date & Time'         },
+    event_delivery:       { label: 'Event Delivery',       color: '#6366F1', bg: 'rgba(99,102,241,0.07)', border: 'rgba(99,102,241,0.2)',  dateLabel: 'Event Delivery Date & Time'      },
+    event_return:         { label: 'Event Return',         color: '#F43F5E', bg: 'rgba(244,63,94,0.07)',  border: 'rgba(244,63,94,0.2)',   dateLabel: 'Event Return Date & Time'        },
+  };
+
   const [schedules, setSchedules] = useState<any[]>([]);
-  const [scheduleModal, setScheduleModal] = useState<'pickup' | 'delivery' | null>(null);
-  const [schedForm, setSchedForm] = useState({ address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '', assigned_to: '' });
+  const [scheduleModal, setScheduleModal] = useState<ScheduleType | null>(null);
+  const [schedForm, setSchedForm] = useState({ address: '', scheduled_at: '', contact_name: '', contact_phone: '', employee_name: '', employee_number: '', employee_address: '', notes: '', assigned_to: '' });
   const [staffUsers, setStaffUsers] = useState<any[]>([]);
   const [schedSaving, setSchedSaving] = useState(false);
   const [completeModal, setCompleteModal] = useState<any | null>(null);
@@ -122,20 +132,32 @@ export default function RentalDetailPage() {
 
   const sf = (k: string, v: string) => setSchedForm(p => ({ ...p, [k]: v }));
 
-  const EMPTY_SCHED = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '', assigned_to: '' };
+  const EMPTY_SCHED = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', employee_name: '', employee_number: '', employee_address: '', notes: '', assigned_to: '' };
 
   async function handleScheduleSubmit() {
     if (!scheduleModal) return;
     setSchedSaving(true);
     try {
-      const payload: any = { ...schedForm };
-      if (scheduleModal === 'delivery' && schedForm.assigned_to) payload.assigned_to = Number(schedForm.assigned_to);
+      const payload: any = {
+        address:          schedForm.address,
+        scheduled_at:     schedForm.scheduled_at,
+        contact_name:     schedForm.contact_name  || undefined,
+        contact_phone:    schedForm.contact_phone || undefined,
+        employee_name:    schedForm.employee_name    || undefined,
+        employee_number:  schedForm.employee_number  || undefined,
+        employee_address: schedForm.employee_address || undefined,
+        notes:            schedForm.notes || undefined,
+      };
+      if (scheduleModal !== 'pickup' && schedForm.assigned_to) payload.assigned_to = Number(schedForm.assigned_to);
       if (scheduleModal === 'pickup') {
         await api.rentals.schedules.schedulePickup(id, payload);
         showToast('Pickup scheduled — admin team notified');
-      } else {
+      } else if (scheduleModal === 'delivery') {
         await api.rentals.schedules.scheduleDelivery(id, payload);
         showToast('Delivery scheduled and staff assigned');
+      } else {
+        await api.rentals.schedules.scheduleType(id, { ...payload, type: scheduleModal });
+        showToast(`${TYPE_META[scheduleModal].label} scheduled and staff assigned`);
       }
       setScheduleModal(null);
       setSchedForm(EMPTY_SCHED);
@@ -460,19 +482,41 @@ export default function RentalDetailPage() {
 
         {/* ── Schedule Pickup & Delivery ── */}
         <div className="glass-card p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
             <SectionTitle>Pickup &amp; Delivery Schedules</SectionTitle>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {isAdminOrStaff && (
-                <Button size="sm" variant="outline" icon={<Truck size={13} />}
-                  onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('delivery'); }}>
-                  Schedule Delivery
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" icon={<Truck size={13} />}
+                    onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('delivery'); }}>
+                    Delivery
+                  </Button>
+                  <Button size="sm" variant="outline" icon={<Truck size={13} />}
+                    style={{ borderColor: 'rgba(139,92,246,0.4)', color: '#8B5CF6' }}
+                    onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('replacement_delivery'); }}>
+                    Replacement Delivery
+                  </Button>
+                  <Button size="sm" variant="outline" icon={<Truck size={13} />}
+                    style={{ borderColor: 'rgba(13,148,136,0.4)', color: '#0D9488' }}
+                    onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('replacement_receive'); }}>
+                    Replacement Receive
+                  </Button>
+                  <Button size="sm" variant="outline" icon={<Truck size={13} />}
+                    style={{ borderColor: 'rgba(99,102,241,0.4)', color: '#6366F1' }}
+                    onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('event_delivery'); }}>
+                    Event Delivery
+                  </Button>
+                  <Button size="sm" variant="outline" icon={<Truck size={13} />}
+                    style={{ borderColor: 'rgba(244,63,94,0.4)', color: '#F43F5E' }}
+                    onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('event_return'); }}>
+                    Event Return
+                  </Button>
+                </>
               )}
               {(isAdminOrStaff || isClient) && (
                 <Button size="sm" variant="outline" icon={<Plus size={13} />}
                   onClick={() => { setSchedForm(EMPTY_SCHED); setScheduleModal('pickup'); }}>
-                  Schedule Pickup
+                  Pickup
                 </Button>
               )}
             </div>
@@ -483,16 +527,14 @@ export default function RentalDetailPage() {
           ) : (
             <div className="space-y-3">
               {schedules.map((s: any) => {
-                const isPickup = s.type === 'pickup';
-                const color = isPickup ? '#F59E0B' : '#3B82F6';
-                const bgColor = isPickup ? 'rgba(245,158,11,0.07)' : 'rgba(59,130,246,0.07)';
-                const borderColor = isPickup ? 'rgba(245,158,11,0.2)' : 'rgba(59,130,246,0.2)';
+                const tm = TYPE_META[s.type as ScheduleType] ?? TYPE_META.delivery;
+                const { color, bg: bgColor, border: borderColor, label: typeLabel } = tm;
                 return (
                   <div key={s.id} className="p-4 rounded-xl" style={{ background: bgColor, border: `1px solid ${borderColor}` }}>
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-2">
                         <Truck size={14} style={{ color }} />
-                        <span className="text-sm font-semibold capitalize" style={{ color }}>{s.type}</span>
+                        <span className="text-sm font-semibold" style={{ color }}>{typeLabel}</span>
                         <span className={`badge badge-${s.status}`}>{s.status}</span>
                       </div>
                       {(user?.role === 'admin' || user?.role === 'staff') && s.status === 'scheduled' && (
@@ -528,7 +570,19 @@ export default function RentalDetailPage() {
                       {s.contact_name && (
                         <div className="flex items-center gap-1.5">
                           <Contact size={11} style={{ color: '#475569' }} />
-                          <span style={{ color: '#94A3B8' }}>{s.contact_name}{s.contact_phone ? ` · ${s.contact_phone}` : ''}</span>
+                          <span style={{ color: '#94A3B8' }}>IT: {s.contact_name}{s.contact_phone ? ` · ${s.contact_phone}` : ''}</span>
+                        </div>
+                      )}
+                      {s.employee_name && (
+                        <div className="flex items-center gap-1.5">
+                          <User size={11} style={{ color: '#475569' }} />
+                          <span style={{ color: '#94A3B8' }}>Emp: {s.employee_name}{s.employee_number ? ` (${s.employee_number})` : ''}</span>
+                        </div>
+                      )}
+                      {s.employee_address && (
+                        <div className="flex items-start gap-1.5 sm:col-span-2">
+                          <MapPin size={11} style={{ color: '#475569', marginTop: 2, flexShrink: 0 }} />
+                          <span style={{ color: '#94A3B8' }}>Emp Address: {s.employee_address}</span>
                         </div>
                       )}
                       {s.notes && (
@@ -708,48 +762,106 @@ export default function RentalDetailPage() {
         })()}
       </Modal>
 
-      {/* Schedule Pickup / Delivery Modal */}
+      {/* Schedule Modal */}
       <Modal open={!!scheduleModal} onClose={() => setScheduleModal(null)}
-        title={scheduleModal === 'pickup' ? 'Schedule Pickup' : 'Schedule Delivery'} width="max-w-lg">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="sm:col-span-2">
-            <FormField label="Address" required>
-              <input className="inp" value={schedForm.address} onChange={e => sf('address', e.target.value)} placeholder="123, MG Road, Pune - 411001" />
-            </FormField>
-          </div>
-          <FormField label="Scheduled Date & Time" required>
-            <input className="inp" type="datetime-local" value={schedForm.scheduled_at} onChange={e => sf('scheduled_at', e.target.value)} />
-          </FormField>
-          {scheduleModal === 'delivery' && (
-            <FormField label="Assign To (Staff)" required>
-              <select className="inp" value={schedForm.assigned_to} onChange={e => sf('assigned_to', e.target.value)}>
-                <option value="">— Select staff member —</option>
-                {staffUsers.map((u: any) => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                ))}
-              </select>
-            </FormField>
-          )}
-          <FormField label="Contact Name">
-            <input className="inp" value={schedForm.contact_name} onChange={e => sf('contact_name', e.target.value)} placeholder="Rahul Sharma" />
-          </FormField>
-          <FormField label="Contact Phone">
-            <input className="inp" value={schedForm.contact_phone} onChange={e => sf('contact_phone', e.target.value)} placeholder="9876543210" />
-          </FormField>
-          <div className="sm:col-span-2">
-            <FormField label="Notes">
-              <textarea className="inp resize-none" rows={2} value={schedForm.notes} onChange={e => sf('notes', e.target.value)} placeholder="Call before arrival..." />
-            </FormField>
-          </div>
-        </div>
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="ghost" onClick={() => setScheduleModal(null)}>Cancel</Button>
-          <Button loading={schedSaving}
-            disabled={!schedForm.address || !schedForm.scheduled_at || (scheduleModal === 'delivery' && !schedForm.assigned_to)}
-            onClick={handleScheduleSubmit}>
-            {scheduleModal === 'pickup' ? 'Schedule Pickup' : 'Schedule Delivery'}
-          </Button>
-        </div>
+        title={scheduleModal ? TYPE_META[scheduleModal].label : 'Schedule'} width="max-w-lg">
+        {scheduleModal && (
+          <>
+            {/* Client info (read-only) */}
+            {rental.client && (
+              <div className="mb-4 px-3 py-2.5 rounded-xl flex items-center gap-3"
+                style={{ background: 'rgba(59,130,246,0.07)', border: '1px solid rgba(59,130,246,0.18)' }}>
+                <User size={13} style={{ color: '#3B82F6', flexShrink: 0 }} />
+                <div className="text-sm font-semibold" style={{ color: '#3B82F6' }}>
+                  {rental.client.company || rental.client.name}
+                  {rental.client.company && rental.client.name && (
+                    <span className="font-normal ml-1.5" style={{ color: '#64748B' }}>({rental.client.name})</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Date */}
+              <div className="sm:col-span-2">
+                <FormField label={TYPE_META[scheduleModal].dateLabel} required>
+                  <input className="inp" type="datetime-local" value={schedForm.scheduled_at} onChange={e => sf('scheduled_at', e.target.value)} />
+                </FormField>
+              </div>
+
+              {/* Assign to staff (not for pickup/return) */}
+              {scheduleModal !== 'pickup' && (
+                <div className="sm:col-span-2">
+                  <FormField label="Assign To (Staff)" required>
+                    <select className="inp" value={schedForm.assigned_to} onChange={e => sf('assigned_to', e.target.value)}>
+                      <option value="">— Select staff member —</option>
+                      {staffUsers.map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+                  </FormField>
+                </div>
+              )}
+
+              {/* IT Contact */}
+              <FormField label="IT Name" required>
+                <input className="inp" value={schedForm.contact_name} onChange={e => sf('contact_name', e.target.value)} placeholder="IT contact person name" />
+              </FormField>
+              <FormField label="IT Contact Number" required>
+                <input className="inp" value={schedForm.contact_phone} onChange={e => sf('contact_phone', e.target.value)} placeholder="9876543210" />
+              </FormField>
+
+              {/* Location */}
+              <div className="sm:col-span-2">
+                <FormField label="Location" required>
+                  <input className="inp" value={schedForm.address} onChange={e => sf('address', e.target.value)} placeholder="Building, Street, Area, City - Pincode" />
+                </FormField>
+              </div>
+            </div>
+
+            {/* Optional employee section */}
+            <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(30,48,88,0.5)' }}>
+              <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>
+                Employee Details <span className="font-normal normal-case tracking-normal" style={{ color: '#64748B' }}>(Optional)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField label="Employee Name">
+                  <input className="inp" value={schedForm.employee_name} onChange={e => sf('employee_name', e.target.value)} placeholder="Employee full name" />
+                </FormField>
+                <FormField label="Employee Number">
+                  <input className="inp" value={schedForm.employee_number} onChange={e => sf('employee_number', e.target.value)} placeholder="Employee ID / number" />
+                </FormField>
+                <div className="sm:col-span-2">
+                  <FormField label="Employee Address">
+                    <textarea className="inp resize-none" rows={2} value={schedForm.employee_address} onChange={e => sf('employee_address', e.target.value)} placeholder="Employee's work address" />
+                  </FormField>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="mt-4">
+              <FormField label="Notes">
+                <textarea className="inp resize-none" rows={2} value={schedForm.notes} onChange={e => sf('notes', e.target.value)} placeholder="Any additional instructions..." />
+              </FormField>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="ghost" onClick={() => setScheduleModal(null)}>Cancel</Button>
+              <Button loading={schedSaving}
+                disabled={
+                  !schedForm.scheduled_at ||
+                  !schedForm.contact_name ||
+                  !schedForm.contact_phone ||
+                  !schedForm.address ||
+                  (scheduleModal !== 'pickup' && !schedForm.assigned_to)
+                }
+                onClick={handleScheduleSubmit}>
+                Confirm {TYPE_META[scheduleModal].label}
+              </Button>
+            </div>
+          </>
+        )}
       </Modal>
 
       {/* Complete Schedule Modal */}

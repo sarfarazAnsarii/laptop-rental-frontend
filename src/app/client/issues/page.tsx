@@ -43,6 +43,7 @@ export default function ClientIssuesPage() {
   const [showReport, setShowReport] = useState(false);
   const [issueForm,  setIssueForm]  = useState({
     inventory_id: '', title: '', description: '', severity: 'medium',
+    employee_name: '', employee_number: '', employee_address: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [viewIssue,  setViewIssue]  = useState<any | null>(null);
@@ -74,7 +75,7 @@ export default function ClientIssuesPage() {
         setMyRentals(res.data?.data || res.data || []);
       } catch {}
     }
-    setIssueForm({ inventory_id: '', title: '', description: '', severity: 'medium' });
+    setIssueForm({ inventory_id: '', title: '', description: '', severity: 'medium', employee_name: '', employee_number: '', employee_address: '' });
     setShowReport(true);
   }
 
@@ -85,10 +86,13 @@ export default function ClientIssuesPage() {
     setSubmitting(true);
     try {
       await api.issues.create({
-        inventory_id: Number(issueForm.inventory_id),
-        title:        issueForm.title,
-        description:  issueForm.description,
-        severity:     issueForm.severity,
+        inventory_id:     Number(issueForm.inventory_id),
+        title:            issueForm.title,
+        description:      issueForm.description,
+        severity:         issueForm.severity,
+        employee_name:    issueForm.employee_name || undefined,
+        employee_number:  issueForm.employee_number || undefined,
+        employee_address: issueForm.employee_address || undefined,
       });
       showToast('Issue reported successfully');
       setShowReport(false);
@@ -305,6 +309,30 @@ export default function ClientIssuesPage() {
               value={issueForm.description}
               onChange={e => setIssueForm(p => ({ ...p, description: e.target.value }))} />
           </FormField>
+
+          <div className="pt-1 pb-0.5">
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Employee Details</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField label="Employee Name">
+                <input className="inp" placeholder="Employee full name"
+                  value={issueForm.employee_name}
+                  onChange={e => setIssueForm(p => ({ ...p, employee_name: e.target.value }))} />
+              </FormField>
+              <FormField label="Employee Contact Number">
+                <input className="inp" placeholder="9876543210"
+                  value={issueForm.employee_number}
+                  onChange={e => setIssueForm(p => ({ ...p, employee_number: e.target.value }))} />
+              </FormField>
+              <div className="sm:col-span-2">
+                <FormField label="Employee Address">
+                  <textarea className="inp resize-none" rows={2}
+                    placeholder="Employee location / address"
+                    value={issueForm.employee_address}
+                    onChange={e => setIssueForm(p => ({ ...p, employee_address: e.target.value }))} />
+                </FormField>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="ghost" onClick={() => setShowReport(false)}>Cancel</Button>

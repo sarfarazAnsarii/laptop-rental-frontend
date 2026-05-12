@@ -22,7 +22,7 @@ const SCHED_META: Record<string, { color: string; icon: any; label: string }> = 
   cancelled: { color: '#64748B', icon: XCircle,      label: 'Cancelled' },
 };
 
-const EMPTY_FORM = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '' };
+const EMPTY_FORM = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', notes: '', employee_name: '', employee_number: '', employee_address: '' };
 
 export default function ClientReturnsPage() {
   const [activeRentals,  setActiveRentals]  = useState<any[]>([]);
@@ -149,7 +149,7 @@ export default function ClientReturnsPage() {
                           <span className="badge text-[10px]" style={{ background: 'rgba(139,92,246,0.12)', color: '#8B5CF6', border: '1px solid rgba(139,92,246,0.3)' }}>bulk</span>
                         )}
                       </div>
-                      <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                      <div className="text-sm font-semibold">
                         {r.inventory?.brand} {r.inventory?.model_no}
                         <span className="ml-2 font-mono text-xs font-normal" style={{ color: '#475569' }}>{r.inventory?.asset_code}</span>
                       </div>
@@ -282,6 +282,26 @@ export default function ClientReturnsPage() {
               <textarea className="inp resize-none" rows={2} value={pickupForm.notes}
                 onChange={e => setPickupForm(p => ({ ...p, notes: e.target.value }))}
                 placeholder="Any special instructions..." />
+            </FormField>
+          </div>
+          <div className="sm:col-span-2 pt-1">
+            <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Employee Details</div>
+          </div>
+          <FormField label="Employee Name">
+            <input className="inp" value={pickupForm.employee_name}
+              onChange={e => setPickupForm(p => ({ ...p, employee_name: e.target.value }))}
+              placeholder="Employee full name" />
+          </FormField>
+          <FormField label="Employee Contact Number">
+            <input className="inp" value={pickupForm.employee_number}
+              onChange={e => setPickupForm(p => ({ ...p, employee_number: e.target.value }))}
+              placeholder="9876543210" />
+          </FormField>
+          <div className="sm:col-span-2">
+            <FormField label="Employee Address">
+              <textarea className="inp resize-none" rows={2} value={pickupForm.employee_address}
+                onChange={e => setPickupForm(p => ({ ...p, employee_address: e.target.value }))}
+                placeholder="Employee location / address" />
             </FormField>
           </div>
         </div>

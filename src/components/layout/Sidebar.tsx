@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Monitor, FileText, UserCog, LogOut,
   Laptop, Wrench, X, CalendarClock, ReceiptText, Wallet,
   ArrowLeftRight, RotateCcw, BookOpen, BarChart2, Shield,
-  AlertTriangle, ChevronRight,
+  AlertTriangle, ChevronRight, PartyPopper,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -21,11 +21,13 @@ const NAV_ADMIN = [
   { href: '/issues',             label: 'Issues',       icon: Wrench },
   { href: '/rentals/exchanges',  label: 'Exchanges',    icon: ArrowLeftRight },
   { href: '/users',              label: 'Users',        icon: UserCog },
+  { href: '/invoices/event',      label: 'Event Invoices', icon: PartyPopper },
   { href: '/reports',            label: 'Reports',      icon: BarChart2 },
 ];
 
 const NAV_STAFF = [
   { href: '/inventory', label: 'Inventory', icon: Monitor },
+  { href: '/schedules', label: 'Schedules', icon: CalendarClock },
   { href: '/issues',    label: 'Issues',    icon: Wrench },
 ];
 

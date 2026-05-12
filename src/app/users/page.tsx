@@ -93,8 +93,8 @@ export default function UsersPage() {
         company: form.company || undefined,
         address: form.address || undefined,
         payment_type: form.role === 'client' ? form.payment_type : undefined,
-        gst_number:   form.role === 'client' ? form.gst_number  || undefined : undefined,
-        hsn_code:     form.role === 'client' ? form.hsn_code    || undefined : undefined,
+        gst_number:   (form.role === 'client' || form.role === 'vendor') ? form.gst_number  || undefined : undefined,
+        hsn_code:     (form.role === 'client' || form.role === 'vendor') ? form.hsn_code    || undefined : undefined,
       });
       // If backend doesn't apply role via register, update silently in background
       const newUserId = res.data?.user?.id ?? res.data?.id;
@@ -130,8 +130,8 @@ export default function UsersPage() {
         address:      editForm.address      || undefined,
         role:         editForm.role         || undefined,
         payment_type: editForm.role === 'client' ? editForm.payment_type : undefined,
-        gst_number:   editForm.role === 'client' ? editForm.gst_number  || undefined : undefined,
-        hsn_code:     editForm.role === 'client' ? editForm.hsn_code    || undefined : undefined,
+        gst_number:   (editForm.role === 'client' || editForm.role === 'vendor') ? editForm.gst_number  || undefined : undefined,
+        hsn_code:     (editForm.role === 'client' || editForm.role === 'vendor') ? editForm.hsn_code    || undefined : undefined,
       });
       showToast('User updated successfully');
       setEditUser(null);
@@ -248,7 +248,7 @@ export default function UsersPage() {
                       <MapPin size={11} /><span className="truncate">{u.address}</span>
                     </div>
                   )}
-                  {u.role === 'client' && u.gst_number && (
+                  {(u.role === 'client' || u.role === 'vendor') && u.gst_number && (
                     <div className="flex items-center gap-2 text-xs" style={{ color: '#64748B' }}>
                       <span className="font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(59,130,246,0.08)', color: '#3B82F6' }}>GST</span>
                       <span className="font-mono">{u.gst_number}</span>
@@ -341,7 +341,7 @@ export default function UsersPage() {
               </div>
             </div>
           )}
-          {form.role === 'client' && (
+          {(form.role === 'client' || form.role === 'vendor') && (
             <>
               <FormField label="GST Number">
                 <input className="inp" value={form.gst_number} onChange={e => f('gst_number', e.target.value)} placeholder="22AAAAA0000A1Z5" style={{ textTransform: 'uppercase' }} />
@@ -425,7 +425,7 @@ export default function UsersPage() {
               </div>
             </div>
           )}
-          {editForm.role === 'client' && (
+          {(editForm.role === 'client' || editForm.role === 'vendor') && (
             <>
               <FormField label="GST Number">
                 <input className="inp" value={editForm.gst_number} onChange={e => setEditForm(p => ({ ...p, gst_number: e.target.value }))} placeholder="22AAAAA0000A1Z5" style={{ textTransform: 'uppercase' }} />

@@ -22,11 +22,13 @@ export function middleware(request: NextRequest) {
   // No role cookie yet → let client-side auth handle it
   if (!role) return NextResponse.next();
 
-  // ── Staff: only /inventory, /inventory/*, /issues, /issues/*, /profile ──
+  // ── Staff: only /inventory, /schedules, /issues, /profile ──
   if (role === 'staff') {
     const allowed =
       pathname === '/inventory' ||
       pathname.startsWith('/inventory/') ||
+      pathname === '/schedules' ||
+      pathname.startsWith('/schedules/') ||
       pathname === '/issues' ||
       pathname.startsWith('/issues/') ||
       pathname === '/profile';
