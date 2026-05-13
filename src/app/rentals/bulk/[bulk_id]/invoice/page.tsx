@@ -17,6 +17,8 @@ const COMPANY = {
   website: 'www.laptoprentalservice.com',
 };
 
+const LOGO_URL = '/latop-rental-logo.png';
+
 const TERMS = [
   'All equipments contains comprehensive warranty. Any claims regarding physical damage or quantity shortage must be informed within 24 hours of delivery. Further terms and conditions are according to the contract.',
   'I/We hereby certify that my/our registration certificate under Goods and Service Tax Act 2017 is in force on the date on which the sale of goods specified in this TAX Invoice is made by me/us and that the transaction of sale covered by TAX Invoice has been effected by m/us and it shall be accounted for in the turnover of Movable Rental Properties while filing of the returns and the due tax, if any payable on the sale has been paid or shall be paid.',
@@ -94,7 +96,7 @@ export default function BulkInvoicePage() {
     const monthly = Number(r.monthly_rental || 0);
     const qty     = Number(r.quantity || 1);
     const gstPct  = Number(r.gst_percent || 18);
-    const start   = r.start_date || r.delivery_date || '';
+    const start   = r.delivery_date || r.start_date || '';
     const isActive = r.status === 'active' || r.status === 'overdue';
     const endDate  = isActive ? billingEnd(start) : (r.end_date || billingEnd(start));
     const days     = isActive ? billingDays(start) : (r.duration_days ?? billingDays(start));
@@ -186,10 +188,7 @@ export default function BulkInvoicePage() {
         {/* Header */}
         <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:20 }}>
           <div style={{ display:'flex',alignItems:'center',gap:10 }}>
-            <div style={{ width:48,height:48,borderRadius:10,background:'linear-gradient(135deg,#1e3a5f,#3B82F6)',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:900,fontSize:14 }}>LR</div>
-            <div style={{ fontWeight:900,fontSize:20,color:'#1e3a5f',lineHeight:1.1 }}>
-              Laptop<span style={{ color:'#3B82F6' }}>Rental</span>
-            </div>
+            <img src={LOGO_URL} alt="Laptop Rental" style={{ height:56,width:'auto',maxWidth:180,objectFit:'contain' }} />
           </div>
           <div style={{ textAlign:'center',flex:1 }}>
             <div style={{ fontSize:26,fontWeight:900,letterSpacing:1 }}>{title}</div>

@@ -79,6 +79,7 @@ export interface Rental {
   created_at: string;
   inventory?: Inventory;
   client?: User;
+  delivery_date:string;
 }
 
 export interface RentalExchange {

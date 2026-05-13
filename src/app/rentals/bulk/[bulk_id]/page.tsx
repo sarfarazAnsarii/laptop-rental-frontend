@@ -689,10 +689,10 @@ export default function BulkRentalDetailPage() {
                       </div>
                     </td>
                     <td className="text-xs" style={{ color: '#0F172A' }}>
-                      <div>{fmtDate(r.start_date)}</div>
-                      <div style={{ color: '#64748B' }}>→ {fmtDate(billingEnd(r.start_date))}</div>
+                      <div>{fmtDate(r.delivery_date)}</div>
+                      
                     </td>
-                    <td className="text-sm" style={{ color: '#94A3B8' }}>{billingDays(r.start_date)}d</td>
+                    <td className="text-sm" style={{ color: '#94A3B8' }}>{billingDays(r.delivery_date || r.start_date)}d</td>
                     <td className="text-sm" style={{ color: '#0F172A' }}>{fmt(r.monthly_rental)}</td>
                     <td>
                       <div className="text-sm font-semibold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</div>
@@ -1081,7 +1081,7 @@ export default function BulkRentalDetailPage() {
                     <div className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
                     <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.rental_no}</div>
                     <div className="text-xs" style={{ color: '#94A3B8' }}>
-                      {fmtDate(r.start_date)} → {fmtDate(billingEnd(r.start_date))} · {billingDays(r.start_date)}d
+                      {fmtDate(r.delivery_date || r.start_date)} → {fmtDate(billingEnd(r.delivery_date || r.start_date))} · {billingDays(r.delivery_date || r.start_date)}d
                     </div>
                   </div>
                   <div className="text-sm font-semibold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</div>
@@ -1139,8 +1139,8 @@ export default function BulkRentalDetailPage() {
             </div>
             <div className="divide-y divide-slate-100">
               {rentals.map((r: any) => {
-                const days    = billingDays(r.start_date);
-                const rate    = dailyRate(Number(r.monthly_rental || 0), r.start_date);
+                const days    = billingDays(r.delivery_date || r.start_date);
+                const rate    = dailyRate(Number(r.monthly_rental || 0), r.delivery_date || r.start_date);
                 const advance = +(rate * days * Number(r.quantity || 1)).toFixed(2);
                 const gst     = +(advance * Number(r.gst_percent || 18) / 100).toFixed(2);
                 return (
@@ -1149,7 +1149,7 @@ export default function BulkRentalDetailPage() {
                       <div className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
                       <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.rental_no}</div>
                       <div className="text-xs" style={{ color: '#94A3B8' }}>
-                        {fmtDate(r.start_date)} → {fmtDate(billingEnd(r.start_date))} · {days}d
+                        {fmtDate(r.delivery_date)} → {fmtDate(billingEnd(r.start_date))} · {days}d
                       </div>
                     </div>
                     <div className="text-right">
@@ -1167,8 +1167,8 @@ export default function BulkRentalDetailPage() {
               <span className="text-sm font-bold" style={{ color: '#0F172A' }}>Total Advance</span>
               <span className="text-base font-bold" style={{ color: '#B45309' }}>
                 {'₹' + rentals.reduce((s: number, r: any) => {
-                  const days = billingDays(r.start_date);
-                  const rate = dailyRate(Number(r.monthly_rental || 0), r.start_date);
+                  const days = billingDays(r.delivery_date || r.start_date);
+                  const rate = dailyRate(Number(r.monthly_rental || 0), r.delivery_date || r.start_date);
                   const a    = +(rate * days * Number(r.quantity || 1)).toFixed(2);
                   return s + a + +(a * Number(r.gst_percent || 18) / 100).toFixed(2);
                 }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}

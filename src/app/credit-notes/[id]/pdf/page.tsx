@@ -17,6 +17,8 @@ const COMPANY = {
   website: 'www.laptoprentalservice.com',
 };
 
+const LOGO_URL = '/latop-rental-logo.png';
+
 const fmtDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 const fmtAmt = (n: any) =>
@@ -97,10 +99,7 @@ export default function CreditNotePdfPage() {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 10, background: 'linear-gradient(135deg,#1e3a5f,#3B82F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: 14 }}>LR</div>
-            <div style={{ fontWeight: 900, fontSize: 20, color: '#1e3a5f', lineHeight: 1.1 }}>
-              Laptop<span style={{ color: '#3B82F6' }}>Rental</span>
-            </div>
+            <img src={LOGO_URL} alt="Laptop Rental" style={{ height: 56, width: 'auto', maxWidth: 180, objectFit: 'contain' }} />
           </div>
           <div style={{ textAlign: 'center', flex: 1 }}>
             <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: 1, color: '#7C3AED' }}>Credit Note</div>

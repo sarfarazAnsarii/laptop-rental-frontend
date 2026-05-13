@@ -799,7 +799,7 @@ export default function RentalsPage() {
                     {/* Client + payment type */}
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{client?.company || client?.name || '—'}</div>
+                        <div className="text-sm font-medium" >{client?.company || client?.name || '—'}</div>
                         {client?.company && <div className="text-xs" style={{ color: '#94A3B8' }}>{client.name}</div>}
                       </div>
                       <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: isAdv ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', color: isAdv ? '#10B981' : '#F59E0B' }}>
@@ -837,7 +837,7 @@ export default function RentalsPage() {
                       <span className={`badge badge-${r.status}`}>{r.status}</span>
                     </div>
                     <div>
-                      <div className="text-sm font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                      <div className="text-sm font-medium" >{r.inventory?.brand} {r.inventory?.model_no}</div>
                       <div className="text-xs" style={{ color: '#94A3B8' }}>{r.client?.name}{r.client?.company ? ` · ${r.client.company}` : ''}</div>
                     </div>
                     <div className="flex items-center justify-between">
@@ -868,7 +868,7 @@ export default function RentalsPage() {
                       { label: 'Bulk / Rental' },
                       { label: 'Client' },
                       { label: 'Laptops' },
-                      { label: 'Billing Period' },
+                      { label: 'Delivery Date' },
                       { label: 'Amount ▾', right: true },
                       { label: 'Payment', center: true },
                       { label: 'Status', center: true },
@@ -889,6 +889,8 @@ export default function RentalsPage() {
                     const startDate = items[0].start_date;
                     const pt        = (client as any)?.payment_type || 'advance';
                     const isAdv     = pt === 'advance';
+
+                    console.log(items, "items");
 
                     if (bulkId) return (
                       <tr key={`bulk-${bulkId}`} className="bulk-row">
@@ -919,8 +921,8 @@ export default function RentalsPage() {
                           ))}
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
-                          <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(startDate)}</div>
-                          <div style={{ color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(billingMonthEnd(startDate))}</div>
+                          <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(items[0].delivery_date || startDate)}</div>
+                          {/* <div style={{ color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(billingMonthEnd(startDate))}</div> */}
                         </td>
                         <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                           <div style={{ color: '#16A34A', fontWeight: 700, fontSize: 13 }}>{fmt(grandSum)}</div>
@@ -1043,7 +1045,7 @@ export default function RentalsPage() {
                 {invoiceRental.client?.name?.charAt(0)?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{invoiceRental.client?.name}</div>
+                <div className="text-sm font-semibold" >{invoiceRental.client?.name}</div>
                 <div className="text-xs" style={{ color: '#3B82F6' }}>{invoiceRental.client?.email}</div>
                 {invoiceRental.client?.company && <div className="text-xs" style={{ color: '#475569' }}>{invoiceRental.client.company}</div>}
               </div>
@@ -1072,7 +1074,7 @@ export default function RentalsPage() {
                   <div className="flex-1 border-l pl-3" style={{ borderColor: isAdv ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)' }}>
                     <div className="flex items-center gap-1.5 text-xs" style={{ color: '#94A3B8' }}>
                       <Calendar size={11} />
-                      <span>Billing period: <span style={{ color: '#F1F5F9' }}>{fmtDate(invoiceRental.start_date)}</span> → <span style={{ color: '#F1F5F9' }}>{fmtDate(billingMonthEnd(invoiceRental.start_date))}</span></span>
+                      <span>Billing period: <span>{fmtDate(invoiceRental.start_date)}</span> → <span>{fmtDate(billingMonthEnd(invoiceRental.start_date))}</span></span>
                     </div>
                     <div className="text-[10px] mt-0.5" style={{ color: isAdv ? '#10B981' : '#F59E0B' }}>
                       {isAdv ? 'Payment due upfront — before period starts' : 'Payment due after month completes'}
@@ -1134,7 +1136,7 @@ export default function RentalsPage() {
                           </div>
                           <div className="flex justify-between px-3 py-2 text-xs">
                             <span style={{ color: '#64748B' }}>Days used</span>
-                            <span style={{ color: '#F1F5F9' }}>{calc.usedDays} days (returned {fmtDate(adjustment.return_date)})</span>
+                            <span >{calc.usedDays} days (returned {fmtDate(adjustment.return_date)})</span>
                           </div>
                           <div className="flex justify-between px-3 py-2 text-xs">
                             <span style={{ color: '#64748B' }}>{isAdv ? 'Unused days (credit)' : 'Unused days (deduct)'}</span>
@@ -1145,11 +1147,11 @@ export default function RentalsPage() {
                             <span style={{ color: '#F43F5E' }}>-{fmt(calc.gstDeduct)}</span>
                           </div>
                           <div className="flex justify-between px-3 py-2 text-xs font-semibold" style={{ background: 'rgba(244,63,94,0.06)' }}>
-                            <span style={{ color: '#F1F5F9' }}>Total Deduction</span>
+                            <span >Total Deduction</span>
                             <span style={{ color: '#F43F5E' }}>-{fmt(calc.deduction)}</span>
                           </div>
                           <div className="flex justify-between px-3 py-3" style={{ background: 'rgba(16,185,129,0.07)', borderTop: '1px solid rgba(16,185,129,0.2)' }}>
-                            <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Adjusted Invoice Total</span>
+                            <span className="text-sm font-bold" >Adjusted Invoice Total</span>
                             <span className="text-base font-bold" style={{ color: '#10B981' }}>{fmt(calc.adjusted)}</span>
                           </div>
                         </div>
@@ -1413,14 +1415,14 @@ export default function RentalsPage() {
                 <div className="divide-y" style={{ borderColor: 'rgba(30,48,88,0.5)' }}>
                   <div className="flex justify-between px-4 py-2.5 text-sm">
                     <span style={{ color: '#64748B' }}>Total Rental</span>
-                    <span style={{ color: '#F1F5F9' }}>{loc(total)}</span>
+                    <span >{loc(total)}</span>
                   </div>
                   <div className="flex justify-between px-4 py-2.5 text-sm">
                     <span style={{ color: '#64748B' }}>GST ({gst}%)</span>
-                    <span style={{ color: '#F1F5F9' }}>{loc(gstAmt)}</span>
+                    <span >{loc(gstAmt)}</span>
                   </div>
                   <div className="flex justify-between px-4 py-3" style={{ background: 'rgba(16,185,129,0.08)' }}>
-                    <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Grand Total</span>
+                    <span className="text-sm font-bold" >Grand Total</span>
                     <span className="text-lg font-bold" style={{ color: '#10B981' }}>{loc(grand)}</span>
                   </div>
                 </div>
@@ -1482,7 +1484,7 @@ export default function RentalsPage() {
                 {bulkInvoiceGroup.map(r => (
                   <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
                     <div>
-                      <div className="text-xs font-medium" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                      <div className="text-xs font-medium" >{r.inventory?.brand} {r.inventory?.model_no}</div>
                       <div className="text-xs font-mono" style={{ color: '#475569' }}>{r.rental_no} · {r.inventory?.asset_code}</div>
                     </div>
                     <div className="text-sm font-semibold" style={{ color: '#10B981' }}>{fmt(r.grand_total)}</div>
@@ -1490,7 +1492,7 @@ export default function RentalsPage() {
                 ))}
               </div>
               <div className="flex items-center justify-between px-4 py-3" style={{ background: 'rgba(16,185,129,0.07)', borderTop: '1px solid rgba(16,185,129,0.2)' }}>
-                <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Grand Total</span>
+                <span className="text-sm font-bold" >Grand Total</span>
                 <span className="text-base font-bold" style={{ color: '#10B981' }}>
                   {fmt(bulkInvoiceGroup.reduce((s, r) => s + Number(r.grand_total || 0), 0))}
                 </span>
@@ -1516,7 +1518,7 @@ export default function RentalsPage() {
                   <div className="flex-1 border-l pl-3" style={{ borderColor: isAdv ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)' }}>
                     <div className="flex items-center gap-1.5 text-xs" style={{ color: '#94A3B8' }}>
                       <Calendar size={11} />
-                      <span>Billing period: <span style={{ color: '#F1F5F9' }}>{fmtDate(startDate)}</span> → <span style={{ color: '#F1F5F9' }}>{fmtDate(billingMonthEnd(startDate))}</span></span>
+                      <span>Billing period: <span>{fmtDate(bulkInvoiceGroup[0].delivery_date || bulkInvoiceGroup[0].start_date)}</span> → <span >{fmtDate(billingMonthEnd(startDate))}</span></span>
                     </div>
                     <div className="text-[10px] mt-0.5" style={{ color: isAdv ? '#10B981' : '#F59E0B' }}>
                       {isAdv ? 'Payment due upfront — before period starts' : 'Payment due after month completes'}
@@ -1569,7 +1571,7 @@ export default function RentalsPage() {
                                 style={{ left: adj.enabled ? '17px' : '2px', background: 'white' }} />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-xs font-medium truncate" style={{ color: '#F1F5F9' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                              <div className="text-xs font-medium truncate" >{r.inventory?.brand} {r.inventory?.model_no}</div>
                               <div className="text-[10px]" style={{ color: '#475569' }}>{r.rental_no} · {fmtDate(r.start_date)}{r.end_date ? ` → ${fmtDate(r.end_date)}` : ''}</div>
                             </div>
                             <div className="text-xs font-semibold flex-shrink-0" style={{ color: calc ? '#F43F5E' : '#10B981' }}>
@@ -1608,7 +1610,7 @@ export default function RentalsPage() {
                         <span style={{ color: '#F43F5E' }}>-{fmt(totalDeduction)}</span>
                       </div>
                       <div className="flex justify-between px-4 py-3" style={{ background: 'rgba(16,185,129,0.07)' }}>
-                        <span className="text-sm font-bold" style={{ color: '#F1F5F9' }}>Adjusted Invoice Total</span>
+                        <span className="text-sm font-bold" >Adjusted Invoice Total</span>
                         <span className="text-base font-bold" style={{ color: '#10B981' }}>{fmt(adjustedTotal)}</span>
                       </div>
                     </div>
@@ -1713,7 +1715,7 @@ export default function RentalsPage() {
                   : <XCircle size={16} style={{ color: '#F43F5E' }} />}
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>
+                <div className="text-sm font-semibold truncate" >
                   {actionModal.rental.inventory?.brand} {actionModal.rental.inventory?.model_no}
                 </div>
                 <div className="text-xs font-mono" style={{ color: '#475569' }}>
@@ -1776,14 +1778,14 @@ export default function RentalsPage() {
                 <div className="text-sm font-bold" style={{ color: '#10B981' }}>{pcResult2.message}</div>
                 <div className="flex justify-center gap-6 mt-3 text-xs" style={{ color: '#94A3B8' }}>
                   <span>Credit: <strong style={{ color: '#10B981' }}>₹{Number(pcResult2.total_credit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-                  <span>Adjusted Total: <strong style={{ color: '#F1F5F9' }}>₹{Number(pcResult2.total_adjusted || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                  <span>Adjusted Total: <strong >₹{Number(pcResult2.total_adjusted || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
                 </div>
               </div>
               {pcResult2.cancelled?.map((c: any) => (
                 <div key={c.rental_id} className="px-4 py-3 rounded-xl grid grid-cols-2 gap-x-4 gap-y-1 text-xs"
                   style={{ background: 'rgba(30,48,88,0.4)', border: '1px solid #1E3058' }}>
-                  <div className="col-span-2 font-semibold mb-1" style={{ color: '#F1F5F9' }}>{c.rental_no} — {c.inventory}</div>
-                  <div style={{ color: '#64748B' }}>Days Used / Month: <span style={{ color: '#F1F5F9' }}>{c.days_used} / {c.days_in_month}</span></div>
+                  <div className="col-span-2 font-semibold mb-1" >{c.rental_no} — {c.inventory}</div>
+                  <div style={{ color: '#64748B' }}>Days Used / Month: <span >{c.days_used} / {c.days_in_month}</span></div>
                   <div style={{ color: '#64748B' }}>Adjusted Total: <span style={{ color: '#10B981' }}>₹{Number(c.adjusted_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
                   <div className="col-span-2" style={{ color: '#64748B' }}>Credit: <span style={{ color: '#F59E0B', fontWeight: 700 }}>₹{Number(c.credit_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
                 </div>
@@ -1824,8 +1826,8 @@ export default function RentalsPage() {
                           </div>
                           {preview && (
                             <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs mt-1" style={{ color: '#64748B' }}>
-                              <span>Used: <strong style={{ color: '#F1F5F9' }}>{preview.daysUsed}/{preview.daysInMonth}d</strong></span>
-                              <span>Pro-rated: <strong style={{ color: '#F1F5F9' }}>₹{preview.proTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                              <span>Used: <strong >{preview.daysUsed}/{preview.daysInMonth}d</strong></span>
+                              <span>Pro-rated: <strong >₹{preview.proTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
                               <span>Credit: <strong style={{ color: '#10B981' }}>₹{Math.max(0, preview.credit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
                             </div>
                           )}
@@ -1896,7 +1898,7 @@ export default function RentalsPage() {
                 <ArrowLeftRight size={15} style={{ color: '#3B82F6' }} />
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                <div className="text-sm font-semibold">
                   {exchangeModal.inventory?.brand} {exchangeModal.inventory?.model_no}
                 </div>
                 <div className="text-xs font-mono" style={{ color: '#475569' }}>
@@ -1976,7 +1978,7 @@ export default function RentalsPage() {
             </div>
 
             <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)', color: '#94A3B8' }}>
-              The old laptop will be marked <strong style={{ color: '#F1F5F9' }}>available</strong>. The new laptop will be <strong style={{ color: '#F1F5F9' }}>assigned to this rental</strong>. Monthly charges, GST, and billing dates stay the same.
+              The old laptop will be marked <strong >available</strong>. The new laptop will be <strong>assigned to this rental</strong>. Monthly charges, GST, and billing dates stay the same.
             </div>
 
             <div className="flex justify-end gap-3 pt-1">
@@ -2000,7 +2002,7 @@ export default function RentalsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-xl"
             style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.18)' }}>
             <div className="flex-1 text-xs" style={{ color: '#94A3B8' }}>
-              Upload a <strong style={{ color: '#F1F5F9' }}>CSV or Excel</strong> file — one row per laptop to return.
+              Upload a <strong>CSV or Excel</strong> file — one row per laptop to return.
               Each row completes the active rental for that asset code.
             </div>
             <button onClick={downloadReturnTemplate}
@@ -2063,7 +2065,7 @@ export default function RentalsPage() {
             return (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-3 items-center">
-                  <span className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>{returnRows.length} rows parsed</span>
+                  <span className="text-xs font-semibold">{returnRows.length} rows parsed</span>
                   {valid.length   > 0 && <span className="badge badge-active">{valid.length} ready</span>}
                   {invalid.length > 0 && <span className="badge badge-open">{invalid.length} with errors</span>}
                 </div>
@@ -2177,7 +2179,7 @@ export default function RentalsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-xl"
             style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.18)' }}>
             <div className="flex-1 text-xs" style={{ color: '#94A3B8' }}>
-              Upload a <strong style={{ color: '#F1F5F9' }}>CSV or Excel</strong> file with one row per laptop.
+              Upload a <strong>CSV or Excel</strong> file with one row per laptop.
               Rows sharing the same <em>client_email + delivery_date</em> are grouped as a bulk rental.
             </div>
             <button onClick={downloadTemplate}
@@ -2241,7 +2243,7 @@ export default function RentalsPage() {
               <div className="space-y-3">
                 {/* Summary bar */}
                 <div className="flex flex-wrap gap-3 items-center">
-                  <span className="text-xs font-semibold" style={{ color: '#F1F5F9' }}>
+                  <span className="text-xs font-semibold" >
                     {uploadRows.length} rows parsed
                   </span>
                   {valid.length > 0 && (

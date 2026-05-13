@@ -62,10 +62,11 @@ export default function ClientReturnsPage() {
     if (!pickupModal) return;
     setPickupSaving(true);
     try {
+      const payload = { ...pickupForm, scheduled_at: new Date(pickupForm.scheduled_at).toISOString() };
       if (pickupModal.bulkId) {
-        await api.rentals.bulkSchedules.schedulePickup(pickupModal.bulkId, pickupForm);
+        await api.rentals.bulkSchedules.schedulePickup(pickupModal.bulkId, payload);
       } else {
-        await api.rentals.schedules.schedulePickup(pickupModal.rentalId!, pickupForm);
+        await api.rentals.schedules.schedulePickup(pickupModal.rentalId!, payload);
       }
       showToast('Return pickup scheduled — our team will contact you shortly');
       setPickupModal(null);
@@ -265,6 +266,7 @@ export default function ClientReturnsPage() {
           </div>
           <FormField label="Preferred Date & Time" required>
             <input className="inp" type="datetime-local" value={pickupForm.scheduled_at}
+              min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 60000).toISOString().slice(0, 16)}
               onChange={e => setPickupForm(p => ({ ...p, scheduled_at: e.target.value }))} />
           </FormField>
           <FormField label="Contact Name">

@@ -140,7 +140,7 @@ export default function RentalDetailPage() {
     try {
       const payload: any = {
         address:          schedForm.address,
-        scheduled_at:     schedForm.scheduled_at,
+        scheduled_at:     new Date(schedForm.scheduled_at).toISOString(),
         contact_name:     schedForm.contact_name  || undefined,
         contact_phone:    schedForm.contact_phone || undefined,
         employee_name:    schedForm.employee_name    || undefined,
@@ -785,7 +785,9 @@ export default function RentalDetailPage() {
               {/* Date */}
               <div className="sm:col-span-2">
                 <FormField label={TYPE_META[scheduleModal].dateLabel} required>
-                  <input className="inp" type="datetime-local" value={schedForm.scheduled_at} onChange={e => sf('scheduled_at', e.target.value)} />
+                  <input className="inp" type="datetime-local" value={schedForm.scheduled_at}
+                    min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 60000).toISOString().slice(0, 16)}
+                    onChange={e => sf('scheduled_at', e.target.value)} />
                 </FormField>
               </div>
 

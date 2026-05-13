@@ -9,7 +9,7 @@ import {
   Monitor, Plus, Search, Edit, Trash2, Eye, Upload,
   FileSpreadsheet, AlertCircle, CheckCircle2, ImagePlus,
   X, ChevronRight, Filter, LayoutGrid, List, Download,
-  Truck,
+  Truck, Clock, Calendar,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -62,17 +62,55 @@ export default function InventoryPage() {
 
   // Schedule state (staff actions)
   const EMPTY_SF = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', employee_name: '', employee_number: '', employee_address: '', notes: '', assigned_to: '' };
-  const SCHED_META: Record<string, { label: string; color: string; bg: string; border: string; dateLabel: string }> = {
-    delivery:             { label: 'New Delivery',         color: '#3B82F6', bg: 'rgba(59,130,246,0.07)',  border: 'rgba(59,130,246,0.2)',  dateLabel: 'Delivery Date & Time'    },
-    replacement_delivery: { label: 'Replacement Delivery', color: '#8B5CF6', bg: 'rgba(139,92,246,0.07)', border: 'rgba(139,92,246,0.2)',  dateLabel: 'Replacement Date & Time' },
-    replacement_receive:  { label: 'Replacement Receive',  color: '#0D9488', bg: 'rgba(13,148,136,0.07)', border: 'rgba(13,148,136,0.2)',  dateLabel: 'Replacement Date & Time' },
-    pickup:               { label: 'Return',               color: '#F59E0B', bg: 'rgba(245,158,11,0.07)',  border: 'rgba(245,158,11,0.2)',  dateLabel: 'Return Date & Time'      },
+
+  const SCHED_META: Record<
+    string,
+    {
+      label: string;
+      color: string;
+      bg: string;
+      border: string;
+      dateLabel: string;
+    }
+  > = {
+    delivery: {
+      label: 'New Delivery',
+      color: '#3B82F6',
+      bg: 'rgba(59,130,246,0.07)',
+      border: 'rgba(59,130,246,0.2)',
+      dateLabel: 'Delivery Date & Time',
+    },
+
+    replacement_delivery: {
+      label: 'Replacement Delivery',
+      color: '#8B5CF6',
+      bg: 'rgba(139,92,246,0.07)',
+      border: 'rgba(139,92,246,0.2)',
+      dateLabel: 'Replacement Date & Time',
+    },
+
+    replacement_receive: {
+      label: 'Replacement Receive',
+      color: '#0D9488',
+      bg: 'rgba(13,148,136,0.07)',
+      border: 'rgba(13,148,136,0.2)',
+      dateLabel: 'Replacement Date & Time',
+    },
+
+    pickup: {
+      label: 'Return',
+      color: '#F59E0B',
+      bg: 'rgba(245,158,11,0.07)',
+      border: 'rgba(245,158,11,0.2)',
+      dateLabel: 'Return Date & Time',
+    },
   };
   const [schedModal,   setSchedModal]   = useState<string | null>(null);
   const [schedItem,    setSchedItem]    = useState<Inventory | null>(null);
   const [schedForm,    setSchedForm]    = useState({ ...EMPTY_SF });
   const [staffUsers,   setStaffUsers]   = useState<any[]>([]);
   const [schedSaving,  setSchedSaving]  = useState(false);
+  const [rentalScheds, setRentalScheds] = useState<Record<number, any[]>>({});
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -88,7 +126,7 @@ export default function InventoryPage() {
       if (serialSearch) p.serial_number = serialSearch;
       if (status)       p.status        = status;
       if (type)         p.type          = type;
-      const res = await api.inventory.list(p);
+      const res = await api.inventory.list(p);      
       setItems(res.data?.data || []);
       setLastPage(res.data?.last_page || 1);
       setTotal(res.data?.total || 0);
@@ -119,6 +157,24 @@ export default function InventoryPage() {
       }).catch(() => {});
   }, [isStaff]);
 
+  // Fetch schedules for each result's active rental (staff only)
+  useEffect(() => {
+    if (!isStaff || items.length === 0) return;
+    const rentalIds = items.map(i => (i as any).active_rental?.id).filter(Boolean) as number[];
+    if (rentalIds.length === 0) return;
+    Promise.all(
+      rentalIds.map(rid =>
+        api.rentals.schedules.list(rid)
+          .then(res => ({ rid, scheds: res.data?.data || res.data || [] }))
+          .catch(() => ({ rid, scheds: [] }))
+      )
+    ).then(results => {
+      const map: Record<number, any[]> = {};
+      results.forEach(({ rid, scheds }) => { map[rid] = scheds; });
+      setRentalScheds(map);
+    });
+  }, [items, isStaff]);
+
   function openSchedModal(type: string, item: Inventory) {
     setSchedItem(item);
     setSchedModal(type);
@@ -135,7 +191,7 @@ export default function InventoryPage() {
     try {
       const payload: any = {
         address:          schedForm.address,
-        scheduled_at:     schedForm.scheduled_at,
+        scheduled_at:     new Date(schedForm.scheduled_at).toISOString(),
         contact_name:     schedForm.contact_name     || undefined,
         contact_phone:    schedForm.contact_phone    || undefined,
         employee_name:    schedForm.employee_name    || undefined,
@@ -143,8 +199,9 @@ export default function InventoryPage() {
         employee_address: schedForm.employee_address || undefined,
         notes:            schedForm.notes            || undefined,
       };
-      if (schedModal !== 'pickup' && schedForm.assigned_to)
-        payload.assigned_to = Number(schedForm.assigned_to);
+      if (schedModal !== 'pickup') {
+        payload.assigned_to = isStaff ? user!.id : Number(schedForm.assigned_to);
+      }
 
       if (schedModal === 'pickup') {
         await api.rentals.schedules.schedulePickup(rentalId, payload);
@@ -353,8 +410,41 @@ export default function InventoryPage() {
                 <div className="divide-y" style={{ borderColor: '#F1F5F9' }}>
                   {items.map(item => {
                     const hasRental = !!(item as any).active_rental;
-                    const BTNS = [                     
-                      { type: 'pickup',               label: 'Return',               color: '#F59E0B', bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)'  },
+                    const BTNS = [
+                      { 
+                        type: 'pickup',
+                        label: 'Return',
+                        color: '#F59E0B',
+                        bg: 'rgba(245,158,11,0.08)',
+                        border: 'rgba(245,158,11,0.25)',
+                        dateLabel: 'Return Date & Time'
+                      },
+                      { 
+                        type: 'delivery',
+                        label: 'New Delivery',
+                        color: '#3B82F6',
+                        bg: 'rgba(59,130,246,0.07)',
+                        border: 'rgba(59,130,246,0.2)',
+                        dateLabel: 'Delivery Date & Time'
+                      },
+                      { 
+                        type: 'replacement_delivery',
+                        label: 'Replacement Delivery',
+                        color: '#8B5CF6',
+                        bg: 'rgba(139,92,246,0.07)',
+                        border: 'rgba(139,92,246,0.2)',
+                        dateLabel: 'Replacement Date & Time'
+                      },
+                      { 
+                        type: 'replacement_receive',
+                        label: 'Replacement Receive',
+                        color: '#0D9488',
+                        bg: 'rgba(13,148,136,0.07)',
+                        border: 'rgba(13,148,136,0.2)',
+                        dateLabel: 'Replacement Date & Time'
+                      },
+                      
+                      
                     ];
                     return (
                       <div key={item.id} className="px-4 py-4">
@@ -387,20 +477,45 @@ export default function InventoryPage() {
                           </div>
                         </div>
 
-                        {/* Action buttons */}
-                        {hasRental ? (
-                          <div className="flex flex-wrap gap-2">
-                            {BTNS.map(btn => (
-                              <button key={btn.type}
-                                onClick={() => openSchedModal(btn.type, item)}
-                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
-                                style={{ background: btn.bg, color: btn.color, border: `1px solid ${btn.border}` }}>
-                                <Truck size={11} />
-                                {btn.label}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
+                        {/* Action buttons or pending schedule */}
+                        {hasRental ? (() => {
+                          const rentalId = (item as any).active_rental?.id;
+                          const pendingSched = (rentalScheds[rentalId] || []).find((s: any) => s.status === 'scheduled');
+                          if (pendingSched) {
+                            const meta = SCHED_META[pendingSched.type] ?? { label: pendingSched.type, color: '#64748B', bg: 'rgba(100,116,139,0.07)', border: 'rgba(100,116,139,0.2)' };
+                            return (
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                                  style={{ background: meta.bg, border: `1px solid ${meta.border}` }}>
+                                  <Clock size={12} style={{ color: meta.color, flexShrink: 0 }} />
+                                  <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label} — Scheduled</span>
+                                </div>
+                                {pendingSched.scheduled_at && (
+                                  <div className="flex items-center gap-1.5 text-xs" style={{ color: '#64748B' }}>
+                                    <Calendar size={11} />
+                                    {new Date(pendingSched.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                )}
+                                {pendingSched.address && (
+                                  <div className="text-xs" style={{ color: '#94A3B8' }}>{pendingSched.address}</div>
+                                )}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="flex flex-wrap gap-2">
+                              {BTNS.map(btn => (
+                                <button key={btn.type}
+                                  onClick={() => openSchedModal(btn.type, item)}
+                                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
+                                  style={{ background: btn.bg, color: btn.color, border: `1px solid ${btn.border}` }}>
+                                  <Truck size={11} />
+                                  {btn.label}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })() : (
                           <div className="text-xs px-3 py-1.5 rounded-lg inline-block"
                             style={{ background: '#F1F5F9', color: '#94A3B8', border: '1px solid #E2E8F0' }}>
                             No active rental — schedule actions unavailable
@@ -1003,12 +1118,14 @@ export default function InventoryPage() {
               {/* Date */}
               <div className="sm:col-span-2">
                 <FormField label={SCHED_META[schedModal].dateLabel} required>
-                  <input className="inp" type="datetime-local" value={schedForm.scheduled_at} onChange={e => sf('scheduled_at', e.target.value)} />
+                  <input className="inp" type="datetime-local" value={schedForm.scheduled_at}
+                    min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 60000).toISOString().slice(0, 16)}
+                    onChange={e => sf('scheduled_at', e.target.value)} />
                 </FormField>
               </div>
 
-              {/* Assign to staff (not for pickup/return) */}
-              {schedModal !== 'pickup' && (
+              {/* Assign to staff — admin only; staff auto-assigned to themselves */}
+              {schedModal !== 'pickup' && !isStaff && (
                 <div className="sm:col-span-2">
                   <FormField label="Assign To (Staff)" required>
                     <select className="inp" value={schedForm.assigned_to} onChange={e => sf('assigned_to', e.target.value)}>
@@ -1073,7 +1190,7 @@ export default function InventoryPage() {
                   !schedForm.contact_name ||
                   !schedForm.contact_phone ||
                   !schedForm.address ||
-                  (schedModal !== 'pickup' && !schedForm.assigned_to)
+                  (!isStaff && schedModal !== 'pickup' && !schedForm.assigned_to)
                 }
                 onClick={handleScheduleSubmit}
                 style={{ background: SCHED_META[schedModal].color }}>

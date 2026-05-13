@@ -31,7 +31,7 @@ export default function ClientSchedulesPage() {
     try {
       const params: Record<string, string> = { per_page: '50' };
       if (tab !== 'all') params.type = tab;
-      const res = await api.client.mySchedules(params);
+      const res = await api.client.mySchedules(params);     
       setSchedules(res.data?.data || res.data || []);
     } catch (e: any) {
       showToast(e.message || 'Failed to load schedules', 'error');
@@ -43,6 +43,8 @@ export default function ClientSchedulesPage() {
   const pickupCount   = schedules.filter(s => s.type === 'pickup').length;
   const deliveryCount = schedules.filter(s => s.type === 'delivery').length;
   const pendingCount  = schedules.filter(s => s.status === 'scheduled').length;
+
+  console.log(schedules, "schedules")
 
   return (
     <DashboardLayout>

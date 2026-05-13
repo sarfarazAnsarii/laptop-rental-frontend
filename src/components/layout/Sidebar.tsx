@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Monitor, FileText, UserCog, LogOut,
-  Laptop, Wrench, X, CalendarClock, ReceiptText, Wallet,
+  Wrench, X, CalendarClock, ReceiptText, Wallet,
   ArrowLeftRight, RotateCcw, BookOpen, BarChart2, Shield,
   AlertTriangle, ChevronRight, PartyPopper,
 } from 'lucide-react';
@@ -74,13 +74,7 @@ export default function Sidebar({ open = false, onClose }: { open?: boolean; onC
     >
       {/* ── Logo ── */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <Laptop size={17} color="white" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="sidebar-logo-title">LaptopRental</div>
-          <div className="sidebar-logo-sub">Management System</div>
-        </div>
+        <img src="/latop-rental-logo.png" alt="Laptop Rental" className="flex-1 min-w-0" style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
         <button
           onClick={onClose}
           className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-slate-100 flex-shrink-0"
