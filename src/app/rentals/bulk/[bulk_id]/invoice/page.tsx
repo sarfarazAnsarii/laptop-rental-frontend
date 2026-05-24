@@ -91,19 +91,22 @@ export default function BulkInvoicePage() {
 
   const client = rentals[0]?.client;
 
-  // Per-row calculations using pro_rental as billing basis
+  // Per-row calculations: daily rate × actual billing days
   const rows = rentals.map(r => {
-    const monthly = Number(r.monthly_rental || 0);
-    const qty     = Number(r.quantity || 1);
-    const gstPct  = Number(r.gst_percent || 18);
-    const start   = r.delivery_date || r.start_date || '';
+    const monthly  = Number(r.monthly_rental || 0);
+    const qty      = Number(r.quantity || 1);
+    const gstPct   = Number(r.gst_percent || 18);
+    const start    = r.delivery_date || r.start_date || '';
     const isActive = r.status === 'active' || r.status === 'overdue';
     const endDate  = isActive ? billingEnd(start) : (r.end_date || billingEnd(start));
     const days     = isActive ? billingDays(start) : (r.duration_days ?? billingDays(start));
-    const proAmt   = Number(r.pro_rental ?? (monthly * qty));
-    const inv      = r.inventory;
-    const product  = [inv?.brand, inv?.model_no].filter(Boolean).join(' ');
-    const specs    = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd].filter(Boolean).join('-');
+    // daily rate × billing days  (monthly × qty / days_in_month × actual_days)
+    const daysInMo  = start ? new Date(new Date(start).getFullYear(), new Date(start).getMonth() + 1, 0).getDate() : 30;
+    const calcProAmt = +(monthly * qty / daysInMo * days).toFixed(2);
+    const proAmt    = Number(r.pro_rental) || calcProAmt;
+    const inv       = r.inventory;
+    const product   = [inv?.brand, inv?.model_no].filter(Boolean).join(' ');
+    const specs     = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd].filter(Boolean).join('-');
     return { r, monthly, qty, gstPct, start, endDate, days, proAmt, inv, product, specs };
   });
 

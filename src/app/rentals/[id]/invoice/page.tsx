@@ -91,14 +91,6 @@ export default function InvoicePage() {
   const gstPct   = Number(rental.gst_percent     || 18);
   const halfPct  = gstPct / 2;
 
-  // The invoice amount for this billing period is pro_rental, not the monthly base
-  const proAmt   = Number(rental.pro_rental ?? monthly);
-  const billedAmt = proAmt;  // amount for this document
-  const sgst     = +(billedAmt * halfPct / 100).toFixed(2);
-  const cgst     = +(billedAmt * halfPct / 100).toFixed(2);
-  const gstAmt   = sgst + cgst;
-  const grandTotal = billedAmt + gstAmt;
-
   const inv    = rental.inventory;
   const client = rental.client;
 
@@ -106,6 +98,16 @@ export default function InvoicePage() {
   const isActive   = rental.status === 'active' || rental.status === 'overdue';
   const endDate    = isActive ? billingEnd(start) : (rental.end_date || billingEnd(start));
   const daysActive = isActive ? billingDays(start) : (rental.duration_days ?? billingDays(start));
+
+  // daily rate × actual days  (monthly × qty / days_in_month × billing_days)
+  const daysInMo  = start ? new Date(new Date(start).getFullYear(), new Date(start).getMonth() + 1, 0).getDate() : 30;
+  const calcProAmt = +(monthly * qty / daysInMo * daysActive).toFixed(2);
+  const proAmt     = Number(rental.pro_rental) || calcProAmt;
+  const billedAmt  = proAmt;
+  const sgst       = +(billedAmt * halfPct / 100).toFixed(2);
+  const cgst       = +(billedAmt * halfPct / 100).toFixed(2);
+  const gstAmt     = sgst + cgst;
+  const grandTotal = billedAmt + gstAmt;
 
   const product = [inv?.brand, inv?.model_no].filter(Boolean).join(' ');
   const specs   = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd]

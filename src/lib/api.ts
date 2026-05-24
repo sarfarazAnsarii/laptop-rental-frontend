@@ -106,6 +106,8 @@ export const api = {
     },
     deleteImage: (id: number, index: number) =>
       request<any>(`/inventories/${id}/images/${index}`, { method: 'DELETE' }),
+    scheduleDelivery: (id: number, data: any) =>
+      request<any>(`/inventories/${id}/schedule-delivery`, { method: 'POST', body: JSON.stringify(data) }),
     export: async (params?: Record<string, string>): Promise<void> => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -273,6 +275,13 @@ export const api = {
       request<any>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: number) =>
       request<any>(`/users/${id}`, { method: 'DELETE' }),
+  },
+
+  clients: {
+    list: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any>(`/clients${qs}`);
+    },
   },
 
   payments: {

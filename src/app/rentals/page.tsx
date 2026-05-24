@@ -5,7 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button, Modal, PageHeader, FormField, EmptyState, Toast } from '@/components/ui';
 import { api } from '@/lib/api';
 import { Rental } from '@/types';
-import { FileText, Plus, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors, ArrowLeftRight, Search, X, UploadCloud, FileDown, AlertCircle, Filter, ChevronRight } from 'lucide-react';
+import { FileText, Plus, Monitor, CheckCircle, XCircle, Eye, SendHorizonal, Layers, Trash2, PlusCircle, Sparkles, RotateCcw, Copy, Check, CreditCard, Clock, Calendar, Scissors, ArrowLeftRight, Search, X, UploadCloud, FileDown, AlertCircle, Filter, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { generateInvoiceEmail, generateBulkInvoiceEmail } from '@/lib/ai';
@@ -50,8 +50,10 @@ function calcDeduction(rental: Rental, returnDate: string) {
 interface UploadRow {
   rowNum: number;
   client_email: string;
+  client_name: string;
   delivery_date: string;
   asset_code: string;
+  serial_number: string;
   monthly_rental: string;
   gst_percent: string;
   notes: string;
@@ -199,10 +201,11 @@ export default function RentalsPage() {
   }
 
   // Bulk rental
-  const EMPTY_LAPTOP = { inventory_id: '', monthly_rental: '' };
+  const EMPTY_LAPTOP = { inventory_id: '', monthly_rental: '', invSearch: '' };
   const [showBulk, setShowBulk] = useState(false);
   const [bulkForm, setBulkForm] = useState({ client_id: '', delivery_date: '', gst_percent: '18', notes: '' });
-  const [laptops, setLaptops] = useState([{ ...EMPTY_LAPTOP }]);
+  const [laptops,           setLaptops]           = useState([{ ...EMPTY_LAPTOP }]);
+  const [laptopSearchFocus, setLaptopSearchFocus] = useState<number | null>(null);
   const [savingBulk, setSavingBulk] = useState(false);
   const [bulkError, setBulkError] = useState<{ unavailable?: any[] } | null>(null);
 
@@ -393,9 +396,9 @@ export default function RentalsPage() {
   // ── Bulk upload helpers ────────────────────────────────────────────────
   function downloadTemplate() {
     const csv = [
-      'client_email,delivery_date,asset_code,monthly_rental,gst_percent,notes',
-      'client@company.com,2025-01-15,LR-001,5000,18,Optional notes',
-      'client@company.com,2025-01-15,LR-002,6000,18,',
+      'client_email,client_name,delivery_date,asset_code,serial_number,monthly_rental,gst_percent,notes',
+      'client@company.com,Acme Corp,2025-01-15,LR-001,SN-12345,5000,18,Optional notes',
+      'client@company.com,Acme Corp,2025-01-15,LR-002,SN-12346,6000,18,',
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -432,8 +435,10 @@ export default function RentalsPage() {
         return {
           rowNum:         idx + 2,
           client_email:   get('client_email'),
+          client_name:    get('client_name'),
           delivery_date:  get('delivery_date'),
           asset_code:     get('asset_code'),
+          serial_number:  get('serial_number'),
           monthly_rental: get('monthly_rental'),
           gst_percent:    get('gst_percent') || '18',
           notes:          get('notes'),
@@ -445,7 +450,7 @@ export default function RentalsPage() {
         if (!row.client_email)  row.errors.push('client_email required');
         if (!row.delivery_date || !/^\d{4}-\d{2}-\d{2}$/.test(row.delivery_date))
           row.errors.push('delivery_date must be YYYY-MM-DD');
-        if (!row.asset_code)    row.errors.push('asset_code required');
+        if (!row.asset_code && !row.serial_number)  row.errors.push('asset_code or serial_number required');
         if (!row.monthly_rental || isNaN(Number(row.monthly_rental)) || Number(row.monthly_rental) <= 0)
           row.errors.push('monthly_rental must be > 0');
       });
@@ -455,7 +460,11 @@ export default function RentalsPage() {
         api.users.list({ role: 'client', per_page: '500' }),
       ]);
       const invMap: Record<string, any> = {};
-      (invRes.data || []).forEach((i: any) => { invMap[String(i.asset_code).trim()] = i; });
+      const invSnMap: Record<string, any> = {};
+      (invRes.data || []).forEach((i: any) => {
+        invMap[String(i.asset_code).trim()] = i;
+        if (i.serial_number) invSnMap[String(i.serial_number).trim().toLowerCase()] = i;
+      });
       const cliMap: Record<string, any> = {};
       (cliRes.data?.data || cliRes.data || []).forEach((c: any) => {
         cliMap[String(c.email).toLowerCase().trim()] = c;
@@ -466,9 +475,10 @@ export default function RentalsPage() {
           row.clientObj = cliMap[row.client_email.toLowerCase()];
           if (!row.clientObj) row.errors.push(`Client not found: ${row.client_email}`);
         }
-        if (row.asset_code) {
-          row.invObj = invMap[row.asset_code];
-          if (!row.invObj) row.errors.push(`Asset not found or not available: ${row.asset_code}`);
+        if (row.asset_code || row.serial_number) {
+          row.invObj = (row.asset_code ? invMap[row.asset_code] : null)
+            || (row.serial_number ? invSnMap[row.serial_number.toLowerCase()] : null);
+          if (!row.invObj) row.errors.push(`Asset not found or not available: ${row.asset_code || row.serial_number}`);
         }
       });
 
@@ -915,8 +925,14 @@ export default function RentalsPage() {
                         </td>
                         <td>
                           {items.map(r => (
-                            <div key={r.id} style={{ color: '#64748B', fontSize: 11, lineHeight: 1.4 }}>
-                              {r.inventory?.brand} {r.inventory?.model_no}
+                            <div key={r.id} style={{ marginBottom: 3 }}>
+                              <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontFamily: 'monospace', color: '#94A3B8', fontSize: 10.5 }}>{r.inventory?.asset_code}</span>
+                                {(r.inventory as any)?.serial_number && (
+                                  <span style={{ fontFamily: 'monospace', color: '#CBD5E1', fontSize: 10.5 }}>S/N: {(r.inventory as any).serial_number}</span>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </td>
@@ -971,7 +987,12 @@ export default function RentalsPage() {
                         </td>
                         <td>
                           <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                          <div style={{ fontFamily: 'monospace', color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>{r.inventory?.asset_code}</div>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontFamily: 'monospace', color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>{r.inventory?.asset_code}</span>
+                            {(r.inventory as any)?.serial_number && (
+                              <span style={{ fontFamily: 'monospace', color: '#CBD5E1', fontSize: 10.5, lineHeight: 1.4 }}>S/N: {(r.inventory as any).serial_number}</span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(r.start_date)}</div>
@@ -1300,13 +1321,110 @@ export default function RentalsPage() {
                 const monthly = Number(row.monthly_rental) || 0;
                 const subtotal = monthly;
                 const selectedInv = inventories.find((i: any) => String(i.id) === String(row.inventory_id));
+                const invSearch = (row as any).invSearch || '';
+                const isOpen = laptopSearchFocus === idx;
+                const filteredInvs = inventories
+                  .filter((inv: any) => !laptops.some((l, i) => i !== idx && String(l.inventory_id) === String(inv.id)))
+                  .filter((inv: any) => {
+                    if (!invSearch.trim()) return true;
+                    const q = invSearch.toLowerCase();
+                    return (
+                      String(inv.asset_code || '').toLowerCase().includes(q) ||
+                      String(inv.serial_number || '').toLowerCase().includes(q) ||
+                      String(inv.brand || '').toLowerCase().includes(q) ||
+                      String(inv.model_no || '').toLowerCase().includes(q)
+                    );
+                  });
+
+                const combobox = (
+                  <div className="relative">
+                    {selectedInv ? (
+                      /* ── Selected state ── */
+                      <div className="inp flex items-center gap-2 cursor-pointer select-none"
+                        onClick={() => { setLaptopField(idx, 'inventory_id', ''); setLaptopField(idx, 'invSearch', ''); setLaptopSearchFocus(idx); }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>
+                            {selectedInv.brand} {selectedInv.model_no}
+                          </div>
+                          <div className="text-xs flex items-center gap-2 mt-0.5">
+                            <span className="font-mono" style={{ color: '#60A5FA' }}>{selectedInv.asset_code}</span>
+                            {selectedInv.serial_number && <span className="font-mono" style={{ color: '#64748B' }}>S/N: {selectedInv.serial_number}</span>}
+                          </div>
+                        </div>
+                        <X size={13} style={{ color: '#64748B', flexShrink: 0 }} />
+                      </div>
+                    ) : (
+                      /* ── Search input ── */
+                      <div className="relative">
+                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748B' }} />
+                        <input
+                          className="inp w-full"
+                          style={{ paddingLeft: '1.75rem', fontSize: 12 }}
+                          type="text"
+                          autoComplete="off"
+                          placeholder="Search by serial no., asset code, brand…"
+                          value={invSearch}
+                          onChange={e => { setLaptopField(idx, 'invSearch', e.target.value); setLaptopSearchFocus(idx); }}
+                          onFocus={() => setLaptopSearchFocus(idx)}
+                          onBlur={() => setTimeout(() => setLaptopSearchFocus(p => p === idx ? null : p), 160)}
+                        />
+                      </div>
+                    )}
+
+                    {/* ── Dropdown ── */}
+                    {isOpen && !selectedInv && (
+                      <div className="absolute left-0 right-0 z-50 rounded-xl mt-1 overflow-hidden"
+                        style={{ background: '#0D1929', border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 260, overflowY: 'auto' }}>
+                        {filteredInvs.length === 0 ? (
+                          <div className="px-3 py-3 text-xs text-center" style={{ color: '#64748B' }}>
+                            {invSearch ? `No match for "${invSearch}"` : 'No available laptops'}
+                          </div>
+                        ) : (
+                          filteredInvs.slice(0, 30).map((inv: any, i: number) => (
+                            <button key={inv.id} type="button"
+                              onMouseDown={() => { setLaptopField(idx, 'inventory_id', String(inv.id)); setLaptopField(idx, 'invSearch', ''); setLaptopSearchFocus(null); }}
+                              className="w-full text-left px-3 py-2.5 transition-colors"
+                              style={{
+                                background: 'transparent',
+                                borderBottom: i < filteredInvs.length - 1 ? '1px solid rgba(30,48,88,0.5)' : 'none',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                                  style={{ background: 'rgba(59,130,246,0.1)' }}>
+                                  <Monitor size={13} style={{ color: '#3B82F6' }} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>
+                                    {inv.brand} {inv.model_no}
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                    <span className="font-mono text-xs font-bold" style={{ color: '#60A5FA' }}>{inv.asset_code}</span>
+                                    {inv.serial_number && (
+                                      <span className="font-mono text-xs" style={{ color: '#475569' }}>S/N: {inv.serial_number}</span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs mt-0.5" style={{ color: '#475569' }}>
+                                    {inv.cpu}{inv.generation ? ` · ${inv.generation} Gen` : ''}{inv.ram ? ` · ${inv.ram}` : ''}{inv.ssd ? ` · ${inv.ssd}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+
                 return (
-                  <div key={idx} className="rounded-xl overflow-hidden"
+                  <div key={idx} className="rounded-xl"
                     style={{ background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.7)' }}>
 
                     {/* Mobile layout */}
                     <div className="sm:hidden p-3 space-y-3">
-                      {/* Row header */}
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold" style={{ color: '#475569' }}>Laptop {idx + 1}</span>
                         <button
@@ -1318,31 +1436,10 @@ export default function RentalsPage() {
                           <Trash2 size={12} />
                         </button>
                       </div>
-
-                      {/* Laptop selector — full width */}
                       <div>
                         <div className="text-xs mb-1.5 font-medium" style={{ color: '#64748B' }}>Select Laptop</div>
-                        <select className="inp w-full" value={row.inventory_id}
-                          onChange={e => setLaptopField(idx, 'inventory_id', e.target.value)}>
-                          <option value="">— Choose an available laptop —</option>
-                          {inventories
-                            .filter((inv: any) => !laptops.some((l, i) => i !== idx && String(l.inventory_id) === String(inv.id)))
-                            .map((inv: any) => (
-                              <option key={inv.id} value={inv.id}>
-                                {inv.brand} {inv.model_no} · {inv.asset_code}
-                              </option>
-                            ))}
-                        </select>
-                        {selectedInv && (
-                          <div className="mt-1.5 text-xs px-2 py-1 rounded-lg flex items-center gap-1.5"
-                            style={{ background: 'rgba(59,130,246,0.07)', color: '#64748B' }}>
-                            <span style={{ color: '#3B82F6' }}>●</span>
-                            {selectedInv.cpu} · {selectedInv.ram} · {selectedInv.ssd}
-                          </div>
-                        )}
+                        {combobox}
                       </div>
-
-                      {/* Monthly + Subtotal in a row */}
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Monthly (₹)</div>
@@ -1361,20 +1458,10 @@ export default function RentalsPage() {
                       </div>
                     </div>
 
-                    {/* Desktop layout — single row */}
-                    <div className="hidden sm:grid gap-2 items-center p-3"
+                    {/* Desktop layout */}
+                    <div className="hidden sm:grid gap-2 items-start p-3"
                       style={{ gridTemplateColumns: '1fr 120px 120px 32px' }}>
-                      <div>
-                        <select className="inp" value={row.inventory_id}
-                          onChange={e => setLaptopField(idx, 'inventory_id', e.target.value)}>
-                          <option value="">— Select laptop —</option>
-                          {inventories
-                            .filter((inv: any) => !laptops.some((l, i) => i !== idx && String(l.inventory_id) === String(inv.id)))
-                            .map((inv: any) => (
-                              <option key={inv.id} value={inv.id}>{inv.brand} {inv.model_no} — {inv.asset_code}</option>
-                            ))}
-                        </select>
-                      </div>
+                      <div>{combobox}</div>
                       <input className="inp" type="number" min="0"
                         value={row.monthly_rental}
                         onChange={e => setLaptopField(idx, 'monthly_rental', e.target.value)}
@@ -2202,8 +2289,10 @@ export default function RentalsPage() {
               <tbody>
                 {[
                   ['client_email',   'Yes', 'client@company.com', 'Must match an existing client account'],
+                  ['client_name',    'No',  'Acme Corp',          'For reference only — shown in preview'],
                   ['delivery_date',  'Yes', '2025-01-15',         'YYYY-MM-DD format'],
-                  ['asset_code',     'Yes', 'LR-001',             'Must be available in inventory'],
+                  ['asset_code',     'No*', 'LR-001',             'Asset code or serial_number required'],
+                  ['serial_number',  'No*', 'SN-12345',           'Used to locate laptop if asset_code missing'],
                   ['monthly_rental', 'Yes', '5000',               'Number only, no ₹ symbol'],
                   ['gst_percent',    'No',  '18',                 'Defaults to 18'],
                   ['notes',          'No',  'Project A',          'Optional notes for the rental'],
@@ -2259,7 +2348,7 @@ export default function RentalsPage() {
                   <table className="w-full text-xs">
                     <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                       <tr style={{ background: '#060D1C', borderBottom: '1px solid rgba(30,48,88,0.6)' }}>
-                        {['Row', 'Client', 'Delivery', 'Asset', '₹/mo', 'Status'].map(h => (
+                        {['Row', 'Client', 'Delivery', 'Asset / S/N', '₹/mo', 'Status'].map(h => (
                           <th key={h} className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: '#3A5578', fontSize: 10 }}>{h}</th>
                         ))}
                       </tr>
@@ -2276,14 +2365,29 @@ export default function RentalsPage() {
                             <td className="px-3 py-2 font-mono" style={{ color: '#475569' }}>{row.rowNum}</td>
                             <td className="px-3 py-2" style={{ color: row.clientObj ? '#F1F5F9' : '#FB7185' }}>
                               {row.clientObj
-                                ? <><div className="font-medium">{row.clientObj.name}</div><div style={{ color: '#475569' }}>{row.client_email}</div></>
-                                : row.client_email || <span style={{ color: '#334155' }}>—</span>}
+                                ? <>
+                                    <div className="font-medium" style={{ color: '#141414' }}>{row.clientObj.name}</div>
+                                    {row.client_name && row.client_name !== row.clientObj.name && (
+                                      <div className="text-[10px]" style={{ color: '#94A3B8' }}>{row.client_name}</div>
+                                    )}
+                                    <div style={{ color: '#475569' }}>{row.client_email}</div>
+                                  </>
+                                : <>
+                                    {row.client_name && <div className="font-medium">{row.client_name}</div>}
+                                    {row.client_email || <span style={{ color: '#334155' }}>—</span>}
+                                  </>}
                             </td>
                             <td className="px-3 py-2 font-mono whitespace-nowrap" style={{ color: '#94A3B8' }}>{row.delivery_date}</td>
                             <td className="px-3 py-2" style={{ color: row.invObj ? '#60A5FA' : '#FB7185' }}>
                               {row.invObj
-                                ? <><div className="font-mono font-semibold">{row.asset_code}</div><div style={{ color: '#475569' }}>{row.invObj.brand} {row.invObj.model_no}</div></>
-                                : row.asset_code || <span style={{ color: '#334155' }}>—</span>}
+                                ? <>
+                                    <div className="font-mono font-semibold">{row.invObj.asset_code}</div>
+                                    <div style={{ color: '#475569' }}>{row.invObj.brand} {row.invObj.model_no}</div>
+                                    {row.invObj.serial_number && <div className="font-mono text-[10px]" style={{ color: '#64748B' }}>S/N: {row.invObj.serial_number}</div>}
+                                  </>
+                                : (row.asset_code || row.serial_number)
+                                  ? <><div className="font-mono">{row.asset_code || '—'}</div>{row.serial_number && <div className="text-[10px]" style={{ color: '#94A3B8' }}>S/N: {row.serial_number}</div>}</>
+                                  : <span style={{ color: '#334155' }}>—</span>}
                             </td>
                             <td className="px-3 py-2 font-mono" style={{ color: '#10B981', fontVariantNumeric: 'tabular-nums' }}>
                               {row.monthly_rental ? `₹${Number(row.monthly_rental).toLocaleString('en-IN')}` : '—'}

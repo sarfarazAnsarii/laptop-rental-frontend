@@ -203,8 +203,8 @@ export default function SchedulesPage() {
             const typeBg     = `${typeColor}14`;
             const meta       = STATUS_META[s.status] ?? STATUS_META.scheduled;
             const StatusIcon = meta.icon;
-            const inv        = s.rental?.inventory;
-            const client     = s.rental?.client;
+            const inv        = s.rental?.inventory ?? s.inventoryItem ?? null;
+            const client     = s.rental?.client    ?? s.clientUser    ?? null;
             const specs      = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd].filter(Boolean).join(' · ');
 
             return (
@@ -440,9 +440,10 @@ export default function SchedulesPage() {
             style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
             <div className="font-semibold capitalize" style={{ color: '#16A34A' }}>{completeModal.type}</div>
             <div className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{completeModal.address}</div>
-            {completeModal.rental?.inventory && (
+            {(completeModal.rental?.inventory ?? completeModal.inventoryItem) && (
               <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>
-                {completeModal.rental.inventory.brand} {completeModal.rental.inventory.model_no}
+                {(completeModal.rental?.inventory ?? completeModal.inventoryItem).brand}{' '}
+                {(completeModal.rental?.inventory ?? completeModal.inventoryItem).model_no}
               </div>
             )}
           </div>

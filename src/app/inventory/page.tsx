@@ -9,12 +9,12 @@ import {
   Monitor, Plus, Search, Edit, Trash2, Eye, Upload,
   FileSpreadsheet, AlertCircle, CheckCircle2, ImagePlus,
   X, ChevronRight, Filter, LayoutGrid, List, Download,
-  Truck, Clock, Calendar,
+  Truck, Clock, Calendar, ArrowLeftRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 
-const STATUS_OPTS = ['', 'available', 'rented', 'maintenance', 'sold', 'returned'];
+const STATUS_OPTS = ['', 'available', 'rented', 'maintenance', 'sold', 'returned', 'lost'];
 const TYPE_OPTS   = ['', 'office', 'vendor', 'sold'];
 
 const EMPTY_FORM = {
@@ -61,7 +61,7 @@ export default function InventoryPage() {
   const [exporting,    setExporting]    = useState(false);
 
   // Schedule state (staff actions)
-  const EMPTY_SF = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', employee_name: '', employee_number: '', employee_address: '', notes: '', assigned_to: '' };
+  const EMPTY_SF = { address: '', scheduled_at: '', contact_name: '', contact_phone: '', employee_name: '', employee_number: '', employee_address: '', notes: '', assigned_to: '', replacement_inventory_id: '', client_id: '', monthly_rental: '' };
 
   const SCHED_META: Record<
     string,
@@ -111,6 +111,27 @@ export default function InventoryPage() {
   const [staffUsers,   setStaffUsers]   = useState<any[]>([]);
   const [schedSaving,  setSchedSaving]  = useState(false);
   const [rentalScheds, setRentalScheds] = useState<Record<number, any[]>>({});
+
+  // Available inventory for replacement / exchange selectors
+  const [availableInvs, setAvailableInvs] = useState<any[]>([]);
+  const [replSearch,    setReplSearch]    = useState('');
+  const [replFocus,     setReplFocus]     = useState(false);
+
+  // Exchange modal
+  const [exchModal,         setExchModal]         = useState<Inventory | null>(null);
+  const [exchForm,          setExchForm]          = useState({ new_inventory_id: '', exchange_date: '', reason: '', notes: '', client_id: '', rental_id: '' });
+  const [exchSaving,        setExchSaving]        = useState(false);
+  const [exchSearch,        setExchSearch]        = useState('');
+  const [exchFocus,         setExchFocus]         = useState(false);
+  const [exchClientRentals, setExchClientRentals] = useState<any[]>([]);
+  const [exchRentalsLoading, setExchRentalsLoading] = useState(false);
+
+  // Clients list (for delivery + exchange on available laptops)
+  const [clients,          setClients]          = useState<any[]>([]);
+  const [clientSearch,     setClientSearch]     = useState('');
+  const [clientFocus,      setClientFocus]      = useState(false);
+  const [exchClientSearch, setExchClientSearch] = useState('');
+  const [exchClientFocus,  setExchClientFocus]  = useState(false);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -175,18 +196,83 @@ export default function InventoryPage() {
     });
   }, [items, isStaff]);
 
+  function fetchClients() {
+    api.clients.list({ per_page: '300' })
+      .then(res => setClients(res.data?.data || res.data || []))
+      .catch(() => {});
+  }
+
   function openSchedModal(type: string, item: Inventory) {
     setSchedItem(item);
     setSchedModal(type);
     setSchedForm({ ...EMPTY_SF });
+    setReplSearch(''); setReplFocus(false);
+    setClientSearch(''); setClientFocus(false);
+    if (type === 'replacement_receive') {
+      api.inventory.list({ status: 'available', per_page: '200' })
+        .then(res => setAvailableInvs(res.data?.data || res.data || []))
+        .catch(() => {});
+    }
+    if (type === 'delivery') fetchClients();
+  }
+
+  function openExchangeModal(item: Inventory) {
+    setExchModal(item);
+    setExchForm({ new_inventory_id: '', exchange_date: '', reason: '', notes: '', client_id: '', rental_id: '' });
+    setExchSearch(''); setExchFocus(false);
+    setExchClientSearch(''); setExchClientFocus(false);
+    setExchClientRentals([]); setExchRentalsLoading(false);
+    api.inventory.list({ status: 'available', per_page: '200' })
+      .then(res => setAvailableInvs(res.data?.data || res.data || []))
+      .catch(() => {});
+    if (item.status === 'available') fetchClients();
   }
 
   const sf = (k: string, v: string) => setSchedForm(p => ({ ...p, [k]: v }));
+  const ef = (k: string, v: string) => setExchForm(p => ({ ...p, [k]: v }));
+
+  async function handleExchangeSubmit() {
+    if (!exchModal) return;
+    const isAvailable = exchModal.status === 'available';
+    const rentalId = isAvailable ? Number(exchForm.rental_id) : (exchModal as any).active_rental?.id;
+
+    if (!isAvailable && !rentalId) { showToast('No active rental found for this laptop', 'error'); return; }
+    if (!isAvailable && !exchForm.new_inventory_id) { showToast('Please select a replacement laptop', 'error'); return; }
+    if (isAvailable && !exchForm.client_id) { showToast('Please select a client', 'error'); return; }
+    if (isAvailable && !exchForm.rental_id) { showToast('Please select the rented laptop to replace', 'error'); return; }
+    if (!exchForm.exchange_date) { showToast('Exchange date is required', 'error'); return; }
+    setExchSaving(true);
+    // For available laptops, this laptop itself is the replacement going out
+    const newInvId = isAvailable ? exchModal.id : Number(exchForm.new_inventory_id);
+    try {
+      await api.exchanges.create({
+        rental_id:        rentalId,
+        new_inventory_id: newInvId,
+        exchange_date:    new Date(exchForm.exchange_date).toISOString(),
+        reason:           exchForm.reason || undefined,
+        notes:            exchForm.notes  || undefined,
+      });
+      showToast('Exchange created successfully');
+      setExchModal(null);
+      load();
+    } catch (e: any) {
+      showToast(e.message || 'Failed to create exchange', 'error');
+    } finally {
+      setExchSaving(false);
+    }
+  }
 
   async function handleScheduleSubmit() {
     if (!schedModal || !schedItem) return;
     const rentalId = (schedItem as any).active_rental?.id;
-    if (!rentalId) { showToast('No active rental found for this laptop', 'error'); return; }
+    // Standalone delivery for available laptop — uses inventory-level endpoint
+    const isStandaloneDelivery = schedModal === 'delivery' && !rentalId;
+    if (!isStandaloneDelivery && !rentalId) {
+      showToast('No active rental found for this laptop', 'error'); return;
+    }
+    if (isStandaloneDelivery && !schedForm.client_id) {
+      showToast('Please select a client', 'error'); return;
+    }
     setSchedSaving(true);
     try {
       const payload: any = {
@@ -199,11 +285,18 @@ export default function InventoryPage() {
         employee_address: schedForm.employee_address || undefined,
         notes:            schedForm.notes            || undefined,
       };
-      if (schedModal !== 'pickup') {
+      if (schedModal !== 'pickup' && !isStandaloneDelivery) {
         payload.assigned_to = isStaff ? user!.id : Number(schedForm.assigned_to);
       }
+      if (schedModal === 'replacement_receive' && schedForm.replacement_inventory_id) {
+        payload.replacement_inventory_id = Number(schedForm.replacement_inventory_id);
+      }
 
-      if (schedModal === 'pickup') {
+      if (isStandaloneDelivery) {
+        const standalonePayload: any = { ...payload, client_id: Number(schedForm.client_id) };
+        if (schedForm.monthly_rental) standalonePayload.monthly_rental = Number(schedForm.monthly_rental);
+        await api.inventory.scheduleDelivery(schedItem.id, standalonePayload);
+      } else if (schedModal === 'pickup') {
         await api.rentals.schedules.schedulePickup(rentalId, payload);
       } else if (schedModal === 'delivery') {
         await api.rentals.schedules.scheduleDelivery(rentalId, payload);
@@ -252,6 +345,15 @@ export default function InventoryPage() {
     if (!confirm(`Delete ${item.brand} ${item.model_no} (${item.asset_code})?`)) return;
     try { await api.inventory.delete(item.id); showToast('Deleted successfully'); load(); }
     catch (e: any) { showToast(e.message || 'Delete failed', 'error'); }
+  }
+
+  async function handleMarkStatus(item: Inventory, newStatus: string) {
+    if (!confirm(`Mark ${item.brand} ${item.model_no} (${item.asset_code}) as ${newStatus}?`)) return;
+    try {
+      await api.inventory.update(item.id, { status: newStatus });
+      showToast(`Marked as ${newStatus}`);
+      load();
+    } catch (e: any) { showToast(e.message || 'Failed to update status', 'error'); }
   }
 
   const f = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -409,43 +511,7 @@ export default function InventoryPage() {
                 </div>
                 <div className="divide-y" style={{ borderColor: '#F1F5F9' }}>
                   {items.map(item => {
-                    const hasRental = !!(item as any).active_rental;
-                    const BTNS = [
-                      { 
-                        type: 'pickup',
-                        label: 'Return',
-                        color: '#F59E0B',
-                        bg: 'rgba(245,158,11,0.08)',
-                        border: 'rgba(245,158,11,0.25)',
-                        dateLabel: 'Return Date & Time'
-                      },
-                      { 
-                        type: 'delivery',
-                        label: 'New Delivery',
-                        color: '#3B82F6',
-                        bg: 'rgba(59,130,246,0.07)',
-                        border: 'rgba(59,130,246,0.2)',
-                        dateLabel: 'Delivery Date & Time'
-                      },
-                      { 
-                        type: 'replacement_delivery',
-                        label: 'Replacement Delivery',
-                        color: '#8B5CF6',
-                        bg: 'rgba(139,92,246,0.07)',
-                        border: 'rgba(139,92,246,0.2)',
-                        dateLabel: 'Replacement Date & Time'
-                      },
-                      { 
-                        type: 'replacement_receive',
-                        label: 'Replacement Receive',
-                        color: '#0D9488',
-                        bg: 'rgba(13,148,136,0.07)',
-                        border: 'rgba(13,148,136,0.2)',
-                        dateLabel: 'Replacement Date & Time'
-                      },
-                      
-                      
-                    ];
+                    const rentalId = (item as any).active_rental?.id;
                     return (
                       <div key={item.id} className="px-4 py-4">
                         {/* Laptop info row */}
@@ -469,7 +535,7 @@ export default function InventoryPage() {
                               {item.cpu}{(item as any).generation ? ` · ${(item as any).generation} Gen` : ''} · {item.ram} · {item.ssd}
                             </div>
                             {item.serial_number && <div className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>S/N: {item.serial_number}</div>}
-                            {hasRental && (
+                            {rentalId && (
                               <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>
                                 Client: {(item as any).active_rental.client?.company || (item as any).active_rental.client?.name || '—'}
                               </div>
@@ -477,17 +543,16 @@ export default function InventoryPage() {
                           </div>
                         </div>
 
-                        {/* Action buttons or pending schedule */}
-                        {hasRental ? (() => {
-                          const rentalId = (item as any).active_rental?.id;
-                          const pendingSched = (rentalScheds[rentalId] || []).find((s: any) => s.status === 'scheduled');
+                        {/* Action buttons based on laptop status */}
+                        {item.status === 'rented' ? (() => {
+                          const pendingSched = rentalId ? (rentalScheds[rentalId] || []).find((s: any) => s.status === 'scheduled') : null;
                           if (pendingSched) {
                             const meta = SCHED_META[pendingSched.type] ?? { label: pendingSched.type, color: '#64748B', bg: 'rgba(100,116,139,0.07)', border: 'rgba(100,116,139,0.2)' };
                             return (
                               <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg"
                                   style={{ background: meta.bg, border: `1px solid ${meta.border}` }}>
-                                  <Clock size={12} style={{ color: meta.color, flexShrink: 0 }} />
+                                  <Clock size={13} style={{ color: meta.color, flexShrink: 0 }} />
                                   <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label} — Scheduled</span>
                                 </div>
                                 {pendingSched.scheduled_at && (
@@ -503,24 +568,68 @@ export default function InventoryPage() {
                             );
                           }
                           return (
-                            <div className="flex flex-wrap gap-2">
-                              {BTNS.map(btn => (
-                                <button key={btn.type}
-                                  onClick={() => openSchedModal(btn.type, item)}
-                                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
-                                  style={{ background: btn.bg, color: btn.color, border: `1px solid ${btn.border}` }}>
-                                  <Truck size={11} />
-                                  {btn.label}
-                                </button>
-                              ))}
+                            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                              <button onClick={() => openExchangeModal(item)}
+                                className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                                style={{ background: 'rgba(16,185,129,0.07)', color: '#10B981', border: '1px solid rgba(16,185,129,0.2)' }}>
+                                <ArrowLeftRight size={12} />
+                                Exchange
+                              </button>
+                              <button onClick={() => openSchedModal('replacement_delivery', item)}
+                                className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                                style={{ background: 'rgba(139,92,246,0.07)', color: '#8B5CF6', border: '1px solid rgba(139,92,246,0.2)' }}>
+                                <Truck size={12} />
+                                Repl. Delivery
+                              </button>
+                              <button onClick={() => openSchedModal('replacement_receive', item)}
+                                className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                                style={{ background: 'rgba(13,148,136,0.07)', color: '#0D9488', border: '1px solid rgba(13,148,136,0.2)' }}>
+                                <Truck size={12} />
+                                Repl. Receive
+                              </button>
+                              <button onClick={() => handleMarkStatus(item, 'sold')}
+                                className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                                style={{ background: 'rgba(71,85,105,0.07)', color: '#475569', border: '1px solid rgba(71,85,105,0.2)' }}>
+                                Mark Sold
+                              </button>
+                              <button onClick={() => handleMarkStatus(item, 'lost')}
+                                className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                                style={{ background: 'rgba(239,68,68,0.07)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                Mark Lost
+                              </button>
                             </div>
                           );
-                        })() : (
-                          <div className="text-xs px-3 py-1.5 rounded-lg inline-block"
-                            style={{ background: '#F1F5F9', color: '#94A3B8', border: '1px solid #E2E8F0' }}>
-                            No active rental — schedule actions unavailable
+                        })() : item.status === 'available' ? (
+                          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                            <button onClick={() => openExchangeModal(item)}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                              style={{ background: 'rgba(16,185,129,0.07)', color: '#10B981', border: '1px solid rgba(16,185,129,0.2)' }}>
+                              <ArrowLeftRight size={12} />
+                              Exchange
+                            </button>
+                            <button onClick={() => openSchedModal('delivery', item)}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                              style={{ background: 'rgba(59,130,246,0.07)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                              <Truck size={12} />
+                              New Delivery
+                            </button>
+                            <button onClick={() => handleMarkStatus(item, 'maintenance')}
+                              className="col-span-2 sm:col-span-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                              style={{ background: 'rgba(245,158,11,0.07)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.2)' }}>
+                              Mark Maintenance
+                            </button>
+                            <button onClick={() => handleMarkStatus(item, 'sold')}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                              style={{ background: 'rgba(71,85,105,0.07)', color: '#475569', border: '1px solid rgba(71,85,105,0.2)' }}>
+                              Mark Sold
+                            </button>
+                            <button onClick={() => handleMarkStatus(item, 'lost')}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-lg transition-all"
+                              style={{ background: 'rgba(239,68,68,0.07)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                              Mark Lost
+                            </button>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     );
                   })}
@@ -556,7 +665,7 @@ export default function InventoryPage() {
               </div>
 
               {/* Filter group */}
-              <div className="flex items-center gap-0 divide-x divide-slate-200" style={{ flexShrink: 0 }}>
+              <div className="flex items-center gap-0 divide-x divide-slate-200 flex-wrap" style={{ flexShrink: 0 }}>
 
                 {/* Status filter */}
                 <div className="relative">
@@ -1114,9 +1223,169 @@ export default function InventoryPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Client selector — for delivery on available laptop */}
+            {schedModal === 'delivery' && (() => {
+              const selectedClient = clients.find(c => String(c.id) === schedForm.client_id);
+              const filteredClients = clients.filter(c => {
+                if (!clientSearch.trim()) return true;
+                const q = clientSearch.toLowerCase();
+                return (
+                  String(c.name    || '').toLowerCase().includes(q) ||
+                  String(c.company || '').toLowerCase().includes(q) ||
+                  String(c.email   || '').toLowerCase().includes(q)
+                );
+              });
+              return (
+                <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                  <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#3B82F6' }}>
+                    Client <span style={{ color: '#EF4444' }}>*</span>
+                  </div>
+                  <div className="relative">
+                    {selectedClient ? (
+                      <div className="inp flex items-center gap-2 cursor-pointer"
+                        onClick={() => { sf('client_id', ''); setClientSearch(''); setClientFocus(true); }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold truncate" style={{ color: '#252525' }}>
+                            {selectedClient.company || selectedClient.name}
+                          </div>
+                          {selectedClient.company && (
+                            <div className="text-xs" style={{ color: '#64748B' }}>{selectedClient.name}</div>
+                          )}
+                        </div>
+                        <X size={12} style={{ color: '#64748B', flexShrink: 0 }} />
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748B' }} />
+                        <input className="inp w-full" style={{ paddingLeft: '1.75rem', fontSize: 12 }}
+                          type="text" autoComplete="off"
+                          placeholder="Search by name, company, email…"
+                          value={clientSearch}
+                          onChange={e => { setClientSearch(e.target.value); setClientFocus(true); }}
+                          onFocus={() => setClientFocus(true)}
+                          onBlur={() => setTimeout(() => setClientFocus(false), 160)} />
+                      </div>
+                    )}
+                    {clientFocus && !selectedClient && (
+                      <div className="absolute left-0 right-0 z-50 rounded-xl mt-1 overflow-hidden"
+                        style={{ background: '#0D1929', border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 200, overflowY: 'auto' }}>
+                        {filteredClients.length === 0 ? (
+                          <div className="px-3 py-3 text-xs text-center" style={{ color: '#64748B' }}>
+                            {clientSearch ? `No match for "${clientSearch}"` : 'No clients found'}
+                          </div>
+                        ) : filteredClients.slice(0, 25).map((c: any, i: number) => (
+                          <button key={c.id} type="button"
+                            onMouseDown={() => { sf('client_id', String(c.id)); setClientSearch(''); setClientFocus(false); }}
+                            className="w-full text-left px-3 py-2.5 transition-colors"
+                            style={{ background: 'transparent', borderBottom: i < filteredClients.length - 1 ? '1px solid rgba(30,48,88,0.5)' : 'none' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                            <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{c.company || c.name}</div>
+                            {c.company && <div className="text-xs" style={{ color: '#94A3B8' }}>{c.name}</div>}
+                            {c.email && <div className="text-xs font-mono" style={{ color: '#475569' }}>{c.email}</div>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Monthly rental — for standalone delivery only */}
+            {schedModal === 'delivery' && !(schedItem as any)?.active_rental?.id && (
+              <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(22,163,74,0.05)', border: '1px solid rgba(22,163,74,0.2)' }}>
+                <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#16A34A' }}>
+                  Monthly Rental <span className="font-normal normal-case tracking-normal" style={{ color: '#64748B' }}>(Optional)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold" style={{ color: '#64748B' }}>₹</span>
+                  <input className="inp flex-1" type="number" min="0" step="0.01"
+                    placeholder="e.g. 5000"
+                    value={schedForm.monthly_rental}
+                    onChange={e => sf('monthly_rental', e.target.value)} />
+                  <span className="text-xs" style={{ color: '#64748B' }}>/month</span>
+                </div>
+              </div>
+            )}
+
+            {/* Replacement laptop selector — only for replacement_receive */}
+            {schedModal === 'replacement_receive' && (() => {
+              const selectedRepl = availableInvs.find(i => String(i.id) === schedForm.replacement_inventory_id);
+              const filteredRepl = availableInvs.filter(inv => {
+                if (!replSearch.trim()) return true;
+                const q = replSearch.toLowerCase();
+                return (
+                  String(inv.asset_code || '').toLowerCase().includes(q) ||
+                  String(inv.serial_number || '').toLowerCase().includes(q) ||
+                  String(inv.brand || '').toLowerCase().includes(q) ||
+                  String(inv.model_no || '').toLowerCase().includes(q)
+                );
+              });
+              return (
+                <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(13,148,136,0.05)', border: '1px solid rgba(13,148,136,0.2)' }}>
+                  <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#0D9488' }}>
+                    Replacement Laptop Being Sent
+                  </div>
+                  <div className="relative">
+                    {selectedRepl ? (
+                      <div className="inp flex items-center gap-2 cursor-pointer"
+                        onClick={() => { sf('replacement_inventory_id', ''); setReplSearch(''); setReplFocus(true); }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold truncate" style={{ color: '#252525' }}>{selectedRepl.brand} {selectedRepl.model_no}</div>
+                          <div className="text-xs flex gap-2 mt-0.5">
+                            <span className="font-mono" style={{ color: '#60A5FA' }}>{selectedRepl.asset_code}</span>
+                            {selectedRepl.serial_number && <span className="font-mono" style={{ color: '#64748B' }}>S/N: {selectedRepl.serial_number}</span>}
+                          </div>
+                        </div>
+                        <X size={12} style={{ color: '#64748B', flexShrink: 0 }} />
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748B' }} />
+                        <input className="inp w-full" style={{ paddingLeft: '1.75rem', fontSize: 12 }}
+                          type="text" autoComplete="off"
+                          placeholder="Search by serial no., asset code, brand…"
+                          value={replSearch}
+                          onChange={e => { setReplSearch(e.target.value); setReplFocus(true); }}
+                          onFocus={() => setReplFocus(true)}
+                          onBlur={() => setTimeout(() => setReplFocus(false), 160)} />
+                      </div>
+                    )}
+                    {replFocus && !selectedRepl && (
+                      <div className="absolute left-0 right-0 z-50 rounded-xl mt-1 overflow-hidden"
+                        style={{ background: '#0D1929', border: '1px solid rgba(13,148,136,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}>
+                        {filteredRepl.length === 0 ? (
+                          <div className="px-3 py-3 text-xs text-center" style={{ color: '#64748B' }}>
+                            {replSearch ? `No match for "${replSearch}"` : 'No available laptops'}
+                          </div>
+                        ) : filteredRepl.slice(0, 20).map((inv: any, i: number) => (
+                          <button key={inv.id} type="button"
+                            onMouseDown={() => { sf('replacement_inventory_id', String(inv.id)); setReplSearch(''); setReplFocus(false); }}
+                            className="w-full text-left px-3 py-2.5 transition-colors"
+                            style={{ background: 'transparent', borderBottom: i < filteredRepl.length - 1 ? '1px solid rgba(30,48,88,0.5)' : 'none' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(13,148,136,0.1)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                            <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{inv.brand} {inv.model_no}</div>
+                            <div className="flex gap-2 mt-0.5">
+                              <span className="font-mono text-xs font-bold" style={{ color: '#60A5FA' }}>{inv.asset_code}</span>
+                              {inv.serial_number && <span className="font-mono text-xs" style={{ color: '#475569' }}>S/N: {inv.serial_number}</span>}
+                            </div>
+                            <div className="text-xs mt-0.5" style={{ color: '#475569' }}>
+                              {inv.cpu}{inv.generation ? ` · ${inv.generation} Gen` : ''}{inv.ram ? ` · ${inv.ram}` : ''}{inv.ssd ? ` · ${inv.ssd}` : ''}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Date */}
-              <div className="sm:col-span-2">
+              <div className="col-span-full">
                 <FormField label={SCHED_META[schedModal].dateLabel} required>
                   <input className="inp" type="datetime-local" value={schedForm.scheduled_at}
                     min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 60000).toISOString().slice(0, 16)}
@@ -1126,7 +1395,7 @@ export default function InventoryPage() {
 
               {/* Assign to staff — admin only; staff auto-assigned to themselves */}
               {schedModal !== 'pickup' && !isStaff && (
-                <div className="sm:col-span-2">
+                <div className="col-span-full">
                   <FormField label="Assign To (Staff)" required>
                     <select className="inp" value={schedForm.assigned_to} onChange={e => sf('assigned_to', e.target.value)}>
                       <option value="">— Select staff member —</option>
@@ -1147,7 +1416,7 @@ export default function InventoryPage() {
               </FormField>
 
               {/* Location */}
-              <div className="sm:col-span-2">
+              <div className="col-span-full">
                 <FormField label="Location" required>
                   <input className="inp" value={schedForm.address} onChange={e => sf('address', e.target.value)} placeholder="Building, Street, Area, City - Pincode" />
                 </FormField>
@@ -1159,14 +1428,14 @@ export default function InventoryPage() {
               <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>
                 Employee Details <span className="font-normal normal-case tracking-normal" style={{ color: '#64748B' }}>(Optional)</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormField label="Employee Name">
                   <input className="inp" value={schedForm.employee_name} onChange={e => sf('employee_name', e.target.value)} placeholder="Employee full name" />
                 </FormField>
                 <FormField label="Employee Number">
                   <input className="inp" value={schedForm.employee_number} onChange={e => sf('employee_number', e.target.value)} placeholder="Employee ID / number" />
                 </FormField>
-                <div className="sm:col-span-2">
+                <div className="col-span-full">
                   <FormField label="Employee Address">
                     <textarea className="inp resize-none" rows={2} value={schedForm.employee_address} onChange={e => sf('employee_address', e.target.value)} placeholder="Employee's work address" />
                   </FormField>
@@ -1181,17 +1450,18 @@ export default function InventoryPage() {
               </FormField>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
               <Button variant="ghost" onClick={() => { setSchedModal(null); setSchedItem(null); }}>Cancel</Button>
               <Button
                 loading={schedSaving}
-                disabled={
-                  !schedForm.scheduled_at ||
-                  !schedForm.contact_name ||
-                  !schedForm.contact_phone ||
-                  !schedForm.address ||
-                  (!isStaff && schedModal !== 'pickup' && !schedForm.assigned_to)
-                }
+                disabled={(() => {
+                  const base = !schedForm.scheduled_at || !schedForm.contact_name || !schedForm.contact_phone || !schedForm.address;
+                  if (base) return true;
+                  const isStandaloneDelivery = schedModal === 'delivery' && !(schedItem as any)?.active_rental?.id;
+                  if (isStandaloneDelivery) return !schedForm.client_id;
+                  if (!isStaff && schedModal !== 'pickup' && !schedForm.assigned_to) return true;
+                  return false;
+                })()}
                 onClick={handleScheduleSubmit}
                 style={{ background: SCHED_META[schedModal].color }}>
                 Confirm {SCHED_META[schedModal].label}
@@ -1199,6 +1469,279 @@ export default function InventoryPage() {
             </div>
           </>
         )}
+      </Modal>
+
+      {/* ── Exchange Modal ── */}
+      <Modal open={!!exchModal} onClose={() => setExchModal(null)} title="Exchange Laptop" width="max-w-lg">
+        {exchModal && (() => {
+          const rental = (exchModal as any).active_rental;
+          const selectedExch = availableInvs.find(i => String(i.id) === exchForm.new_inventory_id);
+          const filteredExch = availableInvs.filter(inv => {
+            if (!exchSearch.trim()) return true;
+            const q = exchSearch.toLowerCase();
+            return (
+              String(inv.asset_code    || '').toLowerCase().includes(q) ||
+              String(inv.serial_number || '').toLowerCase().includes(q) ||
+              String(inv.brand         || '').toLowerCase().includes(q) ||
+              String(inv.model_no      || '').toLowerCase().includes(q)
+            );
+          });
+          return (
+            <>
+              {/* Current laptop context */}
+              <div className="mb-4 px-3 py-2.5 rounded-xl"
+                style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <div className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: '#10B981' }}>
+                  Current Laptop (Being Exchanged)
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs font-bold px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(16,185,129,0.12)', color: '#10B981' }}>
+                    {exchModal.asset_code}
+                  </code>
+                  <span className="text-sm font-semibold" style={{ color: '#272727' }}>
+                    {exchModal.brand} {exchModal.model_no}
+                  </span>
+                </div>
+                {rental?.client && (
+                  <div className="text-xs mt-1" style={{ color: '#64748B' }}>
+                    Client: {rental.client.company || rental.client.name}
+                  </div>
+                )}
+                {!rental && exchModal.status !== 'available' && (
+                  <div className="text-xs mt-1" style={{ color: '#F59E0B' }}>
+                    ⚠ No active rental found — exchange cannot be submitted
+                  </div>
+                )}
+              </div>
+
+              {/* Client selector — only for available laptops */}
+              {exchModal.status === 'available' && (() => {
+                const selCli = clients.find(c => String(c.id) === exchForm.client_id);
+                const filtCli = clients.filter(c => {
+                  if (!exchClientSearch.trim()) return true;
+                  const q = exchClientSearch.toLowerCase();
+                  return (
+                    String(c.name    || '').toLowerCase().includes(q) ||
+                    String(c.company || '').toLowerCase().includes(q) ||
+                    String(c.email   || '').toLowerCase().includes(q)
+                  );
+                });
+                return (
+                  <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)' }}>
+                    <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#3B82F6' }}>
+                      Client <span style={{ color: '#EF4444' }}>*</span>
+                    </div>
+                    <div className="relative">
+                      {selCli ? (
+                        <div className="inp flex items-center gap-2 cursor-pointer"
+                          onClick={() => { ef('client_id', ''); ef('rental_id', ''); setExchClientSearch(''); setExchClientFocus(true); setExchClientRentals([]); }}>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold truncate" style={{ color: '#202020' }}>
+                              {selCli.company || selCli.name}
+                            </div>
+                            {selCli.company && <div className="text-xs" style={{ color: '#64748B' }}>{selCli.name}</div>}
+                          </div>
+                          <X size={12} style={{ color: '#64748B', flexShrink: 0 }} />
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748B' }} />
+                          <input className="inp w-full" style={{ paddingLeft: '1.75rem', fontSize: 12 }}
+                            type="text" autoComplete="off"
+                            placeholder="Search by name, company, email…"
+                            value={exchClientSearch}
+                            onChange={e => { setExchClientSearch(e.target.value); setExchClientFocus(true); }}
+                            onFocus={() => setExchClientFocus(true)}
+                            onBlur={() => setTimeout(() => setExchClientFocus(false), 160)} />
+                        </div>
+                      )}
+                      {exchClientFocus && !selCli && (
+                        <div className="absolute left-0 right-0 z-50 rounded-xl mt-1 overflow-hidden"
+                          style={{ background: '#0D1929', border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 200, overflowY: 'auto' }}>
+                          {filtCli.length === 0 ? (
+                            <div className="px-3 py-3 text-xs text-center" style={{ color: '#64748B' }}>
+                              {exchClientSearch ? `No match for "${exchClientSearch}"` : 'No clients found'}
+                            </div>
+                          ) : filtCli.slice(0, 25).map((c: any, i: number) => (
+                            <button key={c.id} type="button"
+                              onMouseDown={() => {
+                                ef('client_id', String(c.id)); ef('rental_id', '');
+                                setExchClientSearch(''); setExchClientFocus(false);
+                                setExchClientRentals([]); setExchRentalsLoading(true);
+                                api.rentals.list({ client_id: String(c.id), status: 'active', per_page: '50' })
+                                  .then(res => setExchClientRentals(res.data?.data || res.data || []))
+                                  .catch(() => {})
+                                  .finally(() => setExchRentalsLoading(false));
+                              }}
+                              className="w-full text-left px-3 py-2.5 transition-colors"
+                              style={{ background: 'transparent', borderBottom: i < filtCli.length - 1 ? '1px solid rgba(30,48,88,0.5)' : 'none' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                              <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{c.company || c.name}</div>
+                              {c.company && <div className="text-xs" style={{ color: '#94A3B8' }}>{c.name}</div>}
+                              {c.email && <div className="text-xs font-mono" style={{ color: '#475569' }}>{c.email}</div>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Rented laptop selector — shown for available laptops after a client is chosen */}
+              {exchModal.status === 'available' && exchForm.client_id && (
+                <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.2)' }}>
+                  <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#8B5CF6' }}>
+                    Rented Laptop to Replace <span style={{ color: '#EF4444' }}>*</span>
+                  </div>
+                  {exchRentalsLoading ? (
+                    <div className="text-xs py-2" style={{ color: '#64748B' }}>Loading rentals…</div>
+                  ) : exchClientRentals.length === 0 ? (
+                    <div className="text-xs py-2" style={{ color: '#F59E0B' }}>No active rentals found for this client</div>
+                  ) : (
+                    <div className="flex flex-col gap-1.5">
+                      {exchClientRentals.map((r: any) => {
+                        const isSelected = exchForm.rental_id === String(r.id);
+                        return (
+                          <button key={r.id} type="button"
+                            onClick={() => ef('rental_id', String(r.id))}
+                            className="w-full text-left px-3 py-2 rounded-lg transition-all"
+                            style={{
+                              background: isSelected ? 'rgba(139,92,246,0.15)' : 'rgba(30,48,88,0.3)',
+                              border: `1px solid ${isSelected ? 'rgba(139,92,246,0.5)' : 'rgba(30,48,88,0.5)'}`,
+                            }}>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>
+                                  {r.inventory?.brand} {r.inventory?.model_no}
+                                </div>
+                                <div className="flex gap-2 mt-0.5">
+                                  <span className="font-mono text-xs" style={{ color: '#60A5FA' }}>{r.inventory?.asset_code}</span>
+                                  {r.inventory?.serial_number && (
+                                    <span className="font-mono text-xs" style={{ color: '#475569' }}>S/N: {r.inventory.serial_number}</span>
+                                  )}
+                                  <span className="font-mono text-xs" style={{ color: '#64748B' }}>{r.rental_no}</span>
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
+                                  style={{ background: '#8B5CF6' }}>
+                                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Replacement laptop combobox — only for rented laptops; available laptop IS the replacement */}
+              {exchModal.status === 'rented' && <div className="mb-4">
+                <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: '#64748B' }}>
+                  Replacement Laptop <span className="font-normal normal-case tracking-normal" style={{ color: '#EF4444' }}>*</span>
+                </div>
+                <div className="relative">
+                  {selectedExch ? (
+                    <div className="inp flex items-center gap-2 cursor-pointer"
+                      onClick={() => { ef('new_inventory_id', ''); setExchSearch(''); setExchFocus(true); }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate" style={{ color: '#252525' }}>
+                          {selectedExch.brand} {selectedExch.model_no}
+                        </div>
+                        <div className="text-xs flex gap-2 mt-0.5">
+                          <span className="font-mono" style={{ color: '#60A5FA' }}>{selectedExch.asset_code}</span>
+                          {selectedExch.serial_number && (
+                            <span className="font-mono" style={{ color: '#64748B' }}>S/N: {selectedExch.serial_number}</span>
+                          )}
+                        </div>
+                      </div>
+                      <X size={12} style={{ color: '#64748B', flexShrink: 0 }} />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748B' }} />
+                      <input className="inp w-full" style={{ paddingLeft: '1.75rem', fontSize: 12 }}
+                        type="text" autoComplete="off"
+                        placeholder="Search by serial no., asset code, brand…"
+                        value={exchSearch}
+                        onChange={e => { setExchSearch(e.target.value); setExchFocus(true); }}
+                        onFocus={() => setExchFocus(true)}
+                        onBlur={() => setTimeout(() => setExchFocus(false), 160)} />
+                    </div>
+                  )}
+                  {exchFocus && !selectedExch && (
+                    <div className="absolute left-0 right-0 z-50 rounded-xl mt-1 overflow-hidden"
+                      style={{ background: '#0D1929', border: '1px solid rgba(16,185,129,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 220, overflowY: 'auto' }}>
+                      {filteredExch.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-center" style={{ color: '#64748B' }}>
+                          {exchSearch ? `No match for "${exchSearch}"` : 'No available laptops'}
+                        </div>
+                      ) : filteredExch.slice(0, 20).map((inv: any, i: number) => (
+                        <button key={inv.id} type="button"
+                          onMouseDown={() => { ef('new_inventory_id', String(inv.id)); setExchSearch(''); setExchFocus(false); }}
+                          className="w-full text-left px-3 py-2.5 transition-colors"
+                          style={{ background: 'transparent', borderBottom: i < filteredExch.length - 1 ? '1px solid rgba(30,48,88,0.5)' : 'none' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(16,185,129,0.1)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                          <div className="text-sm font-semibold" style={{ color: '#F1F5F9' }}>{inv.brand} {inv.model_no}</div>
+                          <div className="flex gap-2 mt-0.5">
+                            <span className="font-mono text-xs font-bold" style={{ color: '#60A5FA' }}>{inv.asset_code}</span>
+                            {inv.serial_number && <span className="font-mono text-xs" style={{ color: '#475569' }}>S/N: {inv.serial_number}</span>}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: '#475569' }}>
+                            {inv.cpu}{inv.generation ? ` · ${inv.generation} Gen` : ''}{inv.ram ? ` · ${inv.ram}` : ''}{inv.ssd ? ` · ${inv.ssd}` : ''}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>}
+
+              {/* Exchange date */}
+              <div className="mb-4">
+                <FormField label="Exchange Date" required>
+                  <input className="inp" type="date" value={exchForm.exchange_date}
+                    onChange={e => ef('exchange_date', e.target.value)} />
+                </FormField>
+              </div>
+
+              {/* Reason + Notes */}
+              <div className="flex flex-col gap-3 mb-2">
+                <FormField label="Reason (optional)">
+                  <input className="inp" value={exchForm.reason}
+                    onChange={e => ef('reason', e.target.value)}
+                    placeholder="e.g. Hardware failure, upgrade request…" />
+                </FormField>
+                <FormField label="Notes (optional)">
+                  <textarea className="inp resize-none" rows={2} value={exchForm.notes}
+                    onChange={e => ef('notes', e.target.value)}
+                    placeholder="Additional instructions or context…" />
+                </FormField>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
+                <Button variant="ghost" onClick={() => setExchModal(null)}>Cancel</Button>
+                <Button
+                  loading={exchSaving}
+                  disabled={
+                    !exchForm.exchange_date ||
+                    (exchModal.status === 'rented' && (!rental || !exchForm.new_inventory_id)) ||
+                    (exchModal.status === 'available' && (!exchForm.client_id || !exchForm.rental_id))
+                  }
+                  onClick={handleExchangeSubmit}
+                  style={{ background: '#10B981' }}>
+                  <ArrowLeftRight size={13} style={{ marginRight: 6 }} />
+                  Confirm Exchange
+                </Button>
+              </div>
+            </>
+          );
+        })()}
       </Modal>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

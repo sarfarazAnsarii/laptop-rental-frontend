@@ -200,7 +200,7 @@ export default function UsersPage() {
                       {u.name?.charAt(0)?.toUpperCase()}
                     </div>
                     <div>
-                      <div className="font-semibold text-sm" style={{ color: '#F1F5F9' }}>{u.name}</div>
+                      <div className="font-semibold text-sm" style={{ color: '#1c1c1c' }}>{u.name}</div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <RoleIcon size={10} style={{ color: '#475569' }} />
                         <span className={`badge badge-${u.role}`}>{u.role}</span>
