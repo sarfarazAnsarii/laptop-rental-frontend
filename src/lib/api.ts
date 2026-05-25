@@ -215,20 +215,21 @@ export const api = {
     sendInvoice: (id: number, extra?: {
       subject?: string; body?: string;
       return_date?: string; deduction_amount?: number; deduction_reason?: string;
+      invoice_month?: string;
     }) =>
       request<any>(`/rentals/${id}/send-invoice`, {
         method: 'POST',
         body: JSON.stringify({ attach_invoice: true, ...extra }),
       }),
-    sendAdvanceInvoice: (id: number, advance_days = 30, extra?: Record<string, any>) =>
+    sendAdvanceInvoice: (id: number, invoiceMonth?: string, extra?: Record<string, any>) =>
       request<any>(`/rentals/${id}/send-advance-invoice`, {
         method: 'POST',
-        body: JSON.stringify({ advance_days, attach_invoice: true, ...extra }),
+        body: JSON.stringify({ invoice_month: invoiceMonth, attach_invoice: true, ...extra }),
       }),
-    sendBulkAdvanceInvoice: (bulkId: string, advance_days = 30) =>
+    sendBulkAdvanceInvoice: (bulkId: string, invoiceMonth?: string) =>
       request<any>(`/rentals/bulk/${bulkId}/send-advance-invoice`, {
         method: 'POST',
-        body: JSON.stringify({ advance_days, attach_invoice: true }),
+        body: JSON.stringify({ invoice_month: invoiceMonth, attach_invoice: true }),
       }),
     overdue: () => request<any>('/rentals/overdue'),
     calculateBilling: (data: any) =>

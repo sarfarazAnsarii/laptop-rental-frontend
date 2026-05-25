@@ -72,6 +72,8 @@ export default function RentalDetailPage() {
   const [acting, setActing] = useState<'complete' | 'cancel' | 'invoice' | 'advance' | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceMonth, setAdvanceMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [invoiceMonth,  setInvoiceMonth]  = useState(() => new Date().toISOString().slice(0, 7));
 
   // Schedules
   type ScheduleType = 'pickup' | 'delivery' | 'replacement_delivery' | 'replacement_receive' | 'event_delivery' | 'event_return';
@@ -222,8 +224,8 @@ export default function RentalDetailPage() {
   async function confirmAdvanceInvoice() {
     setActing('advance');
     try {
-      await api.rentals.sendAdvanceInvoice(id, 30);
-      showToast(`Advance invoice (30 days) sent to ${rental!.client!.email}`);
+      await api.rentals.sendAdvanceInvoice(id, advanceMonth);
+      showToast(`Advance invoice (${advanceMonth}) sent to ${rental!.client!.email}`);
       setShowAdvanceModal(false);
     } catch (e: any) {
       showToast(e.message || 'Failed to send advance invoice', 'error');
@@ -233,7 +235,7 @@ export default function RentalDetailPage() {
   async function confirmSendInvoice() {
     setActing('invoice');
     try {
-      await api.rentals.sendInvoice(id);
+      await api.rentals.sendInvoice(id, { invoice_month: invoiceMonth });
       showToast(`Invoice sent to ${rental!.client!.email}`);
       setShowInvoiceModal(false);
     } catch (e: any) {
@@ -647,6 +649,17 @@ export default function RentalDetailPage() {
               </div>
             </div>
 
+            {/* Invoice Month picker */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: '#64748B' }}>Invoice Month</label>
+              <input
+                type="month"
+                className="inp w-full"
+                value={invoiceMonth}
+                onChange={e => setInvoiceMonth(e.target.value)}
+              />
+            </div>
+
             {/* Billing summary */}
             <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
               <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest" style={{ background: '#F8FAFC', color: '#64748B', borderBottom: '1px solid #E2E8F0' }}>
@@ -690,13 +703,23 @@ export default function RentalDetailPage() {
       {/* Advance Payment Modal */}
       <Modal open={showAdvanceModal} onClose={() => setShowAdvanceModal(false)} title="Send Advance Payment Invoice" width="max-w-md">
         {rental && (() => {
-          const monthly   = Number(rental.monthly_rental) || 0;
-          const qty       = Number(rental.quantity) || 1;
-          const gstPct    = Number(rental.gst_percent) || 18;
-          const advance   = +(monthly * qty).toFixed(2);
-          const advGst    = +(advance * gstPct / 100).toFixed(2);
-          const advTotal  = +(advance + advGst).toFixed(2);
+          const monthly  = Number(rental.monthly_rental) || 0;
+          const qty      = Number(rental.quantity) || 1;
+          const gstPct   = Number(rental.gst_percent) || 18;
+          const selMonth = new Date(advanceMonth + '-01');
+          const dim      = new Date(selMonth.getFullYear(), selMonth.getMonth() + 1, 0).getDate();
+          const delivDt  = new Date((rental as any).delivery_date || rental.start_date);
+          const delivYM  = `${delivDt.getFullYear()}-${String(delivDt.getMonth()+1).padStart(2,'0')}`;
+          const pStart   = advanceMonth === delivYM ? delivDt.getDate() : 1;
+          const advDays  = dim - pStart + 1;
+          const advance  = +((monthly * qty) / dim * advDays).toFixed(2);
+          const advGst   = +(advance * gstPct / 100).toFixed(2);
+          const advTotal = +(advance + advGst).toFixed(2);
           const loc = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+          const fmtPeriodDate = (y: number, m: number, d: number) =>
+            new Date(y, m, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+          const periodStartStr = fmtPeriodDate(selMonth.getFullYear(), selMonth.getMonth(), pStart);
+          const periodEndStr   = fmtPeriodDate(selMonth.getFullYear(), selMonth.getMonth(), dim);
           return (
             <div className="space-y-4">
               {/* Client */}
@@ -713,21 +736,28 @@ export default function RentalDetailPage() {
                 </div>
               </div>
 
-              {/* Info banner */}
-              <div className="px-4 py-3 rounded-xl text-xs" style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
-                Advance payment covers <strong>30 days</strong> from delivery date ({new Date((rental as any).delivery_date || rental.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+              {/* Month picker */}
+              <div>
+                <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: '#64748B' }}>Invoice Month</label>
+                <input
+                  type="month"
+                  className="inp w-full"
+                  value={advanceMonth}
+                  onChange={e => setAdvanceMonth(e.target.value)}
+                />
               </div>
 
               {/* Billing breakdown */}
               <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
                 <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest"
                   style={{ background: '#F8FAFC', color: '#64748B', borderBottom: '1px solid #E2E8F0' }}>
-                  Advance Billing — 30 Days
+                  Advance Billing — {periodStartStr} → {periodEndStr} ({advDays} days)
                 </div>
                 <div className="divide-y divide-slate-100">
                   {[
-                    [`Monthly Rental × ${qty}`, loc(advance)],
-                    [`GST (${gstPct}%)`,         loc(advGst)],
+                    [`Monthly Rental × ${qty}`, loc(monthly * qty)],
+                    [`Prorated (${advDays}/${dim} days)`, loc(advance)],
+                    [`GST (${gstPct}%)`, loc(advGst)],
                   ].map(([label, value]) => (
                     <div key={label} className="flex items-center justify-between px-4 py-2.5 text-sm">
                       <span style={{ color: '#64748B' }}>{label}</span>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Printer, ArrowLeft, FileText, Receipt } from 'lucide-react';
+import { Printer, ArrowLeft, FileText, Receipt, Calendar } from 'lucide-react';
 import '../../../../invoice-print.css';
 
 const COMPANY = {
@@ -29,15 +29,36 @@ const fmtDate = (d?: string) =>
 const fmtAmt = (n: any) =>
   Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function billingEnd(startDate: string): string {
-  const d = new Date(startDate);
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
-}
-function billingDays(startDate: string): number {
-  const start = new Date(startDate);
-  const end   = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-  return Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+/** Compute the effective billing period and prorated amount for a rental within a given invoice month */
+function computeRow(r: any, invoiceMonth: string) {
+  const monthly   = Number(r.monthly_rental || 0);
+  const qty       = Number(r.quantity || 1);
+  const gstPct    = Number(r.gst_percent || 18);
+
+  const [yr, mo]  = invoiceMonth.split('-').map(Number);
+  const daysInMo  = new Date(yr, mo, 0).getDate();
+  const monthStart = new Date(yr, mo - 1, 1);
+  const monthEnd   = new Date(yr, mo - 1, daysInMo);
+
+  const deliveryRaw = r.delivery_date || r.start_date || '';
+  const deliveryCar = deliveryRaw ? new Date(deliveryRaw) : monthStart;
+
+  const cancelRaw  = (r.status === 'cancelled' || r.status === 'completed') && r.end_date ? r.end_date : null;
+  const cancelCar  = cancelRaw ? new Date(cancelRaw) : null;
+
+  const effStart = deliveryCar > monthStart ? deliveryCar : monthStart;
+  // Cancel day is not billed — use day before cancel date
+  const effEnd   = cancelCar && cancelCar <= monthEnd
+    ? new Date(cancelCar.getTime() - 86400000)
+    : monthEnd;
+
+  if (effStart > effEnd) {
+    return { r, monthly, qty, gstPct, startDate: effStart, endDate: effEnd, days: 0, proAmt: 0, inv: r.inventory };
+  }
+
+  const days   = Math.round((effEnd.getTime() - effStart.getTime()) / 86400000) + 1;
+  const proAmt = +(monthly * qty / daysInMo * days).toFixed(2);
+  return { r, monthly, qty, gstPct, startDate: effStart, endDate: effEnd, days, proAmt, inv: r.inventory };
 }
 
 type Mode = 'estimate' | 'invoice';
@@ -53,6 +74,7 @@ export default function BulkInvoicePage() {
   const [loading,       setLoading]       = useState(true);
   const [docNumber,     setDocNumber]     = useState<string>('');
   const [numberLoading, setNumberLoading] = useState(false);
+  const [invoiceMonth,  setInvoiceMonth]  = useState(() => new Date().toISOString().slice(0, 7));
 
   const load = useCallback(async () => {
     try {
@@ -91,23 +113,13 @@ export default function BulkInvoicePage() {
 
   const client = rentals[0]?.client;
 
-  // Per-row calculations: daily rate × actual billing days
+  // Per-row calculations using invoice_month period
   const rows = rentals.map(r => {
-    const monthly  = Number(r.monthly_rental || 0);
-    const qty      = Number(r.quantity || 1);
-    const gstPct   = Number(r.gst_percent || 18);
-    const start    = r.delivery_date || r.start_date || '';
-    const isActive = r.status === 'active' || r.status === 'overdue';
-    const endDate  = isActive ? billingEnd(start) : (r.end_date || billingEnd(start));
-    const days     = isActive ? billingDays(start) : (r.duration_days ?? billingDays(start));
-    // daily rate × billing days  (monthly × qty / days_in_month × actual_days)
-    const daysInMo  = start ? new Date(new Date(start).getFullYear(), new Date(start).getMonth() + 1, 0).getDate() : 30;
-    const calcProAmt = +(monthly * qty / daysInMo * days).toFixed(2);
-    const proAmt    = Number(r.pro_rental) || calcProAmt;
-    const inv       = r.inventory;
-    const product   = [inv?.brand, inv?.model_no].filter(Boolean).join(' ');
-    const specs     = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd].filter(Boolean).join('-');
-    return { r, monthly, qty, gstPct, start, endDate, days, proAmt, inv, product, specs };
+    const computed = computeRow(r, invoiceMonth);
+    const inv      = r.inventory;
+    const product  = [inv?.brand, inv?.model_no].filter(Boolean).join(' ');
+    const specs    = [inv?.cpu, inv?.generation ? `${inv.generation} Gen` : '', inv?.ram, inv?.ssd].filter(Boolean).join('-');
+    return { ...computed, product, specs };
   });
 
   const laptopRows  = rows.filter(({ inv }) => (inv?.type || 'laptop') !== 'desktop');
@@ -124,25 +136,34 @@ export default function BulkInvoicePage() {
   const title     = isInvoice ? 'TAX INVOICE' : 'ESTIMATION';
   const numLabel  = isInvoice ? 'Invoice No' : 'Est No';
   const docNo     = numberLoading ? '…' : (docNumber || bulkId);
-  const docDate   = fmtDate(rentals[0]?.delivery_date || rentals[0]?.created_at);
+  const docDate   = fmtDate(new Date().toISOString().split('T')[0]);
+
+  // Invoice month display
+  const [imYr, imMo] = invoiceMonth.split('-').map(Number);
+  const invoiceMonthLabel = new Date(imYr, imMo - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
   function ProductRows({ items }: { items: typeof rows }) {
     return (
       <>
-        {items.map(({ r, monthly, qty, start, endDate, days, proAmt, product, specs }) => (
-          <tr key={r.id}>
+        {items.map(({ r, monthly, qty, startDate, endDate, days, proAmt, product, specs }) => (
+          <tr key={r.id} style={r.status === 'cancelled' ? { background: '#fff5f5' } : {}}>
             <td>
               <div style={{ fontWeight: 700 }}>{product}</div>
               {specs && <div style={{ fontSize: 11, color: '#555' }}>{specs}</div>}
               {r.inventory?.asset_code && <div style={{ fontSize: 10, color: '#888' }}>Code: {r.inventory.asset_code}</div>}
+              {r.status === 'cancelled' && (
+                <div style={{ display:'inline-block',background:'#ef4444',color:'#fff',fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3,marginTop:2 }}>CANCELLED</div>
+              )}
             </td>
             <td style={{ textAlign: 'center' }}>{qty}</td>
-            <td style={{ textAlign: 'center' }}>{fmtDate(start)}</td>
-            <td style={{ textAlign: 'center' }}>{fmtDate(endDate)}</td>
-            <td style={{ textAlign: 'center' }}>{days}</td>
-            <td style={{ textAlign: 'right' }}>{fmtAmt(monthly)}</td>
-            <td style={{ textAlign: 'right' }}>{fmtAmt(proAmt)}</td>
-            <td style={{ textAlign: 'right' }}>{fmtAmt(proAmt)}</td>
+            <td style={{ textAlign: 'center' }}>{days > 0 ? fmtDate(startDate.toISOString().split('T')[0]) : '—'}</td>
+            <td style={{ textAlign: 'center' }}>{days > 0 ? fmtDate(endDate.toISOString().split('T')[0]) : '—'}</td>
+            <td style={{ textAlign: 'center' }}>{days > 0 ? days : '—'}</td>
+            <td style={{ textAlign: 'right', color: r.status === 'cancelled' ? '#999' : undefined,
+              textDecoration: r.status === 'cancelled' ? 'line-through' : undefined }}>{fmtAmt(monthly)}</td>
+            <td style={{ textAlign: 'right' }}>{days > 0 ? fmtAmt(proAmt) : '—'}</td>
+            <td style={{ textAlign: 'right', color: (r.status === 'cancelled' && days > 0) ? '#ef4444' : undefined,
+              fontWeight: (r.status === 'cancelled' && days > 0) ? 700 : undefined }}>{days > 0 ? fmtAmt(proAmt) : '—'}</td>
           </tr>
         ))}
       </>
@@ -179,6 +200,18 @@ export default function BulkInvoicePage() {
           </button>
         </div>
 
+        {/* Invoice Month picker */}
+        <div style={{ display:'flex',alignItems:'center',gap:8,marginLeft:8,background:'rgba(255,255,255,0.06)',borderRadius:8,padding:'4px 10px' }}>
+          <Calendar size={13} style={{ color:'#94A3B8' }} />
+          <span style={{ fontSize:12,color:'#94A3B8',fontWeight:600 }}>Month:</span>
+          <input
+            type="month"
+            value={invoiceMonth}
+            onChange={e => setInvoiceMonth(e.target.value)}
+            style={{ background:'transparent',border:'none',color:'#E2E8F0',fontSize:13,fontWeight:600,outline:'none',cursor:'pointer' }}
+          />
+        </div>
+
         <button onClick={() => window.print()}
           style={{ marginLeft:'auto',display:'flex',alignItems:'center',gap:6,background:'#3B82F6',color:'white',border:'none',borderRadius:8,padding:'8px 18px',fontSize:13,fontWeight:700,cursor:'pointer' }}>
           <Printer size={15} /> Print / Save as PDF
@@ -195,6 +228,7 @@ export default function BulkInvoicePage() {
           </div>
           <div style={{ textAlign:'center',flex:1 }}>
             <div style={{ fontSize:26,fontWeight:900,letterSpacing:1 }}>{title}</div>
+            <div style={{ fontSize:13,color:'#555',marginTop:3,fontWeight:600 }}>{invoiceMonthLabel}</div>
             {isInvoice && (
               <div style={{ fontSize:11,color:'#555',marginTop:2 }}>Original for Recipient</div>
             )}

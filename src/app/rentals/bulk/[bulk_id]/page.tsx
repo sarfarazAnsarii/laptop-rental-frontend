@@ -18,6 +18,30 @@ const fmt = (n: number) => '₹' + new Intl.NumberFormat('en-IN').format(Number(
 const fmtDate = (d?: string) =>
   d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
+/** Compute billing period and amounts for a rental within a given YYYY-MM invoice month */
+function computeMonthRow(r: any, month: string) {
+  const [yr, mo] = month.split('-').map(Number);
+  const dim        = new Date(yr, mo, 0).getDate();
+  const monthStart = new Date(yr, mo - 1, 1);
+  const monthEnd   = new Date(yr, mo - 1, dim);
+  const delivDate  = new Date(r.delivery_date || r.start_date || month + '-01');
+  const cancelDate = (r.status === 'cancelled' && r.end_date) ? new Date(r.end_date) : null;
+  const effStart   = delivDate > monthStart ? delivDate : monthStart;
+  // Cancel day is not billed — use day before cancel date
+  const effEnd     = cancelDate && cancelDate <= monthEnd
+    ? new Date(cancelDate.getTime() - 86400000)
+    : monthEnd;
+  const active     = effStart <= effEnd;
+  const days       = active ? Math.round((effEnd.getTime() - effStart.getTime()) / 86400000) + 1 : 0;
+  const monthly    = Number(r.monthly_rental || 0);
+  const qty        = Number(r.quantity || 1);
+  const gstPct     = Number(r.gst_percent || 18);
+  const proAmt     = active ? +(monthly * qty / dim * days).toFixed(2) : 0;
+  const gst        = +(proAmt * gstPct / 100).toFixed(2);
+  const total      = +(proAmt + gst).toFixed(2);
+  return { days, dim, effStart, effEnd, monthly, qty, gstPct, proAmt, gst, total, active };
+}
+
 /** Last day of the month that startDate falls in — the billing period end for advance/monthly */
 function billingEnd(startDate: string): string {
   const d = new Date(startDate);
@@ -75,6 +99,8 @@ export default function BulkRentalDetailPage() {
   const [acting,  setActing]  = useState<string | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceMonth, setAdvanceMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [invoiceMonth,  setInvoiceMonth]  = useState(() => new Date().toISOString().slice(0, 7));
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ payment_type: 'advance', payment_method: 'upi', amount: '', payment_date: new Date().toISOString().split('T')[0], notes: '' });
   const [paymentSaving, setPaymentSaving] = useState(false);
@@ -308,7 +334,7 @@ export default function BulkRentalDetailPage() {
   async function confirmSendInvoice() {
     setActing('invoice');
     try {
-      await Promise.all(rentals.map(r => api.rentals.sendInvoice(r.id)));
+      await Promise.all(rentals.map(r => api.rentals.sendInvoice(r.id, { invoice_month: invoiceMonth })));
       showToast(`Invoice sent to ${rentals[0]?.client?.email} (${rentals.length} rentals)`);
       setShowInvoiceModal(false);
     } catch (e: any) { showToast(e.message || 'Failed', 'error'); }
@@ -318,7 +344,7 @@ export default function BulkRentalDetailPage() {
   async function confirmSendAdvanceInvoice() {
     setActing('advance');
     try {
-      const res = await api.rentals.sendBulkAdvanceInvoice(bulkId, 30);
+      const res = await api.rentals.sendBulkAdvanceInvoice(bulkId, advanceMonth);
       const msg = res.message || `Advance invoice sent (${res.laptops_count ?? rentals.length} laptops)`;
       showToast(msg);
       setShowAdvanceModal(false);
@@ -1067,6 +1093,11 @@ export default function BulkRentalDetailPage() {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: '#64748B' }}>Invoice Month</label>
+            <input type="month" className="inp w-full" value={invoiceMonth} onChange={e => setInvoiceMonth(e.target.value)} />
+          </div>
+
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
             <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: '#F8FAFC' }}>
               <Layers size={13} style={{ color: '#7C3AED' }} />
@@ -1075,23 +1106,44 @@ export default function BulkRentalDetailPage() {
               </span>
             </div>
             <div className="divide-y divide-slate-100">
-              {rentals.map((r: any) => (
-                <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
-                  <div>
-                    <div className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
-                    <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.rental_no}</div>
-                    <div className="text-xs" style={{ color: '#94A3B8' }}>
-                      {fmtDate(r.delivery_date || r.start_date)} → {fmtDate(billingEnd(r.delivery_date || r.start_date))} · {billingDays(r.delivery_date || r.start_date)}d
+              {rentals.map((r: any) => {
+                const row = computeMonthRow(r, invoiceMonth);
+                const isCancelled = r.status === 'cancelled';
+                return (
+                  <div key={r.id} className="flex items-center justify-between px-4 py-2.5"
+                    style={{ background: isCancelled ? 'rgba(239,68,68,0.04)' : undefined }}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</span>
+                        {isCancelled && (
+                          <span style={{ background:'#EF4444',color:'#fff',fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3 }}>CANCELLED</span>
+                        )}
+                      </div>
+                      <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.rental_no}</div>
+                      <div className="text-xs" style={{ color: '#94A3B8' }}>
+                        {row.active
+                          ? <>{fmtDate(row.effStart.toISOString().split('T')[0])} → {fmtDate(row.effEnd.toISOString().split('T')[0])} · {row.days}d</>
+                          : isCancelled
+                            ? <>Returned {fmtDate(r.end_date)} — not billed this month</>
+                            : 'Not active this month'}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-semibold" style={{ color: isCancelled && row.active ? '#EF4444' : '#16A34A' }}>
+                        {row.active ? fmt(row.total) : '—'}
+                      </div>
+                      {row.active && <div className="text-xs" style={{ color: '#94A3B8' }}>GST: {fmt(row.gst)}</div>}
                     </div>
                   </div>
-                  <div className="text-sm font-semibold" style={{ color: '#16A34A' }}>{fmt(r.grand_total)}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="flex items-center justify-between px-4 py-3"
               style={{ background: '#F0FDF4', borderTop: '1px solid #BBF7D0' }}>
               <span className="text-sm font-bold" style={{ color: '#0F172A' }}>Grand Total</span>
-              <span className="text-base font-bold" style={{ color: '#16A34A' }}>{fmt(grandSum)}</span>
+              <span className="text-base font-bold" style={{ color: '#16A34A' }}>
+                {fmt(rentals.reduce((s: number, r: any) => s + computeMonthRow(r, invoiceMonth).total, 0))}
+              </span>
             </div>
           </div>
 
@@ -1124,13 +1176,9 @@ export default function BulkRentalDetailPage() {
             </div>
           </div>
 
-          <div className="p-3 rounded-xl text-sm" style={{ background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-            <div className="font-semibold mb-1" style={{ color: '#B45309' }}>Advance Payment — Billing Period</div>
-            <div className="text-xs" style={{ color: '#64748B' }}>
-              Advance invoice from <strong style={{ color: '#0F172A' }}>{fmtDate(rentals[0]?.start_date)}</strong> to{' '}
-              <strong style={{ color: '#0F172A' }}>{fmtDate(billingEnd(rentals[0]?.start_date))}</strong> will be generated
-              for each of the <strong style={{ color: '#0F172A' }}>{rentals.length} rental(s)</strong> in this bulk group.
-            </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: '#64748B' }}>Invoice Month</label>
+            <input type="month" className="inp w-full" value={advanceMonth} onChange={e => setAdvanceMonth(e.target.value)} />
           </div>
 
           <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0' }}>
@@ -1139,24 +1187,32 @@ export default function BulkRentalDetailPage() {
             </div>
             <div className="divide-y divide-slate-100">
               {rentals.map((r: any) => {
-                const days    = billingDays(r.delivery_date || r.start_date);
-                const rate    = dailyRate(Number(r.monthly_rental || 0), r.delivery_date || r.start_date);
-                const advance = +(rate * days * Number(r.quantity || 1)).toFixed(2);
-                const gst     = +(advance * Number(r.gst_percent || 18) / 100).toFixed(2);
+                const isCancelled = r.status === 'cancelled';
+                const row = computeMonthRow(r, advanceMonth);
                 return (
-                  <div key={r.id} className="flex items-center justify-between px-4 py-2.5">
+                  <div key={r.id} className="flex items-center justify-between px-4 py-2.5"
+                    style={{ background: isCancelled ? 'rgba(239,68,68,0.04)' : undefined }}>
                     <div>
-                      <div className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium" style={{ color: '#0F172A' }}>{r.inventory?.brand} {r.inventory?.model_no}</span>
+                        {isCancelled && (
+                          <span style={{ background:'#EF4444',color:'#fff',fontSize:9,fontWeight:700,padding:'1px 5px',borderRadius:3 }}>CANCELLED</span>
+                        )}
+                      </div>
                       <div className="text-xs font-mono" style={{ color: '#64748B' }}>{r.rental_no}</div>
                       <div className="text-xs" style={{ color: '#94A3B8' }}>
-                        {fmtDate(r.delivery_date)} → {fmtDate(billingEnd(r.start_date))} · {days}d
+                        {isCancelled
+                          ? <>Returned {fmtDate(r.end_date)} — not charged</>
+                          : <>{fmtDate(row.effStart.toISOString().split('T')[0])} → {fmtDate(row.effEnd.toISOString().split('T')[0])} · {row.days}d</>}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-semibold" style={{ color: '#B45309' }}>
-                        {'₹' + (advance + gst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-xs" style={{ color: '#94A3B8' }}>GST: {'₹' + gst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      {isCancelled
+                        ? <div className="text-sm" style={{ color: '#94A3B8' }}>—</div>
+                        : <>
+                            <div className="text-sm font-semibold" style={{ color: '#B45309' }}>{fmt(row.total)}</div>
+                            <div className="text-xs" style={{ color: '#94A3B8' }}>GST: {fmt(row.gst)}</div>
+                          </>}
                     </div>
                   </div>
                 );
@@ -1166,12 +1222,7 @@ export default function BulkRentalDetailPage() {
               style={{ background: '#FFFBEB', borderTop: '1px solid #FDE68A' }}>
               <span className="text-sm font-bold" style={{ color: '#0F172A' }}>Total Advance</span>
               <span className="text-base font-bold" style={{ color: '#B45309' }}>
-                {'₹' + rentals.reduce((s: number, r: any) => {
-                  const days = billingDays(r.delivery_date || r.start_date);
-                  const rate = dailyRate(Number(r.monthly_rental || 0), r.delivery_date || r.start_date);
-                  const a    = +(rate * days * Number(r.quantity || 1)).toFixed(2);
-                  return s + a + +(a * Number(r.gst_percent || 18) / 100).toFixed(2);
-                }, 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {fmt(rentals.filter((r: any) => r.status !== 'cancelled').reduce((s: number, r: any) => s + computeMonthRow(r, advanceMonth).total, 0))}
               </span>
             </div>
           </div>

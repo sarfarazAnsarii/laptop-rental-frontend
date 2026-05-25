@@ -104,6 +104,7 @@ export default function RentalsPage() {
   const [invoiceRental, setInvoiceRental] = useState<Rental | null>(null);
   const [bulkInvoiceGroup, setBulkInvoiceGroup] = useState<Rental[] | null>(null);
   const [sendingInvoice, setSendingInvoice] = useState(false);
+  const [invoiceMonth, setInvoiceMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
   // Cancel / Complete modal
   const [actionModal, setActionModal] = useState<{ rental: Rental; type: 'complete' | 'cancel' } | null>(null);
@@ -364,8 +365,12 @@ export default function RentalsPage() {
       const adjExtra = adjustment.enabled && adjustment.return_date
         ? { return_date: adjustment.return_date, deduction_amount: calcDeduction(invoiceRental, adjustment.return_date).deduction, deduction_reason: adjustment.reason || undefined }
         : {};
-      const extra = { ...(aiSubject || aiBody ? { subject: aiSubject || undefined, body: aiBody || undefined } : {}), ...adjExtra };
-      await api.rentals.sendInvoice(invoiceRental.id, Object.keys(extra).length ? extra : undefined);
+      const extra = {
+        invoice_month: invoiceMonth,
+        ...(aiSubject || aiBody ? { subject: aiSubject || undefined, body: aiBody || undefined } : {}),
+        ...adjExtra,
+      };
+      await api.rentals.sendInvoice(invoiceRental.id, extra);
       showToast(`Invoice sent to ${invoiceRental.client!.email}`);
       setInvoiceRental(null);
     } catch (e: any) {
@@ -383,8 +388,8 @@ export default function RentalsPage() {
         const adjExtra = adj?.enabled && adj?.return_date
           ? { return_date: adj.return_date, deduction_amount: calcDeduction(r, adj.return_date).deduction }
           : {};
-        const extra = { ...aiExtra, ...adjExtra };
-        return api.rentals.sendInvoice(r.id, Object.keys(extra).length ? extra : undefined);
+        const extra = { invoice_month: invoiceMonth, ...aiExtra, ...adjExtra };
+        return api.rentals.sendInvoice(r.id, extra);
       }));
       showToast(`Invoice sent to ${bulkInvoiceGroup[0].client?.email} (${bulkInvoiceGroup.length} rentals)`);
       setBulkInvoiceGroup(null);
@@ -1075,6 +1080,17 @@ export default function RentalsPage() {
                 <div className="text-sm font-bold" style={{ color: '#10B981' }}>{fmt(invoiceRental.grand_total)}</div>
                 <div className="text-xs" style={{ color: '#64748B' }}>{invoiceRental.inventory?.brand} {invoiceRental.inventory?.model_no}</div>
               </div>
+            </div>
+
+            {/* Invoice Month picker */}
+            <div>
+              <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: '#64748B' }}>Invoice Month</label>
+              <input
+                type="month"
+                className="inp w-full"
+                value={invoiceMonth}
+                onChange={e => setInvoiceMonth(e.target.value)}
+              />
             </div>
 
             {/* Payment type + billing period */}
