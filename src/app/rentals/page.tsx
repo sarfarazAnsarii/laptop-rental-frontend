@@ -877,7 +877,7 @@ export default function RentalsPage() {
                     {[
                       { label: 'Bulk / Rental' },
                       { label: 'Client' },
-                      { label: 'Laptops' },
+                      // { label: 'Laptops' },
                       { label: 'Delivery Date' },
                       { label: 'Amount ▾', right: true },
                       { label: 'Payment', center: true },
@@ -923,7 +923,7 @@ export default function RentalsPage() {
                           <div style={{ color: '#0F172A', fontWeight: 600, fontSize: 12, lineHeight: 1.3 }}>{client?.company || client?.name || '—'}</div>
                           {client?.company && <div style={{ color: '#64748B', fontSize: 10.5, lineHeight: 1.3 }}>{client.name}</div>}
                         </td>
-                        <td>
+                        {/* <td>
                           {items.map(r => (
                             <div key={r.id} style={{ marginBottom: 3 }}>
                               <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{r.inventory?.brand} {r.inventory?.model_no}</div>
@@ -935,7 +935,7 @@ export default function RentalsPage() {
                               </div>
                             </div>
                           ))}
-                        </td>
+                        </td> */}
                         <td style={{ whiteSpace: 'nowrap' }}>
                           <div style={{ color: '#334155', fontSize: 11, lineHeight: 1.4 }}>{fmtDate(items[0].delivery_date || startDate)}</div>
                           {/* <div style={{ color: '#94A3B8', fontSize: 10.5, lineHeight: 1.4 }}>→ {fmtDate(billingMonthEnd(startDate))}</div> */}

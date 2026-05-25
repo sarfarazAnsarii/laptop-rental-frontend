@@ -66,10 +66,11 @@ export const api = {
       request<any>(`/inventories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: number) =>
       request<any>(`/inventories/${id}`, { method: 'DELETE' }),
-    import: async (file: File) => {
+    import: async (file: File, defaultStatus = 'available') => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
       const body = new FormData();
       body.append('file', file);
+      body.append('default_status', defaultStatus);
       const res = await fetch(`${BASE_URL}/inventories/import`, {
         method: 'POST',
         headers: {

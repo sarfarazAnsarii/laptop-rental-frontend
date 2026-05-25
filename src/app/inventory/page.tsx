@@ -54,10 +54,11 @@ export default function InventoryPage() {
   const [imageFiles,   setImageFiles]   = useState<File[]>([]);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [editImages,   setEditImages]   = useState<string[]>([]);
-  const [showImport,   setShowImport]   = useState(false);
-  const [importFile,   setImportFile]   = useState<File | null>(null);
-  const [importing,    setImporting]    = useState(false);
-  const [importResult, setImportResult] = useState<{ success: boolean; message: string; failures?: any[] } | null>(null);
+  const [showImport,         setShowImport]         = useState(false);
+  const [importFile,         setImportFile]         = useState<File | null>(null);
+  const [importing,          setImporting]          = useState(false);
+  const [importDefaultStatus, setImportDefaultStatus] = useState('available');
+  const [importResult,       setImportResult]       = useState<{ success: boolean; message: string; failures?: any[] } | null>(null);
   const [exporting,    setExporting]    = useState(false);
 
   // Schedule state (staff actions)
@@ -395,7 +396,7 @@ export default function InventoryPage() {
     if (!importFile) return;
     setImporting(true); setImportResult(null);
     try {
-      const res = await api.inventory.import(importFile);
+      const res = await api.inventory.import(importFile, importDefaultStatus);
       setImportResult({ success: true, message: res.message }); load(); setShowImport(false);
     } catch (e: any) {
       setImportResult({ success: false, message: e.message||'Import failed', failures: e.failures });
@@ -446,7 +447,7 @@ export default function InventoryPage() {
               Export
             </Button>
             <Button variant="secondary" size="sm" icon={<Upload size={14} />}
-              onClick={() => { setShowImport(true); setImportFile(null); setImportResult(null); }}>
+              onClick={() => { setShowImport(true); setImportFile(null); setImportResult(null); setImportDefaultStatus('available'); }}>
               Import
             </Button>
             <Button size="sm" icon={<Plus size={14} />} onClick={openAdd}>Add Laptop</Button>
@@ -1152,7 +1153,7 @@ export default function InventoryPage() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold" style={{ color: '#1D4ED8' }}>Accepted: .csv, .xlsx, .xls</span>
               <button onClick={() => {
-                const csv = ['Asset No,Brand,Model Number,Serial Number,CPU,Generation,Ram,HDD,Graphics,Screen Size,Purchase Date,Purchaser,Purchasing Price,Vendor Name,Location,Notes','1001,Dell,LATITUDE-E5470,F7088H2,i5,6th,8GB,256 SSD,Integrated,15.6",15-Jan-23,Ravi Delhi,1100,Ravi Enterprises,Delhi,Good condition'].join('\n');
+                const csv = ['Asset No,Brand,Model Number,Serial Number,CPU,Generation,Ram,HDD,Graphics,Screen Size,Purchase Date,Purchaser,Purchasing Price,Vendor Name,Location,Notes,Status','1001,Dell,LATITUDE-E5470,F7088H2,i5,6th,8GB,256 SSD,Integrated,15.6",15-Jan-23,Ravi Delhi,1100,Ravi Enterprises,Delhi,Good condition,available'].join('\n');
                 const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href=url; a.download='inventory_sample.csv'; a.click(); URL.revokeObjectURL(url);
               }} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors"
@@ -1164,9 +1165,13 @@ export default function InventoryPage() {
               Required: Brand, Model Number, Serial Number, CPU, Generation, Ram, HDD, Purchase Date, Purchaser
             </p>
             <p className="text-xs mt-1" style={{ color: '#3B82F6' }}>
-              Optional: Asset No, Graphics, Screen Size, Purchasing Price, Vendor Name, Location, Notes
+              Optional: Asset No, Graphics, Screen Size, Purchasing Price, Vendor Name, Location, Notes, <strong>Status</strong>
+            </p>
+            <p className="text-xs mt-1" style={{ color: '#64748B' }}>
+              Status values: available · maintenance · sold · returned · lost
             </p>
           </div>
+
 
           <FormField label="Select File" required>
             <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl cursor-pointer transition-all"
