@@ -212,6 +212,11 @@ export const api = {
       request<any>('/rentals/partial-cancel', { method: 'POST', body: JSON.stringify(data) }),
     bulkReturn: (data: { returns: { asset_code: string; return_date: string; notes?: string }[] }) =>
       request<any>('/rentals/bulk-return', { method: 'POST', body: JSON.stringify(data) }),
+    addLaptopsToBulk: (bulkId: string, laptops: { inventory_id: number; monthly_rental: number }[], deliveryDate: string) =>
+      request<any>(`/rentals/bulk/${encodeURIComponent(bulkId)}/add-laptops`, {
+        method: 'POST',
+        body: JSON.stringify({ laptops, delivery_date: deliveryDate }),
+      }),
     sendInvoice: (id: number, extra?: {
       subject?: string; body?: string;
       return_date?: string; deduction_amount?: number; deduction_reason?: string;

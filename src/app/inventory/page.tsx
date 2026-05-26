@@ -1091,7 +1091,7 @@ export default function InventoryPage() {
           {editItem && (
             <FormField label="Status">
               <select className="inp" value={form.status} onChange={e=>f('status',e.target.value)}>
-                {['available','rented','maintenance','sold','returned'].map(s=><option key={s} value={s}>{s}</option>)}
+                {['available','rented','maintenance','sold','returned','lost'].map(s=><option key={s} value={s}>{s}</option>)}
               </select>
             </FormField>
           )}

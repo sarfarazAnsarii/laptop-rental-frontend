@@ -11,6 +11,7 @@ import {
   ChevronRight, SendHorizonal, Eye,
   Building2, Mail, Phone, FileText,
   Truck, MapPin, Contact, Plus, Scissors, ReceiptText, Wallet, ArrowLeftRight,
+  Search, Trash2, Monitor, PlusCircle,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -121,6 +122,48 @@ export default function BulkRentalDetailPage() {
   const [pcForm,             setPcForm]            = useState({ end_date: new Date().toISOString().split('T')[0], notes: '' });
   const [pcResult,           setPcResult]          = useState<any | null>(null);
   const [pcSaving,           setPcSaving]          = useState(false);
+
+  // Add Laptops modal
+  const EMPTY_ADD_LAPTOP = { inventory_id: '', monthly_rental: '', invSearch: '' };
+  const [showAddLaptopModal, setShowAddLaptopModal] = useState(false);
+  const [addLaptops,         setAddLaptops]         = useState([{ ...EMPTY_ADD_LAPTOP }]);
+  const [addDeliveryDate,    setAddDeliveryDate]    = useState('');
+  const [availableInv,       setAvailableInv]       = useState<any[]>([]);
+  const [addLaptopError,     setAddLaptopError]     = useState<string | null>(null);
+  const [addLaptopFocus,     setAddLaptopFocus]     = useState<number | null>(null);
+
+  function setAddLaptopField(idx: number, key: string, val: string) {
+    setAddLaptops(p => p.map((r, i) => i === idx ? { ...r, [key]: val } : r));
+  }
+
+  async function openAddLaptopModal() {
+    try {
+      const res = await api.inventory.available();
+      setAvailableInv(res.data?.data || res.data || []);
+    } catch { setAvailableInv([]); }
+    setAddLaptops([{ ...EMPTY_ADD_LAPTOP }]);
+    setAddDeliveryDate(new Date().toISOString().split('T')[0]);
+    setAddLaptopError(null);
+    setShowAddLaptopModal(true);
+  }
+
+  async function confirmAddLaptops() {
+    setActing('add-laptops');
+    try {
+      const payload = addLaptops.map(l => ({
+        inventory_id:   Number(l.inventory_id),
+        monthly_rental: Number(l.monthly_rental),
+      }));
+      await api.rentals.addLaptopsToBulk(bulkId, payload, addDeliveryDate);
+      showToast(`${payload.length} laptop(s) added successfully`);
+      setShowAddLaptopModal(false);
+      load();
+    } catch (e: any) {
+      setAddLaptopError(e?.message || 'Failed to add laptops');
+    } finally {
+      setActing(null);
+    }
+  }
 
   function toggleSelect(id: number) {
     setSelectedIds(prev => {
@@ -488,6 +531,9 @@ export default function BulkRentalDetailPage() {
                     setShowPaymentModal(true);
                   }}>
                   Record Payment
+                </Button>
+                <Button variant="outline" size="sm" icon={<Plus size={13} />} onClick={openAddLaptopModal}>
+                  Add Laptop
                 </Button>
               </>
             )}
@@ -1582,6 +1628,220 @@ export default function BulkRentalDetailPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Add Laptop Modal */}
+      <Modal open={showAddLaptopModal} onClose={() => setShowAddLaptopModal(false)} title="Add Laptops to Bulk Rental" width="max-w-2xl">
+        <div className="space-y-4">
+
+          {/* Context banner */}
+          <div className="p-3 rounded-xl flex items-center gap-3"
+            style={{ background: 'rgba(124,58,237,0.07)', border: '1px solid rgba(124,58,237,0.18)' }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(124,58,237,0.15)' }}>
+              <Layers size={15} style={{ color: '#7C3AED' }} />
+            </div>
+            <div className="text-sm">
+              <span className="font-semibold" style={{ color: '#0F172A' }}>
+                {rentals[0]?.client?.company || rentals[0]?.client?.name}
+              </span>
+              <span className="ml-2 text-xs" style={{ color: '#64748B' }}>
+                {bulkId} · GST {rentals[0]?.gst_percent ?? 18}%
+              </span>
+            </div>
+          </div>
+
+          {/* Delivery date */}
+          <FormField label="Delivery Date for New Laptops" required>
+            <input
+              className="inp"
+              type="date"
+              value={addDeliveryDate}
+              onChange={e => setAddDeliveryDate(e.target.value)}
+            />
+          </FormField>
+
+          {/* Laptop rows header */}
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-bold uppercase tracking-widest" style={{ color: '#475569' }}>
+              Laptops
+              <span className="ml-2 px-2 py-0.5 rounded-full font-semibold"
+                style={{ background: 'rgba(139,92,246,0.12)', color: '#A78BFA' }}>
+                {addLaptops.filter(l => l.inventory_id).length} selected
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAddLaptops(p => [...p, { ...EMPTY_ADD_LAPTOP }])}
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+              style={{ background: 'rgba(59,130,246,0.1)', color: '#3B82F6', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <PlusCircle size={13} /> Add Another
+            </button>
+          </div>
+
+          {/* Column headers (desktop) */}
+          <div className="hidden sm:grid gap-2 px-3" style={{ gridTemplateColumns: '1fr 130px 32px' }}>
+            {['Laptop', 'Monthly (₹)', ''].map(h => (
+              <div key={h} className="text-xs font-semibold" style={{ color: '#475569' }}>{h}</div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          <div className="space-y-2">
+            {addLaptops.map((row, idx) => {
+              const selectedInv  = availableInv.find((i: any) => String(i.id) === String(row.inventory_id));
+              const invSearch    = row.invSearch;
+              const isOpen       = addLaptopFocus === idx;
+              const filteredInvs = availableInv
+                .filter((inv: any) => !addLaptops.some((l, i) => i !== idx && String(l.inventory_id) === String(inv.id)))
+                .filter((inv: any) => {
+                  if (!invSearch.trim()) return true;
+                  const q = invSearch.toLowerCase();
+                  return (
+                    String(inv.asset_code   || '').toLowerCase().includes(q) ||
+                    String(inv.serial_number|| '').toLowerCase().includes(q) ||
+                    String(inv.brand        || '').toLowerCase().includes(q) ||
+                    String(inv.model_no     || '').toLowerCase().includes(q)
+                  );
+                });
+
+              const combobox = (
+                <div className="relative">
+                  {selectedInv ? (
+                    <div className="inp flex items-center gap-2 cursor-pointer select-none"
+                      onClick={() => { setAddLaptopField(idx, 'inventory_id', ''); setAddLaptopField(idx, 'invSearch', ''); setAddLaptopFocus(idx); }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate" style={{ color: '#1a1a1a' }}>
+                          {selectedInv.brand} {selectedInv.model_no}
+                        </div>
+                        <div className="text-xs flex items-center gap-2 mt-0.5">
+                          <span className="font-mono" style={{ color: '#60A5FA' }}>{selectedInv.asset_code}</span>
+                          {selectedInv.serial_number && <span className="font-mono" style={{ color: '#64748B' }}>S/N: {selectedInv.serial_number}</span>}
+                        </div>
+                      </div>
+                      <XCircle size={13} style={{ color: '#64748B', flexShrink: 0 }} />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: '#64748B' }} />
+                      <input
+                        className="inp w-full"
+                        style={{ paddingLeft: '1.75rem', fontSize: 12 }}
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Search by asset code, brand, model…"
+                        value={invSearch}
+                        onChange={e => { setAddLaptopField(idx, 'invSearch', e.target.value); setAddLaptopFocus(idx); }}
+                        onFocus={() => setAddLaptopFocus(idx)}
+                        onBlur={() => setTimeout(() => setAddLaptopFocus(p => p === idx ? null : p), 160)}
+                      />
+                    </div>
+                  )}
+                  {isOpen && !selectedInv && (
+                    <div className="absolute left-0 right-0 z-50 rounded-xl mt-1 overflow-hidden"
+                      style={{ background: '#0D1929', border: '1px solid rgba(59,130,246,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)', maxHeight: 240, overflowY: 'auto' }}>
+                      {filteredInvs.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-center" style={{ color: '#64748B' }}>
+                          {invSearch ? `No match for "${invSearch}"` : 'No available laptops'}
+                        </div>
+                      ) : (
+                        filteredInvs.slice(0, 30).map((inv: any, i: number) => (
+                          <button key={inv.id} type="button"
+                            onMouseDown={() => { setAddLaptopField(idx, 'inventory_id', String(inv.id)); setAddLaptopField(idx, 'invSearch', ''); setAddLaptopFocus(null); }}
+                            className="w-full text-left px-3 py-2.5 transition-colors"
+                            style={{ background: 'transparent', borderBottom: i < filteredInvs.length - 1 ? '1px solid rgba(30,48,88,0.5)' : 'none' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.1)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                            <div className="flex items-start gap-2">
+                              <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                                style={{ background: 'rgba(59,130,246,0.1)' }}>
+                                <Monitor size={13} style={{ color: '#3B82F6' }} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold truncate" style={{ color: '#F1F5F9' }}>
+                                  {inv.brand} {inv.model_no}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                  <span className="font-mono text-xs font-bold" style={{ color: '#60A5FA' }}>{inv.asset_code}</span>
+                                  {inv.serial_number && <span className="font-mono text-xs" style={{ color: '#475569' }}>S/N: {inv.serial_number}</span>}
+                                </div>
+                                <div className="text-xs mt-0.5" style={{ color: '#475569' }}>
+                                  {inv.cpu}{inv.generation ? ` · ${inv.generation} Gen` : ''}{inv.ram ? ` · ${inv.ram}` : ''}{inv.ssd ? ` · ${inv.ssd}` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+
+              return (
+                <div key={idx} className="rounded-xl"
+                  style={{ background: 'rgba(30,48,88,0.3)', border: '1px solid rgba(30,48,88,0.7)' }}>
+                  <div className="hidden sm:grid gap-2 items-start p-3"
+                    style={{ gridTemplateColumns: '1fr 130px 32px' }}>
+                    <div>{combobox}</div>
+                    <input className="inp" type="number" min="0"
+                      value={row.monthly_rental}
+                      onChange={e => setAddLaptopField(idx, 'monthly_rental', e.target.value)}
+                      placeholder="Monthly ₹" />
+                    <button
+                      type="button"
+                      disabled={addLaptops.length === 1}
+                      onClick={() => setAddLaptops(p => p.filter((_, i) => i !== idx))}
+                      className="flex items-center justify-center rounded-lg transition-all disabled:opacity-30"
+                      style={{ width: 32, height: 36, background: 'rgba(244,63,94,0.08)', color: '#F43F5E', border: '1px solid rgba(244,63,94,0.2)' }}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                  {/* Mobile */}
+                  <div className="sm:hidden p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold" style={{ color: '#475569' }}>Laptop {idx + 1}</span>
+                      <button
+                        type="button"
+                        disabled={addLaptops.length === 1}
+                        onClick={() => setAddLaptops(p => p.filter((_, i) => i !== idx))}
+                        className="flex items-center justify-center rounded-lg transition-all disabled:opacity-30"
+                        style={{ width: 28, height: 28, background: 'rgba(244,63,94,0.08)', color: '#F43F5E', border: '1px solid rgba(244,63,94,0.2)' }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                    <div>{combobox}</div>
+                    <div>
+                      <div className="text-xs mb-1 font-medium" style={{ color: '#64748B' }}>Monthly (₹)</div>
+                      <input className="inp w-full" type="number" min="0"
+                        value={row.monthly_rental}
+                        onChange={e => setAddLaptopField(idx, 'monthly_rental', e.target.value)}
+                        placeholder="Monthly ₹" />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Error */}
+          {addLaptopError && (
+            <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)', color: '#F43F5E' }}>
+              {addLaptopError}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-1">
+            <Button variant="ghost" onClick={() => setShowAddLaptopModal(false)}>Cancel</Button>
+            <Button
+              icon={<Plus size={14} />}
+              loading={acting === 'add-laptops'}
+              disabled={!addDeliveryDate || addLaptops.some(l => !l.inventory_id || !l.monthly_rental)}
+              onClick={confirmAddLaptops}>
+              Add Laptops
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

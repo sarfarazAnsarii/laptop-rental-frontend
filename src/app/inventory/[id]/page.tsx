@@ -30,7 +30,7 @@ const STATUS_META: Record<string, { bg: string; border: string; text: string; ac
   returned:    { bg: '#FAF5FF', border: '#E9D5FF', text: '#7C3AED', accent: '#8B5CF6', Icon: RotateCcw  },
 };
 
-const EDIT_STATUSES = ['available', 'rented', 'maintenance', 'sold', 'returned'];
+const EDIT_STATUSES = ['available', 'rented', 'maintenance', 'sold', 'returned', 'lost'];
 
 /* ── small helper components ── */
 function InfoRow({ icon, label, value, accent }: { icon: ReactNode; label: string; value: string; accent?: boolean }) {
