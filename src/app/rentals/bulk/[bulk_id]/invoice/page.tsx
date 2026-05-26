@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Printer, ArrowLeft, FileText, Receipt, Calendar } from 'lucide-react';
+import Link from 'next/link';
 import '../../../../invoice-print.css';
 
 const COMPANY = {
@@ -24,8 +25,11 @@ const TERMS = [
   'I/We hereby certify that my/our registration certificate under Goods and Service Tax Act 2017 is in force on the date on which the sale of goods specified in this TAX Invoice is made by me/us and that the transaction of sale covered by TAX Invoice has been effected by m/us and it shall be accounted for in the turnover of Movable Rental Properties while filing of the returns and the due tax, if any payable on the sale has been paid or shall be paid.',
 ];
 
-const fmtDate = (d?: string) =>
-  d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+const fmtDate = (d?: string | Date) => {
+  if (!d) return '—';
+  const dt = d instanceof Date ? d : new Date(d);
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
 const fmtAmt = (n: any) =>
   Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -156,8 +160,8 @@ export default function BulkInvoicePage() {
               )}
             </td>
             <td style={{ textAlign: 'center' }}>{qty}</td>
-            <td style={{ textAlign: 'center' }}>{days > 0 ? fmtDate(startDate.toISOString().split('T')[0]) : '—'}</td>
-            <td style={{ textAlign: 'center' }}>{days > 0 ? fmtDate(endDate.toISOString().split('T')[0]) : '—'}</td>
+            <td style={{ textAlign: 'center' }}>{days > 0 ? fmtDate(startDate) : '—'}</td>
+            <td style={{ textAlign: 'center' }}>{days > 0 ? fmtDate(endDate) : '—'}</td>
             <td style={{ textAlign: 'center' }}>{days > 0 ? days : '—'}</td>
             <td style={{ textAlign: 'right', color: r.status === 'cancelled' ? '#999' : undefined,
               textDecoration: r.status === 'cancelled' ? 'line-through' : undefined }}>{fmtAmt(monthly)}</td>
@@ -178,10 +182,11 @@ export default function BulkInvoicePage() {
         display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <button onClick={() => window.history.back()}
+        <Link
+          href={`/rentals/bulk/${bulkId}`}
           style={{ display:'flex',alignItems:'center',gap:6,background:'rgba(255,255,255,0.08)',color:'#94A3B8',border:'none',borderRadius:8,padding:'7px 14px',fontSize:13,cursor:'pointer' }}>
           <ArrowLeft size={14} /> Back
-        </button>
+        </Link>
         <span style={{ color: '#64748B', fontSize: 13 }}>{bulkId}</span>
 
         {/* Mode toggle */}
