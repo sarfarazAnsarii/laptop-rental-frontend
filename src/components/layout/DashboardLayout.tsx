@@ -95,7 +95,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#F8FAFC' }}>
+    <div className="min-h-screen" style={{ background: '#F8FAFC' }}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
